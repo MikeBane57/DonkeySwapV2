@@ -1,9 +1,8 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, ChevronUp, EyeOff, RefreshCw, Search } from 'lucide-react';
-import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
     Dialog,
     DialogContent,
@@ -25,7 +24,8 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/app' },

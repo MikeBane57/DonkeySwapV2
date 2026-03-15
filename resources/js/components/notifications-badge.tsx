@@ -23,28 +23,30 @@ export function NotificationsBadge() {
     }, []);
 
     useEffect(() => {
-        fetchUnread();
+        const run = () => { void fetchUnread(); };
+        const t = setTimeout(run, 0);
 
         let intervalId: ReturnType<typeof setInterval>;
 
         const schedulePoll = () => {
             clearInterval(intervalId);
             const ms = document.visibilityState === 'visible' ? POLL_VISIBLE_MS : POLL_HIDDEN_MS;
-            intervalId = setInterval(fetchUnread, ms);
+            intervalId = setInterval(run, ms);
         };
 
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') fetchUnread();
+            if (document.visibilityState === 'visible') run();
             schedulePoll();
         };
 
-        const handleNotificationsUpdated = () => fetchUnread();
+        const handleNotificationsUpdated = () => run();
 
         window.addEventListener('notifications-updated', handleNotificationsUpdated);
         document.addEventListener('visibilitychange', handleVisibilityChange);
         schedulePoll();
 
         return () => {
+            clearTimeout(t);
             clearInterval(intervalId);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('notifications-updated', handleNotificationsUpdated);

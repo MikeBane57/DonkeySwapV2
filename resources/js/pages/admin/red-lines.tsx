@@ -1,7 +1,6 @@
 import { Head, router, usePage } from '@inertiajs/react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -19,7 +18,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Admin', href: '/app/admin' },

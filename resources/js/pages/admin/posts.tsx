@@ -1,8 +1,9 @@
 import { Head, router, usePage } from '@inertiajs/react';
+import { ChevronDown, ChevronRight, EyeOff, Eye, Trash2 } from 'lucide-react';
 import { Fragment, useState } from 'react';
-import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -18,9 +19,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { ChevronDown, ChevronRight, EyeOff, Eye, Trash2 } from 'lucide-react';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Admin', href: '/app/admin' },
@@ -126,16 +126,6 @@ function formatDate(iso: string): string {
     return d.toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function typeToLabel(type: string): string {
-    switch (type) {
-        case 'trade': return 'Trade';
-        case 'time_trade': return 'Time trade';
-        case 'cash': return 'Giveaway';
-        case 'flight_follow': return 'Flight following';
-        default: return type;
-    }
-}
-
 function decodePaginationLabel(label: string): string {
     return label
         .replace(/&laquo;/g, '\u00AB')
@@ -146,6 +136,30 @@ function decodePaginationLabel(label: string): string {
 
 const ALL_VALUE = '__all__';
 
+function SortHeader({
+    field,
+    label,
+    sortField,
+    sortDir,
+    onToggle,
+}: {
+    field: string;
+    label: string;
+    sortField: string;
+    sortDir: string;
+    onToggle: (f: string) => void;
+}) {
+    return (
+        <button
+            type="button"
+            className="font-medium hover:underline text-left"
+            onClick={() => onToggle(field)}
+        >
+            {label}
+            {sortField === field && (sortDir === 'asc' ? ' ↑' : ' ↓')}
+        </button>
+    );
+}
 
 const TYPE_OPTIONS = [
     { value: ALL_VALUE, label: 'Any type' },
@@ -265,17 +279,6 @@ export default function AdminPosts() {
             search: filterSearch.trim() || undefined,
         });
     };
-
-    const SortHeader = ({ field, label }: { field: string; label: string }) => (
-        <button
-            type="button"
-            className="font-medium hover:underline text-left"
-            onClick={() => toggleSort(field)}
-        >
-            {label}
-            {sortField === field && (sortDir === 'asc' ? ' ↑' : ' ↓')}
-        </button>
-    );
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -441,18 +444,18 @@ export default function AdminPosts() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead className="w-8" />
-                                <TableHead><SortHeader field="posts_created_at" label="Created" /></TableHead>
+                                <TableHead><SortHeader field="posts_created_at" label="Created" sortField={sortField} sortDir={sortDir} onToggle={toggleSort} /></TableHead>
                                 <TableHead>Owner</TableHead>
                                 <TableHead>Shift</TableHead>
                                 <TableHead>Types</TableHead>
                                 <TableHead>Cash</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead>Assignee</TableHead>
-                                <TableHead className="text-right"><SortHeader field="view_count" label="Views" /></TableHead>
-                                <TableHead className="text-right"><SortHeader field="click_count" label="Clicks" /></TableHead>
+                                <TableHead className="text-right"><SortHeader field="view_count" label="Views" sortField={sortField} sortDir={sortDir} onToggle={toggleSort} /></TableHead>
+                                <TableHead className="text-right"><SortHeader field="click_count" label="Clicks" sortField={sortField} sortDir={sortDir} onToggle={toggleSort} /></TableHead>
                                 <TableHead className="text-right" title="Distinct users who have hidden this post">Hidden by</TableHead>
-                                <TableHead className="text-right" title="Times this shift has traded hands"><SortHeader field="transaction_count" label="Transactions" /></TableHead>
-                                <TableHead className="text-right"><SortHeader field="offers_count" label="Offers" /></TableHead>
+                                <TableHead className="text-right" title="Times this shift has traded hands"><SortHeader field="transaction_count" label="Transactions" sortField={sortField} sortDir={sortDir} onToggle={toggleSort} /></TableHead>
+                                <TableHead className="text-right"><SortHeader field="offers_count" label="Offers" sortField={sortField} sortDir={sortDir} onToggle={toggleSort} /></TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>

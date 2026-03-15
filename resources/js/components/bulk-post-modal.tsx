@@ -1,4 +1,6 @@
+import { Handshake, Gift, DollarSign } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -6,11 +8,9 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Handshake, Gift, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 function getCsrfToken(): string {
@@ -84,7 +84,7 @@ export function BulkPostModal({
                 const data = await res.json().catch(() => ({}));
                 setSubmitError(data.message ?? data.errors?.postings?.[0] ?? `Request failed (${res.status}). Try again.`);
             }
-        } catch (err) {
+        } catch {
             setSubmitError('Network error. Check your connection and try again.');
         } finally {
             setSaving(false);

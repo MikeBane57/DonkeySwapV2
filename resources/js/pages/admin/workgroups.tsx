@@ -1,8 +1,8 @@
 import { Head, router, usePage } from '@inertiajs/react';
+import { Plus, Pencil, Trash2, MoreHorizontal } from 'lucide-react';
 import { useState } from 'react';
-import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -10,16 +10,16 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Plus, Pencil, Trash2, MoreHorizontal } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Admin', href: '/app/admin' },

@@ -2,8 +2,6 @@ import { usePage } from '@inertiajs/react';
 import { BadgePermissionBanner } from '@/components/badge-permission-banner';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { NotificationsBadge } from '@/components/notifications-badge';
-import { UserMenuContent } from '@/components/user-menu-content';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,6 +9,8 @@ import {
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { UserMenuContent } from '@/components/user-menu-content';
 import { useInitials } from '@/hooks/use-initials';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@/types';
 

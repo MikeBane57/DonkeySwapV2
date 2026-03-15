@@ -1,4 +1,7 @@
+import { Plus } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -6,11 +9,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Plus } from 'lucide-react';
 
 function getCsrfToken(): string {
     const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);

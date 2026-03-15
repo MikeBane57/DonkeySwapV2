@@ -12,7 +12,7 @@ const STANDALONE_KEY = 'badge-permission-banner-dismissed';
  */
 export function BadgePermissionBanner() {
     const props = usePage().props as { badge_count?: number };
-    const badgeCount = Math.min(99, Math.max(0, Number(props.badge_count) ?? 0));
+    const badgeCount = Math.min(99, Math.max(0, Number(props.badge_count) || 0));
     const [dismissed, setDismissed] = useState(() => {
         if (typeof window === 'undefined') return true;
         try {

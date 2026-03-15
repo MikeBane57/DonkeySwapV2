@@ -1,11 +1,15 @@
 import { Head, router, usePage } from '@inertiajs/react';
+import { MessageSquare, Bell, Send, Trash2, ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
     Select,
     SelectContent,
@@ -13,13 +17,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { MessageSquare, Bell, Send, Trash2, ChevronDown, ChevronRight, Search } from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-    Collapsible,
-    CollapsibleContent,
-    CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+import { Textarea } from '@/components/ui/textarea';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Admin', href: '/app/admin' },
@@ -68,21 +68,6 @@ function formatDateTime(iso: string | null): string {
         return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
     } catch {
         return iso;
-    }
-}
-
-function toDatetimeLocal(iso: string | null): string {
-    if (!iso) return '';
-    try {
-        const d = new Date(iso);
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const h = String(d.getHours()).padStart(2, '0');
-        const min = String(d.getMinutes()).padStart(2, '0');
-        return `${y}-${m}-${day}T${h}:${min}`;
-    } catch {
-        return '';
     }
 }
 

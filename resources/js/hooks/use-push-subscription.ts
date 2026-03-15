@@ -103,7 +103,9 @@ export function usePushSubscription() {
     }, [vapidKey, isAuth]);
 
     useEffect(() => {
-        if (isAuth && vapidKey) subscribe();
+        const run = () => { if (isAuth && vapidKey) subscribe(); };
+        const t = setTimeout(run, 0);
+        return () => clearTimeout(t);
     }, [isAuth, vapidKey, subscribe]);
 
     useEffect(() => {

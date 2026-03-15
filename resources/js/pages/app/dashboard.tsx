@@ -1,12 +1,9 @@
-import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import FullCalendar from '@fullcalendar/react';
 import { Head, Link, usePage } from '@inertiajs/react';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { router } from '@inertiajs/react';
 import {
-    Building2,
-    Calendar,
-    Clock,
     Download,
     Handshake,
     CalendarSync,
@@ -17,24 +14,26 @@ import {
     Plus,
     ArrowLeftRight,
 } from 'lucide-react';
-import AppLayout from '@/layouts/app-layout';
-import { dashboard } from '@/routes';
-import type { BreadcrumbItem } from '@/types';
+import { CalendarOff, Trash2, AlertCircle, MessageSquare, Check } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState  } from 'react';
+import type {ReactNode} from 'react';
+import { AddShiftModal } from '@/components/add-shift-modal';
+import { BulkPostModal } from '@/components/bulk-post-modal';
+import { PostShiftModal  } from '@/components/post-shift-modal';
+import type {ExistingPost} from '@/components/post-shift-modal';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PostShiftModal, type ExistingPost } from '@/components/post-shift-modal';
-import { BulkPostModal } from '@/components/bulk-post-modal';
-import { AddShiftModal } from '@/components/add-shift-modal';
-import { router } from '@inertiajs/react';
-import { CalendarOff, Trash2, AlertCircle, MessageSquare, Check } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import AppLayout from '@/layouts/app-layout';
+import { dashboard } from '@/routes';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard() },
@@ -318,17 +317,6 @@ function formatStartTimeOnly(iso: string): string {
             hour: 'numeric',
             minute: '2-digit',
         });
-    } catch {
-        return '';
-    }
-}
-
-/** Short 24h time for calendar event label, e.g. 14 for 2pm, 6 for 6am, 14:30 for 2:30pm. */
-function formatStartTimeShort(iso: string): string {
-    try {
-        const d = new Date(iso);
-        const s = d.toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour12: false, hour: '2-digit', minute: '2-digit' });
-        return s.endsWith(':00') ? s.slice(0, 2) : s;
     } catch {
         return '';
     }
@@ -885,7 +873,9 @@ export default function AppDashboard() {
                 setTimeOffRanges((prev) => prev.filter((r) => r.id !== id));
                 if (selectedRangeId === id) setSelectedRangeId(null);
             }
-        } catch (_) {}
+        } catch {
+            // ignore
+        }
     }, [selectedRangeId]);
 
     const modalDateOnly = modalDate ? modalDate.slice(0, 10) : null;

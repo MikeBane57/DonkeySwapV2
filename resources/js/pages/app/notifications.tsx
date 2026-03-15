@@ -1,8 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Bell, Check, CheckCheck } from 'lucide-react';
 import { useCallback, useState } from 'react';
-import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -10,6 +8,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/app' },

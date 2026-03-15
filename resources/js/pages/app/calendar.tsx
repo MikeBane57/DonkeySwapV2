@@ -1,19 +1,20 @@
-import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
+import listPlugin from '@fullcalendar/list';
+import FullCalendar from '@fullcalendar/react';
+import timeGridPlugin from '@fullcalendar/timegrid';
 import { Head, usePage } from '@inertiajs/react';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DollarSign, Handshake, Plane, Repeat } from 'lucide-react';
-import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
+import { useCallback, useEffect, useMemo, useRef, useState  } from 'react';
+import type {ReactNode} from 'react';
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 const MOBILE_BREAKPOINT = 640;
 
@@ -86,7 +87,7 @@ export default function CalendarPage() {
     };
     const [events, setEvents] = useState<CalendarEvent[]>(initialEvents ?? []);
     const [modalDate, setModalDate] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [, setLoading] = useState(false);
     const [isMobile, setIsMobile] = useState(true);
     const calendarRef = useRef<FullCalendar>(null);
 
