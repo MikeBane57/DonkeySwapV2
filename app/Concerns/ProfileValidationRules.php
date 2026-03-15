@@ -10,15 +10,18 @@ trait ProfileValidationRules
     /**
      * Get the validation rules used to validate user profiles.
      *
+     * @param  array<string, mixed>|null  $input  When calling from a context that has no request (e.g. CreateNewUser), pass the input array.
      * @return array<string, array<int, \Illuminate\Contracts\Validation\Rule|array<mixed>|string>>
      */
-    protected function profileRules(?int $userId = null): array
+    protected function profileRules(?int $userId = null, ?array $input = null): array
     {
+        $resolvedInput = $input ?? (method_exists($this, 'input') ? $this->input() : []);
+
         return [
             'name' => $this->nameRules(),
             'email' => $this->emailRules($userId),
             'phone' => [
-                \Illuminate\Validation\Rule::requiredIf(fn () => in_array($this->input('preferred_contact_method'), ['call', 'text'], true)),
+                \Illuminate\Validation\Rule::requiredIf(fn () => in_array($resolvedInput['preferred_contact_method'] ?? null, ['call', 'text'], true)),
                 'nullable',
                 'string',
                 'max:50',
