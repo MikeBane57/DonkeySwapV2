@@ -11,7 +11,10 @@ jobs:
   deploy:
     name: Build and deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
     steps:
       - name: Checkout
@@ -58,7 +61,7 @@ jobs:
           protocol: ftps
           port: 21
           security: loose
-          timeout: 120000
+          timeout: 300000
           exclude: |
             **/.git*
             **/.git*/**
