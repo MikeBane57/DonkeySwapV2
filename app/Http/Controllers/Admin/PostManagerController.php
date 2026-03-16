@@ -77,8 +77,8 @@ class PostManagerController extends Controller
             $term = trim($request->input('search'));
             if ($term !== '') {
                 $query->where(function ($q) use ($term) {
-                    $q->where('position_name', 'like', '%' . $term . '%')
-                        ->orWhereHas('swapPosts.user', fn ($uq) => $uq->where('name', 'like', '%' . $term . '%')->orWhere('email', 'like', '%' . $term . '%'));
+                    $q->where('position_name', 'like', '%'.$term.'%')
+                        ->orWhereHas('swapPosts.user', fn ($uq) => $uq->where('name', 'like', '%'.$term.'%')->orWhere('email', 'like', '%'.$term.'%'));
                 });
             }
         }
@@ -90,18 +90,18 @@ class PostManagerController extends Controller
         }
         if ($sort === 'transaction_count') {
             $query->orderByRaw(
-                '(select count(*) from shift_activity_logs where shift_activity_logs.shift_id = shifts.id and shift_activity_logs.event_type = ?) ' . $dir,
+                '(select count(*) from shift_activity_logs where shift_activity_logs.shift_id = shifts.id and shift_activity_logs.event_type = ?) '.$dir,
                 ['assignee_changed']
             );
         } elseif ($sort === 'offers_count') {
             $query->orderByRaw(
-                '(select count(*) from swap_offers so inner join swap_posts sp on so.swap_post_id = sp.id where sp.shift_id = shifts.id) ' . $dir
+                '(select count(*) from swap_offers so inner join swap_posts sp on so.swap_post_id = sp.id where sp.shift_id = shifts.id) '.$dir
             );
         } elseif ($sort === 'view_count' || $sort === 'click_count') {
-            $query->withSum('swapPosts', $sort)->orderBy('swap_posts_sum_' . $sort, $dir);
+            $query->withSum('swapPosts', $sort)->orderBy('swap_posts_sum_'.$sort, $dir);
         } elseif ($sort === 'posts_created_at' || $sort === 'posts_updated_at') {
             $col = $sort === 'posts_created_at' ? 'created_at' : 'updated_at';
-            $query->withMax('swapPosts', $col)->orderBy('swap_posts_max_' . $col, $dir);
+            $query->withMax('swapPosts', $col)->orderBy('swap_posts_max_'.$col, $dir);
         } else {
             $query->withMax('swapPosts', 'created_at')->orderBy('swap_posts_max_created_at', 'desc');
         }
@@ -150,9 +150,9 @@ class PostManagerController extends Controller
                 $at = $a->created_at?->toIso8601String();
                 $actor = $a->user?->name ?? 'System';
                 $label = match ($a->event_type) {
-                    'post_created' => 'Posted as ' . $typeLabel((string) ($a->metadata['post_type'] ?? '')),
-                    'post_removed' => 'Post removed (was ' . $typeLabel((string) ($a->metadata['post_type'] ?? '')) . ')',
-                    'assignee_changed' => 'Assignee: ' . ($usersById->get($a->metadata['from_user_id'] ?? 0)?->name ?? '?') . ' → ' . ($usersById->get($a->metadata['to_user_id'] ?? 0)?->name ?? '?'),
+                    'post_created' => 'Posted as '.$typeLabel((string) ($a->metadata['post_type'] ?? '')),
+                    'post_removed' => 'Post removed (was '.$typeLabel((string) ($a->metadata['post_type'] ?? '')).')',
+                    'assignee_changed' => 'Assignee: '.($usersById->get($a->metadata['from_user_id'] ?? 0)?->name ?? '?').' → '.($usersById->get($a->metadata['to_user_id'] ?? 0)?->name ?? '?'),
                     default => $a->event_type,
                 };
                 $shiftActivitiesMap[$a->shift_id] = $shiftActivitiesMap[$a->shift_id] ?? [];
@@ -184,7 +184,7 @@ class PostManagerController extends Controller
                 return collect($p->histories ?? [])->map(fn ($h) => [
                     'at' => $h->changed_at?->toIso8601String(),
                     'event' => 'edit',
-                    'label' => 'Edit (' . $typeLabel($p->type ?? '') . '): ' . (is_array($h->changes) ? implode(', ', array_map(fn ($c) => ($c['field'] ?? '') . ' ' . json_encode($c['old'] ?? '') . ' → ' . json_encode($c['new'] ?? ''), $h->changes)) : ''),
+                    'label' => 'Edit ('.$typeLabel($p->type ?? '').'): '.(is_array($h->changes) ? implode(', ', array_map(fn ($c) => ($c['field'] ?? '').' '.json_encode($c['old'] ?? '').' → '.json_encode($c['new'] ?? ''), $h->changes)) : ''),
                     'actor' => null,
                     'changes' => $h->changes,
                 ])->all();
@@ -245,6 +245,7 @@ class PostManagerController extends Controller
                     $status = $o->status ?? '';
                     $displayStatus = $status === 'selected' ? 'accepted' : $status;
                     $shiftGoingToName = $status === 'selected' ? ($o->offeredBy?->name ?? null) : null;
+
                     return [
                         'id' => $o->id,
                         'offered_by_id' => $o->offered_by_user_id,
@@ -252,7 +253,7 @@ class PostManagerController extends Controller
                         'offered_by_email' => $o->offeredBy?->email,
                         'offered_shift_id' => $o->offered_shift_id,
                         'offered_shift_summary' => $o->offeredShift
-                            ? $o->offeredShift->position_name . ' · ' . ($o->offeredShift->start_time_utc ? $o->offeredShift->start_time_utc->format('M j, g:i A') : '')
+                            ? $o->offeredShift->position_name.' · '.($o->offeredShift->start_time_utc ? $o->offeredShift->start_time_utc->format('M j, g:i A') : '')
                             : null,
                         'status' => $displayStatus,
                         'status_raw' => $status,
@@ -304,12 +305,14 @@ class PostManagerController extends Controller
             return redirect()->back()->withErrors($validator);
         }
         $post->update(['status' => $request->input('status')]);
+
         return redirect()->back()->with('success', 'Post status updated.');
     }
 
     public function destroy(SwapPost $post): RedirectResponse
     {
         $post->delete();
+
         return redirect()->back()->with('success', 'Post removed.');
     }
 
@@ -322,12 +325,14 @@ class PostManagerController extends Controller
             return redirect()->back()->withErrors($validator);
         }
         $shift->swapPosts()->update(['status' => $request->input('status')]);
+
         return redirect()->back()->with('success', 'All posts for this shift updated.');
     }
 
     public function destroyShiftPosts(Shift $shift): RedirectResponse
     {
         $shift->swapPosts()->delete();
+
         return redirect()->back()->with('success', 'All posts for this shift removed.');
     }
 }

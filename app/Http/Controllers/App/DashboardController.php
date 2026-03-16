@@ -58,6 +58,7 @@ class DashboardController extends Controller
             ->map(function ($p) use ($now) {
                 $start = $p->shift?->start_time_utc;
                 $within24h = $start ? $now->copy()->addHours(24)->gte($start) : false;
+
                 return [
                     'id' => $p->id,
                     'type' => $p->type,
@@ -66,6 +67,7 @@ class DashboardController extends Controller
                     'flight_follow_at' => $p->flight_follow_at,
                     'notes' => $p->notes,
                     'preferred_start_times' => $p->preferred_start_times,
+                    'preferred_desk_type' => $p->preferred_desk_type,
                     'shift_id' => $p->shift_id,
                     'position_name' => $p->shift?->position_name,
                     'desk_type' => $p->shift?->desk_type,
@@ -92,6 +94,7 @@ class DashboardController extends Controller
             if (is_array($order) && count($order) > 0) {
                 return $order;
             }
+
             return $offer->offered_shift_id ? [$offer->offered_shift_id] : [];
         })->unique()->filter()->values()->all();
         $shiftsById = $offerIdsForShifts ? Shift::whereIn('id', $offerIdsForShifts)->get()->keyBy('id') : collect();
@@ -113,18 +116,19 @@ class DashboardController extends Controller
             }
             $firstOffered = $offer->offeredShift;
             $offeredShiftSummary = $firstOffered
-                ? $firstOffered->position_name . ' · ' . ($firstOffered->start_time_utc ? $firstOffered->start_time_utc->format('M j, g:i A') : '')
+                ? $firstOffered->position_name.' · '.($firstOffered->start_time_utc ? $firstOffered->start_time_utc->format('M j, g:i A') : '')
                 : null;
             $offerer = $offer->offeredBy;
             $contactMethod = $offerer?->preferred_contact_method ?? 'email';
             $contactLabel = null;
             if ($offerer) {
                 if (($contactMethod === 'call' || $contactMethod === 'text') && ! empty(trim((string) $offerer->phone))) {
-                    $contactLabel = ucfirst($contactMethod) . ': ' . trim($offerer->phone);
+                    $contactLabel = ucfirst($contactMethod).': '.trim($offerer->phone);
                 } else {
-                    $contactLabel = 'Email: ' . ($offerer->email ?? '');
+                    $contactLabel = 'Email: '.($offerer->email ?? '');
                 }
             }
+
             return [
                 'id' => $offer->id,
                 'swap_post_id' => $offer->swap_post_id,
@@ -164,28 +168,29 @@ class DashboardController extends Controller
             if ($endDt->format('H:i:s') === '00:00:00' && $endDt->toDateString() === $startDt->copy()->addDay()->toDateString()) {
                 $endDt = $startDt->copy()->endOfDay();
             }
+
             return [
-            'id' => 'shift-' . $shift->id,
-            'title' => $shift->position_name . ($openPostsByShift->has($shift->id) ? ' [Post]' : ''),
-            'start' => $startDt->toIso8601String(),
-            'end' => $endDt->toIso8601String(),
-            'extendedProps' => [
-                'shiftId' => $shift->id,
-                'position_name' => $shift->position_name,
-                'desk_type' => $shift->desk_type,
-                'regulatory' => $shift->regulatory,
-                'posts' => $openPostsByShift->get($shift->id, collect())->map(fn ($p) => [
-                    'id' => $p->id,
-                    'type' => $p->type,
-                    'cash_amount' => $p->cash_amount ? (float) $p->cash_amount : null,
-                    'flight_follow_minutes' => $p->flight_follow_minutes,
-                    'flight_follow_at' => $p->flight_follow_at,
-                    'notes' => $p->notes,
-                    'preferred_start_times' => $p->preferred_start_times,
-                ])->values()->all(),
-                'workgroup_id' => $shift->workgroup_id,
-                'workgroup_name' => $shift->workgroup?->name,
-            ],
+                'id' => 'shift-'.$shift->id,
+                'title' => $shift->position_name.($openPostsByShift->has($shift->id) ? ' [Post]' : ''),
+                'start' => $startDt->toIso8601String(),
+                'end' => $endDt->toIso8601String(),
+                'extendedProps' => [
+                    'shiftId' => $shift->id,
+                    'position_name' => $shift->position_name,
+                    'desk_type' => $shift->desk_type,
+                    'regulatory' => $shift->regulatory,
+                    'posts' => $openPostsByShift->get($shift->id, collect())->map(fn ($p) => [
+                        'id' => $p->id,
+                        'type' => $p->type,
+                        'cash_amount' => $p->cash_amount ? (float) $p->cash_amount : null,
+                        'flight_follow_minutes' => $p->flight_follow_minutes,
+                        'flight_follow_at' => $p->flight_follow_at,
+                        'notes' => $p->notes,
+                        'preferred_start_times' => $p->preferred_start_times,
+                    ])->values()->all(),
+                    'workgroup_id' => $shift->workgroup_id,
+                    'workgroup_name' => $shift->workgroup?->name,
+                ],
             ];
         });
 
@@ -204,6 +209,7 @@ class DashboardController extends Controller
             for ($d = $start->copy()->startOfDay(); $d->lte($end); $d->addDay()) {
                 $out[] = $d->format('Y-m-d');
             }
+
             return $out;
         }))->unique()->count();
         $daysOffThisMonth = $daysInMonth - $uniqueDaysWithShift;
@@ -229,6 +235,7 @@ class DashboardController extends Controller
             ->get()
             ->map(function ($wg) {
                 $positions = \App\Models\WorkgroupPositionRange::expandRangesToPositions($wg->positionRanges);
+
                 return [
                     'id' => $wg->id,
                     'name' => $wg->name,
@@ -238,6 +245,7 @@ class DashboardController extends Controller
                                 ? $t->start_time->format('H:i')
                                 : substr((string) ($t->getRawOriginal('start_time') ?? ''), 0, 5);
                             $parts = explode(':', $raw);
+
                             return sprintf('%02d:%02d', (int) ($parts[0] ?? 0), (int) ($parts[1] ?? 0));
                         })
                         ->values()

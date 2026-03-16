@@ -77,10 +77,12 @@ class AppNotification extends Model
         $message = $data['message'] ?? $this->defaultPushMessage($this->type);
         if ($this->type === 'admin_message') {
             $title = $data['title'] ?? 'Message from admin';
+
             return [$title, $data['body'] ?? $message];
         }
         $title = config('app.name', 'Donkey Swap');
         $body = $this->getPushBodyWithContext();
+
         return [$title, $body ?? $message];
     }
 
@@ -102,6 +104,7 @@ class AppNotification extends Model
                         'flight_follow' => 'flight follow',
                         default => 'post',
                     };
+
                     return "{$name} responded to your {$postType} post — action required.";
                 }
             }
@@ -112,6 +115,7 @@ class AppNotification extends Model
         if ($this->type === 'swap_rejected') {
             return 'Your offer was declined.';
         }
+
         return null;
     }
 

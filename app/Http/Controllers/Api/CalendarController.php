@@ -75,13 +75,14 @@ class CalendarController extends Controller
                 'flight_follow_at' => $p->flight_follow_at,
                 'notes' => $p->notes,
                 'preferred_start_times' => $p->preferred_start_times,
+                'preferred_desk_type' => $p->preferred_desk_type,
             ])->values()->all();
             $hasPost = count($posts) > 0;
             $actionRequiredOfferId = $actionRequiredByShiftId[$shift->id] ?? null;
             $newShiftNotification = $newShiftNotificationByShiftId->get($shift->id);
             $events[] = [
-                'id' => 'shift-' . $shift->id,
-                'title' => $shift->position_name . ($hasPost ? ' [Post]' : ''),
+                'id' => 'shift-'.$shift->id,
+                'title' => $shift->position_name.($hasPost ? ' [Post]' : ''),
                 'start' => $shiftStart->toIso8601String(),
                 'end' => $shiftEnd->toIso8601String(),
                 'extendedProps' => [
@@ -125,8 +126,8 @@ class CalendarController extends Controller
                     $shiftEnd = $shiftStart->copy()->endOfDay();
                 }
                 $events[] = [
-                    'id' => 'pending-incoming-' . $shift->id,
-                    'title' => $shift->position_name . ' (pending)',
+                    'id' => 'pending-incoming-'.$shift->id,
+                    'title' => $shift->position_name.' (pending)',
                     'start' => $shiftStart->toIso8601String(),
                     'end' => $shiftEnd->toIso8601String(),
                     'extendedProps' => [

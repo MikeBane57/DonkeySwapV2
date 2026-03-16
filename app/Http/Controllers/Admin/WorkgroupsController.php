@@ -6,8 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreWorkgroupRequest;
 use App\Http\Requests\Admin\UpdateWorkgroupRequest;
 use App\Models\Workgroup;
-use App\Models\WorkgroupDeskType;
-use App\Models\WorkgroupPositionRange;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -36,6 +34,7 @@ class WorkgroupsController extends Controller
         $this->syncQualifications($wg, $request->input('qualifications', []));
         $this->syncDeskTypes($wg, $request->input('desk_types', []));
         $this->syncPositionRanges($wg, $request->input('position_ranges', []));
+
         return redirect()->route('admin.workgroups')->with('success', 'Workgroup created.');
     }
 
@@ -52,12 +51,14 @@ class WorkgroupsController extends Controller
         $this->syncQualifications($workgroup, $request->input('qualifications', []));
         $this->syncDeskTypes($workgroup, $request->input('desk_types', []));
         $this->syncPositionRanges($workgroup, $request->input('position_ranges', []));
+
         return redirect()->route('admin.workgroups')->with('success', 'Workgroup updated.');
     }
 
     public function destroy(Workgroup $workgroup): RedirectResponse
     {
         $workgroup->delete();
+
         return redirect()->route('admin.workgroups')->with('success', 'Workgroup deleted.');
     }
 
@@ -141,6 +142,7 @@ class WorkgroupsController extends Controller
                 ->sortBy(function ($t) {
                     $raw = is_object($t->start_time) ? $t->start_time->format('H:i') : substr((string) ($t->getRawOriginal('start_time') ?? ''), 0, 5);
                     $parts = explode(':', $raw);
+
                     return sprintf('%02d:%02d', (int) ($parts[0] ?? 0), (int) ($parts[1] ?? 0));
                 })
                 ->values()

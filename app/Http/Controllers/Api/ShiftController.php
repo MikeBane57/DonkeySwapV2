@@ -35,20 +35,21 @@ class ShiftController extends Controller
             return response()->json(['message' => 'You do not belong to this workgroup.'], 403);
         }
 
-        $start = Carbon::parse($request->input('start_date') . ' ' . $request->input('start_time'), 'America/Chicago')->utc();
+        $start = Carbon::parse($request->input('start_date').' '.$request->input('start_time'), 'America/Chicago')->utc();
 
         $endDate = $request->input('end_date');
         $endTime = $request->input('end_time');
         if ($endDate && $endTime) {
-            $end = Carbon::parse($endDate . ' ' . $endTime, 'America/Chicago')->utc();
+            $end = Carbon::parse($endDate.' '.$endTime, 'America/Chicago')->utc();
             if ($end->lte($start)) {
                 return response()->json(['errors' => ['end_time' => ['End must be after start.']]], 422);
             }
         } else {
             $workgroup = Workgroup::with('allowedStartTimes')->find($workgroupId);
-            $startTimeNormalized = Carbon::parse('1970-01-01 ' . $request->input('start_time'))->format('H:i');
+            $startTimeNormalized = Carbon::parse('1970-01-01 '.$request->input('start_time'))->format('H:i');
             $allowed = $workgroup?->allowedStartTimes->first(function ($t) use ($startTimeNormalized) {
                 $tStr = $t->start_time instanceof Carbon ? $t->start_time->format('H:i') : substr((string) ($t->getRawOriginal('start_time') ?? ''), 0, 5);
+
                 return $tStr === $startTimeNormalized;
             });
             if (! $allowed) {
@@ -81,6 +82,7 @@ class ShiftController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         $shift->delete();
+
         return response()->json(['ok' => true]);
     }
 }

@@ -35,6 +35,7 @@ export type ExistingPost = {
     flight_follow_at?: string | null;
     notes?: string | null;
     preferred_start_times?: string[] | null;
+    preferred_desk_type?: string | null;
 };
 
 const DESK_TYPE_LABELS: Record<string, string> = {
@@ -108,6 +109,7 @@ export function PostShiftModal({
     const [preferredStartTimes, setPreferredStartTimes] = useState<string[]>(
         () => (existingTimeTrade?.preferred_start_times && Array.isArray(existingTimeTrade.preferred_start_times)) ? [...existingTimeTrade.preferred_start_times] : []
     );
+    const [preferredDeskType, setPreferredDeskType] = useState<string | ''>(existingTimeTrade?.preferred_desk_type ?? '');
     const [notes, setNotes] = useState(
         existingTrade?.notes ?? existingCash?.notes ?? existingFF?.notes ?? existingTimeTrade?.notes ?? ''
     );
@@ -135,7 +137,8 @@ export function PostShiftModal({
         } else {
             setPreferredStartTimes([]);
         }
-    }, [open, existingTimeTrade?.preferred_start_times]);
+        setPreferredDeskType(existingTimeTrade?.preferred_desk_type ?? '');
+    }, [open, existingTimeTrade?.preferred_start_times, existingTimeTrade?.preferred_desk_type]);
 
     useEffect(() => {
         if (!open || !shift.shiftId) return;
@@ -227,7 +230,7 @@ export function PostShiftModal({
         e.preventDefault();
         if (!postAsTrade && !postAsCash && !postAsFF && !postAsTimeTrade) return;
         setSaving(true);
-        const postings: { type: string; cash_amount?: number; flight_follow_minutes?: number; notes?: string }[] = [];
+        const postings: { type: string; cash_amount?: number; flight_follow_minutes?: number; notes?: string; preferred_start_times?: string[]; preferred_desk_type?: string }[] = [];
         if (postAsTrade) {
             postings.push({
                 type: 'trade',
@@ -241,6 +244,7 @@ export function PostShiftModal({
                 cash_amount: timeTradeCash ? parseFloat(timeTradeCash) : undefined,
                 notes: notes || undefined,
                 preferred_start_times: preferredStartTimes.length > 0 ? preferredStartTimes : undefined,
+                preferred_desk_type: preferredDeskType || undefined,
             });
         }
         if (postAsCash) {
@@ -584,6 +588,30 @@ export function PostShiftModal({
                                                         )}
                                                     </div>
                                                 )}
+                                                <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+                                                    <Label className="text-xs">Preferred desk type (optional)</Label>
+                                                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                                                        If you&apos;re hoping to move to a different desk, pick it here. Leave blank for any desk.
+                                                    </p>
+                                                    <select
+                                                        value={preferredDeskType}
+                                                        onChange={(e) => setPreferredDeskType(e.target.value)}
+                                                        className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                                                    >
+                                                        <option value="">Any desk type</option>
+                                                        {(() => {
+                                                            const wg = shift.workgroup_id != null
+                                                                ? workgroups.find((w) => w.id === shift.workgroup_id)
+                                                                : null;
+                                                            const deskTypes = wg?.desk_types ?? [];
+                                                            return deskTypes.map((d) => (
+                                                                <option key={d.code} value={d.code}>
+                                                                    {d.label}
+                                                                </option>
+                                                            ));
+                                                        })()}
+                                                    </select>
+                                                </div>
                                             </>
                                         )}
                                     </div>

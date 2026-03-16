@@ -56,7 +56,7 @@ class AvailableController extends Controller
             $query->whereHas('shift', fn ($q) => $q->where('desk_type', $request->input('desk_type')));
         }
         if ($request->filled('desk_search') && trim($request->input('desk_search')) !== '') {
-            $search = '%' . trim($request->input('desk_search')) . '%';
+            $search = '%'.trim($request->input('desk_search')).'%';
             $query->whereHas('shift', fn ($q) => $q->where('position_name', 'like', $search));
         }
         if ($request->filled('min_cash') && is_numeric($request->input('min_cash'))) {
@@ -231,6 +231,8 @@ class AvailableController extends Controller
                 'flight_follow_minutes' => $post->flight_follow_minutes,
                 'flight_follow_at' => $post->flight_follow_at,
                 'notes' => $post->notes,
+                'preferred_start_times' => $post->preferred_start_times,
+                'preferred_desk_type' => $post->preferred_desk_type,
                 'eligible' => $eligible,
                 'ineligible_reason' => $ineligibleReason,
                 'ineligible_reason_detail' => $ineligibleReasonDetail ?? null,

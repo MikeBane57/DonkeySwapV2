@@ -69,6 +69,7 @@ class PreferencesController extends Controller
                 $label = $labels[$value] ?? $allOptionsMap->get($value)['label'] ?? $value;
                 $options[] = ['value' => $value, 'label' => $label];
             }
+
             return [
                 'workgroup_id' => $row['workgroup_id'],
                 'workgroup_name' => $row['workgroup_name'],
@@ -159,6 +160,7 @@ class PreferencesController extends Controller
                 return sprintf('%02d:%02d:00', $h, $m);
             }
         }
+
         return null;
     }
 }

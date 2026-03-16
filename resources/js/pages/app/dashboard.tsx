@@ -91,6 +91,7 @@ type ActivePost = {
     workgroup_id?: number | null;
     workgroup_name?: string | null;
     preferred_start_times?: string[] | null;
+    preferred_desk_type?: string | null;
     start_time_utc?: string;
     end_time_utc?: string;
     within_24h?: boolean;
@@ -205,7 +206,7 @@ type CalendarEvent = {
         position_name?: string;
         desk_type?: string | null;
         regulatory?: boolean;
-        posts?: { id: number; type: string; cash_amount?: number | null; flight_follow_minutes?: number | null; flight_follow_at?: string | null; notes?: string | null; preferred_start_times?: string[] | null }[];
+        posts?: { id: number; type: string; cash_amount?: number | null; flight_follow_minutes?: number | null; flight_follow_at?: string | null; notes?: string | null; preferred_start_times?: string[] | null; preferred_desk_type?: string | null }[];
         workgroup_id?: number | null;
         workgroup_name?: string;
         /** True when this is a shift the user would receive from a pending offer (not yet committed). */
@@ -1266,6 +1267,7 @@ export default function AppDashboard() {
                                                                                     flight_follow_at: p.flight_follow_at ?? null,
                                                                                     notes: p.notes ?? null,
                                                                                     preferred_start_times: p.preferred_start_times ?? null,
+                                                                                    preferred_desk_type: p.preferred_desk_type ?? null,
                                                                                 })),
                                                                             })
                                                                         }
@@ -1390,7 +1392,7 @@ export default function AppDashboard() {
                                                             {group.posts.map((p) => (
                                                                 <span
                                                                     key={p.id}
-                                                                    className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                                                    className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
                                                                         (p.type === 'trade' || p.type === 'time_trade')
                                                                             ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
                                                                             : p.type === 'cash'
@@ -1398,7 +1400,13 @@ export default function AppDashboard() {
                                                                             : 'bg-purple-500/20 text-purple-700 dark:text-purple-300'
                                                                     }`}
                                                                 >
-                                                                    {p.type === 'trade' ? 'Trade' : p.type === 'time_trade' ? 'Time trade' : p.type === 'cash' ? 'Giveaway' : 'Flight following'}
+                                                                    {p.type === 'trade'
+                                                                        ? 'Trade'
+                                                                        : p.type === 'time_trade'
+                                                                        ? 'Time trade'
+                                                                        : p.type === 'cash'
+                                                                        ? 'Giveaway'
+                                                                        : 'Flight following'}
                                                                 </span>
                                                             ))}
                                                             {group.within_24h && (
@@ -1407,6 +1415,29 @@ export default function AppDashboard() {
                                                                 </span>
                                                             )}
                                                         </div>
+                                                        {/* Time-trade preferences (trying for …) */}
+                                                        {group.posts.some((p) => p.type === 'time_trade' && (p.preferred_start_times?.length || p.preferred_desk_type)) && (
+                                                            <div className="mt-1 space-y-0.5 text-[10px] text-muted-foreground">
+                                                                {group.posts
+                                                                    .filter((p) => p.type === 'time_trade')
+                                                                    .map((p) => {
+                                                                        const parts: string[] = [];
+                                                                        if (p.preferred_start_times?.length) {
+                                                                            parts.push(p.preferred_start_times.join(', '));
+                                                                        }
+                                                                        if (p.preferred_desk_type) {
+                                                                            const deskLabel = getDeskTypeLabel(userWorkgroups, group.workgroup_id ?? null, p.preferred_desk_type);
+                                                                            if (deskLabel) parts.push(deskLabel);
+                                                                        }
+                                                                        if (parts.length === 0) return null;
+                                                                        return (
+                                                                            <div key={p.id}>
+                                                                                <span className="font-medium">Trying for:</span> {parts.join(' · ')}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div className="flex shrink-0 items-start gap-1">
                                                         <Button
@@ -1430,6 +1461,7 @@ export default function AppDashboard() {
                                                                         flight_follow_at: (p as { flight_follow_at?: string | null }).flight_follow_at ?? null,
                                                                         notes: p.notes ?? null,
                                                                         preferred_start_times: p.preferred_start_times ?? null,
+                                                                        preferred_desk_type: p.preferred_desk_type ?? null,
                                                                     })),
                                                                 })
                                                             }

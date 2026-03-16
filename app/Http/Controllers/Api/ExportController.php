@@ -30,13 +30,13 @@ class ExportController extends Controller
         foreach ($shifts as $shift) {
             $start = $shift->start_time_utc->format('Ymd\THis\Z');
             $end = $shift->end_time_utc->format('Ymd\THis\Z');
-            $summary = 'Shift: ' . $shift->position_name . ($shift->workgroup ? ' (' . $shift->workgroup->name . ')' : '');
+            $summary = 'Shift: '.$shift->position_name.($shift->workgroup ? ' ('.$shift->workgroup->name.')' : '');
             $lines[] = 'BEGIN:VEVENT';
-            $lines[] = 'UID:shift-' . $shift->id . '@donkey-swap';
-            $lines[] = 'DTSTAMP:' . now()->utc()->format('Ymd\THis\Z');
-            $lines[] = 'DTSTART:' . $start;
-            $lines[] = 'DTEND:' . $end;
-            $lines[] = 'SUMMARY:' . $this->escapeIcsText($summary);
+            $lines[] = 'UID:shift-'.$shift->id.'@donkey-swap';
+            $lines[] = 'DTSTAMP:'.now()->utc()->format('Ymd\THis\Z');
+            $lines[] = 'DTSTART:'.$start;
+            $lines[] = 'DTEND:'.$end;
+            $lines[] = 'SUMMARY:'.$this->escapeIcsText($summary);
             $lines[] = 'END:VEVENT';
         }
 

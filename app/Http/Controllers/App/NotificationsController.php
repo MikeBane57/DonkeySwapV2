@@ -35,6 +35,7 @@ class NotificationsController extends Controller
                     if (config('app.debug')) {
                         throw $e;
                     }
+
                     return null;
                 }
             })->filter()->values()->all();
@@ -90,7 +91,7 @@ class NotificationsController extends Controller
                 $otherName = $offer->offeredBy?->name ?? 'Someone';
                 $offeredShift = $offer->offeredShift;
                 $offeredLabel = $offeredShift
-                    ? $offeredShift->position_name . ' · ' . ($offeredShift->start_time_utc ? $offeredShift->start_time_utc->format('M j, g:i A') : '')
+                    ? $offeredShift->position_name.' · '.($offeredShift->start_time_utc ? $offeredShift->start_time_utc->format('M j, g:i A') : '')
                     : 'a shift';
                 $out['outcome_summary'] = [
                     'offer_id' => $offer->id,

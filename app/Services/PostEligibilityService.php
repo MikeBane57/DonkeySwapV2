@@ -107,6 +107,7 @@ class PostEligibilityService
                 }
             }
         }
+
         return array_keys($qualified);
     }
 
@@ -151,6 +152,7 @@ class PostEligibilityService
                 ];
             }
         }
+
         return $result;
     }
 

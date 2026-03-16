@@ -23,6 +23,8 @@ function deployVersionPlugin() {
             const version = {
                 commit,
                 date: new Date().toISOString(),
+                // Prefer a CI-provided app version (e.g. 2.1.123); fallback to commit hash.
+                version: process.env.VITE_APP_VERSION ?? commit,
             };
             fs.writeFileSync(
                 path.join(outDir, 'version.json'),

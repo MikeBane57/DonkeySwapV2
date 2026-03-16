@@ -116,6 +116,8 @@ jobs:
           cache: "npm"
 
       - name: Build frontend
+        env:
+          VITE_APP_VERSION: 2.1.${{ github.run_number }}
         run: npm ci && npm run build
 
       - name: Upload public/build via FTP

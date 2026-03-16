@@ -36,6 +36,7 @@ class NotificationsController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         $notification->update(['read_at' => now()]);
+
         return response()->json(['ok' => true]);
     }
 
@@ -47,6 +48,7 @@ class NotificationsController extends Controller
         AppNotification::where('user_id', $request->user()->id)
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
+
         return response()->json(['ok' => true]);
     }
 }

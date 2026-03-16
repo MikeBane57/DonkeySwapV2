@@ -69,6 +69,7 @@ class UserManagerController extends Controller
         }
         $user->workgroups()->sync($sync);
         $this->syncWorkgroupQualifications($user, $workgroups);
+
         return redirect()->route('admin.users')->with('success', 'User created.');
     }
 
@@ -105,6 +106,7 @@ class UserManagerController extends Controller
         }
         $user->workgroups()->sync($sync);
         $this->syncWorkgroupQualifications($user, $workgroups);
+
         return redirect()->route('admin.users')->with('success', 'User updated.');
     }
 

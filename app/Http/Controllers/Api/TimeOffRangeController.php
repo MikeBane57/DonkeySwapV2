@@ -61,6 +61,7 @@ class TimeOffRangeController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         $userTimeOffRange->delete();
+
         return response()->json(['ok' => true]);
     }
 }

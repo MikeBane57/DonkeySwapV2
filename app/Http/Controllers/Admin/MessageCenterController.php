@@ -135,7 +135,8 @@ class MessageCenterController extends Controller
                 'active_at_end' => $activeAtEnd,
             ]);
             $message->recipients()->sync($recipientIds);
-            return redirect()->back()->with('success', 'Banner message sent to ' . count($recipientIds) . ' recipient(s). It will show on their dashboard until they acknowledge it.');
+
+            return redirect()->back()->with('success', 'Banner message sent to '.count($recipientIds).' recipient(s). It will show on their dashboard until they acknowledge it.');
         }
 
         $batch = AdminNotificationBatch::create([
@@ -153,12 +154,14 @@ class MessageCenterController extends Controller
                 'admin_notification_batch_id' => $batch->id,
             ]);
         }
-        return redirect()->back()->with('success', 'Notification sent to ' . count($recipientIds) . ' recipient(s). It will appear in their notification bell.');
+
+        return redirect()->back()->with('success', 'Notification sent to '.count($recipientIds).' recipient(s). It will appear in their notification bell.');
     }
 
     public function destroyBanner(AdminBannerMessage $banner): RedirectResponse
     {
         $banner->delete();
+
         return redirect()->back()->with('success', 'Banner message deleted.');
     }
 
@@ -166,6 +169,7 @@ class MessageCenterController extends Controller
     {
         $batch->notifications()->delete();
         $batch->delete();
+
         return redirect()->back()->with('success', 'Notification batch deleted.');
     }
 
@@ -177,6 +181,7 @@ class MessageCenterController extends Controller
         if ($m->active_at_end && $now->gt($m->active_at_end)) {
             return 'expired';
         }
+
         return 'active';
     }
 
@@ -188,6 +193,7 @@ class MessageCenterController extends Controller
         if ($b->active_at_end && $now->gt($b->active_at_end)) {
             return 'expired';
         }
+
         return 'active';
     }
 
@@ -204,6 +210,7 @@ class MessageCenterController extends Controller
         if ($targetType === 'individual' && $targetUserIds !== []) {
             return array_values(array_unique(array_map('intval', $targetUserIds)));
         }
+
         return [];
     }
 }

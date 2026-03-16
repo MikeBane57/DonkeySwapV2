@@ -34,6 +34,7 @@ class RedLinesController extends Controller
             'workgroup_id' => $request->input('workgroup_id'),
             'red_line_position' => $request->input('red_line_position'),
         ]);
+
         return redirect()->route('admin.red-lines')->with('success', 'Red line created.');
     }
 
@@ -53,12 +54,14 @@ class RedLinesController extends Controller
                 }
             }
         }
+
         return redirect()->route('admin.red-lines')->with('success', 'Red line updated.');
     }
 
     public function destroy(ClassificationRedLine $red_line): RedirectResponse
     {
         $red_line->delete();
+
         return redirect()->route('admin.red-lines')->with('success', 'Red line deleted.');
     }
 
@@ -79,6 +82,7 @@ class RedLinesController extends Controller
             $num = $u->pivot->red_line_seniority_number;
             $date = $u->pivot->classification_seniority_date ?? '9999-12-31';
             $sortNum = ($num !== null && $num !== '') ? (int) $num : 999999;
+
             return [$sortNum, $date];
         })->values();
         $position = (int) $rl->red_line_position;
@@ -89,6 +93,7 @@ class RedLinesController extends Controller
             'seniority_number' => $u->pivot->red_line_seniority_number,
         ])->values()->all();
         $below = $usersInWg->skip($position)->map(fn ($u) => ['id' => $u->id, 'name' => $u->name, 'email' => $u->email])->values()->all();
+
         return [
             'id' => $rl->id,
             'workgroup_id' => $rl->workgroup_id,

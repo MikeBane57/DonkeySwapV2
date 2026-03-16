@@ -63,6 +63,7 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $user ? (function () use ($user) {
                     $u = $user;
+
                     return [
                         'id' => $u->id,
                         'name' => $u->name,

@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\ComplianceAuditLog;
 use App\Models\Shift;
-use App\Models\ShiftSegment;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -173,6 +172,7 @@ class ComplianceValidator
                 'regulatory' => true,
             ];
         }
+
         return collect($blocks);
     }
 
@@ -183,6 +183,7 @@ class ComplianceValidator
         if ($start->gte($end)) {
             return 0;
         }
+
         return $start->diffInMinutes($end);
     }
 
@@ -196,6 +197,7 @@ class ComplianceValidator
             }
             $byDay[$day][] = $b;
         }
+
         return $byDay;
     }
 

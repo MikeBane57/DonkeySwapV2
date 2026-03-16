@@ -35,6 +35,7 @@ return Application::configure(basePath: dirname(__DIR__))
             $status = $e instanceof \Symfony\Component\HttpKernel\Exception\HttpException
                 ? $e->getStatusCode()
                 : 500;
+
             return response()->json([
                 'message' => $e->getMessage(),
                 'exception' => get_class($e),

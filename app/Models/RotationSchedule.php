@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
 class RotationSchedule extends Model
@@ -42,6 +41,7 @@ class RotationSchedule extends Model
             }
             $current->addDay();
         }
+
         return $working;
     }
 }

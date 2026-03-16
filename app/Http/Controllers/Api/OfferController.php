@@ -50,6 +50,7 @@ class OfferController extends Controller
                 ], 422);
             }
             $this->markNewOfferNotificationReadForOffer($user->id, $offer->id);
+
             return response()->json(['ok' => true, 'message' => 'Trade accepted. Shifts have been swapped.']);
         }
 
@@ -87,6 +88,7 @@ class OfferController extends Controller
         ]);
 
         $this->markNewOfferNotificationReadForOffer($user->id, $offer->id);
+
         return response()->json(['ok' => true, 'message' => 'Response accepted.']);
     }
 
@@ -115,6 +117,7 @@ class OfferController extends Controller
         ]);
 
         $this->markNewOfferNotificationReadForOffer($user->id, $offer->id);
+
         return response()->json(['ok' => true, 'message' => 'Offer declined.']);
     }
 

@@ -56,7 +56,7 @@ return new class extends Migration
         $deskTypeByWgAndCode = [];
         foreach ($ranges as $r) {
             $rangeType = $r->range_type ?? 'extra';
-            $key = $r->workgroup_id . ':' . $rangeType;
+            $key = $r->workgroup_id.':'.$rangeType;
             if (! isset($deskTypeByWgAndCode[$key])) {
                 $label = self::RANGE_TYPE_LABELS[$rangeType] ?? $rangeType;
                 $qualId = $this->getQualificationIdForRangeType($r->workgroup_id, $rangeType);

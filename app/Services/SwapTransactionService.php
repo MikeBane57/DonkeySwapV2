@@ -78,6 +78,7 @@ class SwapTransactionService
                     'rule_violated' => 'dsp_qualification',
                     'message' => 'User does not have DSP qualification for flight follow / regulatory workgroup',
                 ]);
+
                 return ['success' => false, 'message' => 'You do not have DSP qualification for this workgroup.', 'errors' => ['dsp_qualification']];
             }
         }
@@ -123,6 +124,7 @@ class SwapTransactionService
                         'message' => $validPoster['errors'][0] ?? 'Compliance check failed',
                         'metadata' => ['errors' => $validPoster['errors']],
                     ]);
+
                     return ['success' => false, 'message' => $validPoster['errors'][0] ?? 'Compliance failed', 'errors' => $validPoster['errors']];
                 }
 
@@ -146,6 +148,7 @@ class SwapTransactionService
                         'message' => $validOfferer['errors'][0] ?? 'Compliance check failed',
                         'metadata' => ['errors' => $validOfferer['errors']],
                     ]);
+
                     return ['success' => false, 'message' => $validOfferer['errors'][0] ?? 'Compliance failed', 'errors' => $validOfferer['errors']];
                 }
 
@@ -207,6 +210,7 @@ class SwapTransactionService
                 'message' => $e->getMessage(),
                 'metadata' => ['exception' => $e->getTraceAsString()],
             ]);
+
             return ['success' => false, 'message' => 'Transaction failed.', 'errors' => [$e->getMessage()]];
         }
     }

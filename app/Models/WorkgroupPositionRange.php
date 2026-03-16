@@ -58,6 +58,7 @@ class WorkgroupPositionRange extends Model
                 }
                 $out[] = (string) $n;
             }
+
             return $out;
         }
 
@@ -75,8 +76,9 @@ class WorkgroupPositionRange extends Model
             }
             $out = [];
             for ($n = $num1; $n <= $num2; $n++) {
-                $out[] = $prefix1 . $n;
+                $out[] = $prefix1.$n;
             }
+
             return $out;
         }
 
@@ -117,6 +119,7 @@ class WorkgroupPositionRange extends Model
                 $items[] = $item;
             }
         }
+
         return $items;
     }
 }

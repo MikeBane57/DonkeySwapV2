@@ -15,9 +15,10 @@ class UpdateUserRequest extends FormRequest
     {
         $user = $this->route('user');
         $userId = $user instanceof \App\Models\User ? $user->id : (is_numeric($user) ? $user : 0);
+
         return [
             'name' => ['sometimes', 'string', 'max:255'],
-            'email' => ['sometimes', 'string', 'email', 'max:255', 'unique:users,email,' . $userId],
+            'email' => ['sometimes', 'string', 'email', 'max:255', 'unique:users,email,'.$userId],
             'role' => ['sometimes', 'string', 'in:worker,manager,admin'],
             'time_display_preference' => ['sometimes', 'string', 'in:central,central_zulu'],
             'phone' => ['nullable', 'string', 'max:50'],

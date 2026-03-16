@@ -38,6 +38,7 @@ class SwapPostController extends Controller
             'postings.*.notes' => ['nullable', 'string', 'max:1000'],
             'postings.*.preferred_start_times' => ['nullable', 'array'],
             'postings.*.preferred_start_times.*' => ['string', 'regex:/^\d{1,2}:\d{2}$/'],
+            'postings.*.preferred_desk_type' => ['nullable', 'string', 'max:64'],
             'delete_ids' => ['sometimes', 'array'],
             'delete_ids.*' => ['integer', 'exists:swap_posts,id'],
         ]);
@@ -99,9 +100,13 @@ class SwapPostController extends Controller
             if ($p['type'] === 'time_trade' && ! empty($p['preferred_start_times']) && is_array($p['preferred_start_times'])) {
                 $newPreferred = array_values(array_map(function ($t) {
                     $parts = explode(':', (string) $t, 2);
+
                     return sprintf('%02d:%02d', (int) ($parts[0] ?? 0), (int) ($parts[1] ?? 0));
                 }, $p['preferred_start_times']));
             }
+            $newPreferredDeskType = $p['type'] === 'time_trade' && isset($p['preferred_desk_type']) && $p['preferred_desk_type'] !== ''
+                ? (string) $p['preferred_desk_type']
+                : null;
 
             $data = [
                 'shift_id' => $shift->id,
@@ -113,9 +118,10 @@ class SwapPostController extends Controller
                 'flight_follow_at' => $newFfAt,
                 'notes' => $newNotes,
                 'preferred_start_times' => $newPreferred,
+                'preferred_desk_type' => $newPreferredDeskType,
             ];
             if ($existing) {
-                $changes = $this->postChanges($existing, $newCash, $newFf, $newFfAt, $newNotes, $newPreferred);
+                $changes = $this->postChanges($existing, $newCash, $newFf, $newFfAt, $newNotes, $newPreferred, $newPreferredDeskType);
                 if (! empty($changes)) {
                     SwapPostHistory::create([
                         'swap_post_id' => $existing->id,
@@ -141,7 +147,7 @@ class SwapPostController extends Controller
     }
 
     /** @return array<int, array{field: string, old: mixed, new: mixed}> */
-    private function postChanges(SwapPost $post, ?float $newCash, ?int $newFf, ?string $newFfAt, ?string $newNotes, ?array $newPreferred = null): array
+    private function postChanges(SwapPost $post, ?float $newCash, ?int $newFf, ?string $newFfAt, ?string $newNotes, ?array $newPreferred = null, ?string $newPreferredDeskType = null): array
     {
         $changes = [];
         $oldCash = $post->cash_amount !== null ? (float) $post->cash_amount : null;
@@ -164,6 +170,11 @@ class SwapPostController extends Controller
         if (json_encode($oldPreferred) !== json_encode($newPreferred)) {
             $changes[] = ['field' => 'preferred_start_times', 'old' => $oldPreferred, 'new' => $newPreferred];
         }
+        $oldPreferredDesk = $post->preferred_desk_type;
+        if ($oldPreferredDesk !== $newPreferredDeskType) {
+            $changes[] = ['field' => 'preferred_desk_type', 'old' => $oldPreferredDesk, 'new' => $newPreferredDeskType];
+        }
+
         return $changes;
     }
 
@@ -185,6 +196,7 @@ class SwapPostController extends Controller
             'postings.*.notes' => ['nullable', 'string', 'max:1000'],
             'postings.*.preferred_start_times' => ['nullable', 'array'],
             'postings.*.preferred_start_times.*' => ['string', 'regex:/^\d{1,2}:\d{2}$/'],
+            'postings.*.preferred_desk_type' => ['nullable', 'string', 'max:64'],
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -245,9 +257,14 @@ class SwapPostController extends Controller
                 if ($p['type'] === 'time_trade' && ! empty($p['preferred_start_times']) && is_array($p['preferred_start_times'])) {
                     $preferred = array_values(array_map(function ($t) {
                         $parts = explode(':', (string) $t, 2);
+
                         return sprintf('%02d:%02d', (int) ($parts[0] ?? 0), (int) ($parts[1] ?? 0));
                     }, $p['preferred_start_times']));
                 }
+                $preferredDeskType = $p['type'] === 'time_trade' && isset($p['preferred_desk_type']) && $p['preferred_desk_type'] !== ''
+                    ? (string) $p['preferred_desk_type']
+                    : null;
+
                 $data = [
                     'shift_id' => $shiftId,
                     'user_id' => $user->id,
@@ -258,6 +275,7 @@ class SwapPostController extends Controller
                     'flight_follow_at' => isset($p['flight_follow_at']) && in_array($p['flight_follow_at'], ['beginning', 'end'], true) ? $p['flight_follow_at'] : null,
                     'notes' => $p['notes'] ?? null,
                     'preferred_start_times' => $preferred,
+                    'preferred_desk_type' => $preferredDeskType,
                 ];
                 if ($existing) {
                     $existing->update($data);
@@ -298,6 +316,7 @@ class SwapPostController extends Controller
                 'changed_at' => $h->changed_at?->toIso8601String(),
                 'changes' => $h->changes,
             ]);
+
         return response()->json(['history' => $histories]);
     }
 
@@ -316,6 +335,7 @@ class SwapPostController extends Controller
             'metadata' => ['post_type' => $postType],
             'user_id' => $userId,
         ]);
+
         return response()->json(['ok' => true]);
     }
 
@@ -421,7 +441,7 @@ class SwapPostController extends Controller
             'data' => [
                 'swap_post_id' => $post->id,
                 'swap_offer_id' => $offer->id,
-                'message' => $user->name . ' responded to your ' . $this->postTypeLabel($post->type) . '. Respond from your dashboard.',
+                'message' => $user->name.' responded to your '.$this->postTypeLabel($post->type).'. Respond from your dashboard.',
             ],
         ]);
 

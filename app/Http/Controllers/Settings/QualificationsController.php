@@ -22,6 +22,7 @@ class QualificationsController extends Controller
 
         $workgroups = $user->workgroups->map(function ($wg) use ($user) {
             $userQualIds = $user->workgroupQualifications->where('workgroup_id', $wg->id)->pluck('id')->all();
+
             return [
                 'id' => $wg->id,
                 'name' => $wg->name,
@@ -57,7 +58,7 @@ class QualificationsController extends Controller
             'qualification_ids' => ['nullable', 'array'],
         ];
         if ($validQualificationIds !== []) {
-            $rules['qualification_ids.*'] = ['integer', 'in:' . implode(',', $validQualificationIds)];
+            $rules['qualification_ids.*'] = ['integer', 'in:'.implode(',', $validQualificationIds)];
         }
 
         $validated = $request->validate($rules);

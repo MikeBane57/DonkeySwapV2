@@ -27,7 +27,7 @@ class AppIconController extends Controller
             foreach ($files as $path) {
                 $mime = Storage::disk(self::DISK)->mimeType($path);
                 if ($mime && Str::startsWith($mime, 'image/')) {
-                    $url = '/storage/' . $path;
+                    $url = '/storage/'.$path;
                     $icons[] = [
                         'url' => $url,
                         'filename' => basename($path),
@@ -62,12 +62,12 @@ class AppIconController extends Controller
         $safeExt = in_array(strtolower($extension), ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'], true)
             ? strtolower($extension)
             : 'png';
-        $filename = Str::random(16) . '.' . $safeExt;
+        $filename = Str::random(16).'.'.$safeExt;
 
         Storage::disk(self::DISK)->makeDirectory(self::DIRECTORY);
         $path = $file->storeAs(self::DIRECTORY, $filename, ['disk' => self::DISK]);
 
-        $url = '/storage/' . $path;
+        $url = '/storage/'.$path;
         Setting::set('app_icon_url', $url);
 
         return redirect()->route('admin.app-icon')->with('success', 'Icon uploaded and set as current.');
@@ -80,7 +80,7 @@ class AppIconController extends Controller
         ]);
 
         $url = $request->input('icon_url');
-        $url = '/' . ltrim($url, '/');
+        $url = '/'.ltrim($url, '/');
 
         // Allow only our stored app-icons or the default config path
         $allowedPrefixes = ['/storage/app-icons/', '/images/'];

@@ -21,7 +21,6 @@ use App\Http\Controllers\App\NotificationsController as AppNotificationsControll
 use App\Http\Controllers\LandingController;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Route;
-use Laravel\Fortify\Features;
 
 // Public landing (no auth, no navbar)
 Route::get('/', LandingController::class)->name('home');

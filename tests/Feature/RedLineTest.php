@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\ClassificationRedLine;
-use App\Models\User;
 use App\Models\Workgroup;
 
 test('red line position is stored per workgroup', function () {

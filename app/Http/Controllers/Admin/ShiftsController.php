@@ -67,6 +67,7 @@ class ShiftsController extends Controller
                     'start_time' => is_object($t->start_time) ? $t->start_time->format('H:i') : substr((string) ($t->getRawOriginal('start_time') ?? ''), 0, 5),
                     'default_duration_minutes' => (int) $t->default_duration_minutes,
                 ])->values()->all();
+
             return [
                 'id' => $wg->id,
                 'name' => $wg->name,
@@ -109,20 +110,21 @@ class ShiftsController extends Controller
             return redirect()->back()->withErrors(['workgroup_id' => 'This user is not in the selected workgroup. Users can only receive shifts for workgroups they belong to.'])->withInput();
         }
 
-        $start = Carbon::parse($request->input('start_date') . ' ' . $request->input('start_time'), 'America/Chicago')->utc();
+        $start = Carbon::parse($request->input('start_date').' '.$request->input('start_time'), 'America/Chicago')->utc();
 
         $endDate = $request->input('end_date');
         $endTime = $request->input('end_time');
         if ($endDate && $endTime) {
-            $end = Carbon::parse($endDate . ' ' . $endTime, 'America/Chicago')->utc();
+            $end = Carbon::parse($endDate.' '.$endTime, 'America/Chicago')->utc();
             if ($end->lte($start)) {
                 return redirect()->back()->withErrors(['end_time' => 'End must be after start.'])->withInput();
             }
         } else {
             $workgroup = Workgroup::with('allowedStartTimes')->find($workgroupId);
-            $startTimeNormalized = Carbon::parse('1970-01-01 ' . $request->input('start_time'))->format('H:i');
+            $startTimeNormalized = Carbon::parse('1970-01-01 '.$request->input('start_time'))->format('H:i');
             $allowed = $workgroup?->allowedStartTimes->first(function ($t) use ($startTimeNormalized) {
                 $tStr = $t->start_time instanceof Carbon ? $t->start_time->format('H:i') : substr((string) ($t->getRawOriginal('start_time') ?? ''), 0, 5);
+
                 return $tStr === $startTimeNormalized;
             });
             if (! $allowed) {
@@ -179,9 +181,10 @@ class ShiftsController extends Controller
         }
 
         $workgroup = Workgroup::with('allowedStartTimes')->findOrFail($workgroupId);
-        $startTimeNormalized = Carbon::parse('1970-01-01 ' . $request->input('start_time'))->format('H:i');
+        $startTimeNormalized = Carbon::parse('1970-01-01 '.$request->input('start_time'))->format('H:i');
         $allowed = $workgroup->allowedStartTimes->first(function ($t) use ($startTimeNormalized) {
             $tStr = $t->start_time instanceof Carbon ? $t->start_time->format('H:i') : substr((string) ($t->getRawOriginal('start_time') ?? ''), 0, 5);
+
             return $tStr === $startTimeNormalized;
         });
         if (! $allowed) {
@@ -209,7 +212,7 @@ class ShiftsController extends Controller
                 $cumulative += $len;
             }
             if ($isWork) {
-                $start = Carbon::parse($current->format('Y-m-d') . ' ' . $request->input('start_time'), 'America/Chicago')->utc();
+                $start = Carbon::parse($current->format('Y-m-d').' '.$request->input('start_time'), 'America/Chicago')->utc();
                 $end = $start->copy()->addMinutes($durationMinutes);
                 Shift::create([
                     'user_id' => (int) $request->input('user_id'),
@@ -232,6 +235,7 @@ class ShiftsController extends Controller
     public function destroy(Shift $shift): RedirectResponse
     {
         $shift->delete();
+
         return redirect()->back()->with('success', 'Shift deleted.');
     }
 
@@ -242,6 +246,7 @@ class ShiftsController extends Controller
             $ids = [];
         }
         $count = Shift::whereIn('id', array_map('intval', $ids))->delete();
+
         return redirect()->back()->with('success', "{$count} shift(s) deleted.");
     }
 
@@ -268,6 +273,7 @@ class ShiftsController extends Controller
         }
 
         $count = Shift::whereIn('id', $ids)->update(['user_id' => $userId]);
+
         return redirect()->back()->with('success', "{$count} shift(s) moved.");
     }
 }

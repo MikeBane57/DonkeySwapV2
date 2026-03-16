@@ -20,12 +20,14 @@ class HiddenPostController extends Controller
             'user_id' => $user->id,
             'swap_post_id' => $post->id,
         ]);
+
         return response()->json(['ok' => true]);
     }
 
     public function unhideAll(Request $request): JsonResponse
     {
         UserHiddenPost::where('user_id', $request->user()->id)->delete();
+
         return response()->json(['ok' => true]);
     }
 }

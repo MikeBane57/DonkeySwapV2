@@ -24,6 +24,7 @@ class SwapPost extends Model
         'flight_follow_at',
         'notes',
         'preferred_start_times',
+        'preferred_desk_type',
         'status',
         'view_count',
         'click_count',

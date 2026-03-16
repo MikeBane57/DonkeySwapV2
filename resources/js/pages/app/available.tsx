@@ -113,6 +113,8 @@ type PostPart = {
     flight_follow_minutes: number | null;
     flight_follow_at: string | null;
     notes: string | null;
+    preferred_start_times?: string[] | null;
+    preferred_desk_type?: string | null;
     eligible: boolean | null;
     ineligible_reason: string | null;
     ineligible_reason_detail: string | null;
@@ -685,7 +687,7 @@ export default function AvailablePage() {
                                             {item.posts.map((p) => (
                                                 <span
                                                     key={p.id}
-                                                    className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${
+                                                    className={`shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${
                                                         p.type === 'trade' || p.type === 'time_trade'
                                                             ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
                                                             : p.type === 'cash'
@@ -705,6 +707,29 @@ export default function AvailablePage() {
                                             <p className="text-xs text-muted-foreground">
                                                 {getDeskTypeLabel(workgroups, item.shift.workgroup_id, item.shift.desk_type)}
                                             </p>
+                                        )}
+                                        {/* Looking-for info for time trade posts */}
+                                        {item.posts.some((p) => p.type === 'time_trade' && (p.preferred_start_times?.length || p.preferred_desk_type)) && (
+                                            <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                                                {item.posts
+                                                    .filter((p) => p.type === 'time_trade')
+                                                    .map((p) => {
+                                                        const parts: string[] = [];
+                                                        if (p.preferred_start_times?.length) {
+                                                            parts.push(p.preferred_start_times.join(', '));
+                                                        }
+                                                        if (p.preferred_desk_type) {
+                                                            const deskLabel = getDeskTypeLabel(workgroups, item.shift.workgroup_id, p.preferred_desk_type);
+                                                            if (deskLabel) parts.push(deskLabel);
+                                                        }
+                                                        if (parts.length === 0) return null;
+                                                        return (
+                                                            <div key={p.id}>
+                                                                <span className="font-medium">Looking for:</span> {parts.join(' · ')}
+                                                            </div>
+                                                        );
+                                                    })}
+                                            </div>
                                         )}
                                         {timeOffRanges.length > 0 && (() => {
                                             const title = getTimeOffRangeTitleForDate(item.shift.start_time_utc.slice(0, 10), timeOffRanges);
@@ -898,6 +923,21 @@ export default function AvailablePage() {
                             <p className="mt-0.5 font-medium text-foreground">{formatShiftSummary(offerPost.shift)}</p>
                             {offerPost.poster_name && (
                                 <p className="mt-1 text-xs text-muted-foreground">Posted by {offerPost.poster_name}</p>
+                            )}
+                            {offerPost.type === 'time_trade' && (offerPost.preferred_start_times?.length || offerPost.preferred_desk_type) && (
+                                <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                                    <div className="font-medium">Looking for:</div>
+                                    <div>
+                                        {[
+                                            offerPost.preferred_start_times?.length ? offerPost.preferred_start_times.join(', ') : null,
+                                            offerPost.preferred_desk_type
+                                                ? getDeskTypeLabel(workgroups, offerPost.shift.workgroup_id, offerPost.preferred_desk_type)
+                                                : null,
+                                        ]
+                                            .filter(Boolean)
+                                            .join(' · ')}
+                                    </div>
+                                </div>
                             )}
                         </div>
                     )}

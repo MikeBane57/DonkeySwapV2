@@ -35,8 +35,8 @@ class CalendarPageController extends Controller
             ->keyBy('shift_id');
 
         $events = $shifts->map(fn ($shift) => [
-            'id' => 'shift-' . $shift->id,
-            'title' => $shift->position_name . ($swapPosts->has($shift->id) ? ' [Post]' : ''),
+            'id' => 'shift-'.$shift->id,
+            'title' => $shift->position_name.($swapPosts->has($shift->id) ? ' [Post]' : ''),
             'start' => $shift->start_time_utc->toIso8601String(),
             'end' => $shift->end_time_utc->toIso8601String(),
             'extendedProps' => [

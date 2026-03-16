@@ -1,6 +1,7 @@
 import { usePage } from '@inertiajs/react';
 
 const DEFAULT_LOGO = '/images/donkey-swap-logo.png';
+const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? '2.1.1';
 
 export default function AppLogo() {
     const logoUrl = (usePage().props as { app_icon_url?: string }).app_icon_url ?? DEFAULT_LOGO;
@@ -18,7 +19,7 @@ export default function AppLogo() {
                     Donkey swap
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
-                    Manage your schedule
+                    v{APP_VERSION}
                 </p>
             </div>
         </div>

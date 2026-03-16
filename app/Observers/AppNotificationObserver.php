@@ -27,11 +27,11 @@ class AppNotificationObserver
                 title: $title,
                 body: $body,
                 url: url('/app'),
-                tag: 'swap-' . $notification->id,
+                tag: 'swap-'.$notification->id,
                 badgeCount: $badgeCount
             ));
         } catch (\Throwable $e) {
-            Log::warning('Web push failed for notification ' . $notification->id . ': ' . $e->getMessage());
+            Log::warning('Web push failed for notification '.$notification->id.': '.$e->getMessage());
         }
     }
 

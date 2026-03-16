@@ -18,7 +18,7 @@ class Setting extends Model
      */
     public static function get(string $key): ?string
     {
-        $cacheKey = 'setting:' . $key;
+        $cacheKey = 'setting:'.$key;
 
         try {
             return Cache::remember($cacheKey, 3600, function () use ($key) {
@@ -40,7 +40,7 @@ class Setting extends Model
             ['key' => $key],
             ['value' => $value]
         );
-        Cache::forget('setting:' . $key);
+        Cache::forget('setting:'.$key);
     }
 
     /**
