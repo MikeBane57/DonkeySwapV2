@@ -126,7 +126,7 @@ class SwapPostController extends Controller
                 }
                 $existing->update($data);
             } else {
-                $newPost = SwapPost::create($data);
+                $newPost = SwapPost::create(array_merge($data, ['view_count' => 0, 'click_count' => 0]));
                 ShiftActivityLog::create([
                     'shift_id' => $shift->id,
                     'event_type' => 'post_created',
@@ -262,7 +262,7 @@ class SwapPostController extends Controller
                 if ($existing) {
                     $existing->update($data);
                 } else {
-                    $newPost = SwapPost::create($data);
+                    $newPost = SwapPost::create(array_merge($data, ['view_count' => 0, 'click_count' => 0]));
                     ShiftActivityLog::create([
                         'shift_id' => $shiftId,
                         'event_type' => 'post_created',
