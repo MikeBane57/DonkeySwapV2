@@ -22,7 +22,7 @@ class ContentSecurityPolicy
             "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
             "style-src 'self' 'unsafe-inline' https://fonts.bunny.net",
             "img-src 'self' data: blob: https:",
-            "font-src 'self' https://fonts.bunny.net",
+            "font-src 'self' data: https://fonts.bunny.net",
             "connect-src 'self'",
             "frame-ancestors 'self'",
         ];

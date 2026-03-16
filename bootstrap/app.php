@@ -28,5 +28,18 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias(['admin' => EnsureAdmin::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->renderable(function (\Throwable $e, $request) {
+            if (! $request->expectsJson() || ! app()->hasDebugModeEnabled()) {
+                return null;
+            }
+            $status = $e instanceof \Symfony\Component\HttpKernel\Exception\HttpException
+                ? $e->getStatusCode()
+                : 500;
+            return response()->json([
+                'message' => $e->getMessage(),
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ], $status);
+        });
     })->create();
