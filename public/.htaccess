@@ -1,3 +1,8 @@
+# Allow Inertia/Vite and inline scripts to run (overrides host CSP if present)
+<IfModule mod_headers.c>
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.bunny.net; img-src 'self' data: blob: https:; font-src 'self' https://fonts.bunny.net; connect-src 'self'; frame-ancestors 'self';"
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
