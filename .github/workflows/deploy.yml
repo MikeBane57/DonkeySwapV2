@@ -6,6 +6,7 @@ name: Deploy (push = deploy)
 on:
   push:
     branches: [main]
+  workflow_dispatch:  # Allows "Run workflow" in Actions tab to re-deploy without pushing
 
 jobs:
   lint:
@@ -72,6 +73,24 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      - name: Verify deploy secrets are set
+        run: |
+          missing=""
+          [ -z "${{ secrets.FTP_SERVER }}" ] && missing="$missing FTP_SERVER"
+          [ -z "${{ secrets.FTP_USERNAME }}" ] && missing="$missing FTP_USERNAME"
+          [ -z "${{ secrets.FTP_PASSWORD }}" ] && missing="$missing FTP_PASSWORD"
+          [ -z "${{ secrets.FTP_REMOTE_DIR }}" ] && missing="$missing FTP_REMOTE_DIR"
+          [ -z "${{ secrets.SSH_HOST }}" ] && missing="$missing SSH_HOST"
+          [ -z "${{ secrets.SSH_USER }}" ] && missing="$missing SSH_USER"
+          [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ] && missing="$missing SSH_PRIVATE_KEY"
+          [ -z "${{ secrets.SERVER_APP_PATH }}" ] && missing="$missing SERVER_APP_PATH"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing GitHub Actions secrets (repo Settings → Secrets and variables → Actions):$missing"
+            echo "See SECRETS-CHECKLIST.md in the repo for what each secret should be."
+            exit 1
+          fi
+          echo "All required secrets are set."
+
       - name: Checkout
         uses: actions/checkout@v4
 
