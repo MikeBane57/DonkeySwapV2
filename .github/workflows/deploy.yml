@@ -49,9 +49,8 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./public/build/
           server-dir: ${{ secrets.FTP_REMOTE_DIR }}/public/build/
-          protocol: ftps
+          protocol: ftp
           port: 21
-          security: loose
           timeout: 60000
 
       - name: Deploy on server (git pull + deploy script)
