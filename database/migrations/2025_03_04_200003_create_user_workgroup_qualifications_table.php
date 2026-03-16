@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignId('workgroup_qualification_id')->constrained('workgroup_qualifications')->cascadeOnDelete();
             $table->timestamps();
 
-            $table->unique(['user_id', 'workgroup_qualification_id']);
+            $table->unique(['user_id', 'workgroup_qualification_id'], 'user_wg_qual_unique');
         });
     }
 
