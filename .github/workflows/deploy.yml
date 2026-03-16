@@ -1,4 +1,4 @@
-# One push from Cursor → build assets, upload to FTP, then SSH to server and run git pull + deploy script.
+# One push from Cursor → lint + test, then deploy only if both pass.
 # Requires secrets: FTP_* (for assets), SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, SERVER_APP_PATH
 
 name: Deploy (push = deploy)
@@ -8,9 +8,67 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install Dependencies
+        run: |
+          composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+          npm ci
+      - name: Run Pint
+        run: composer lint
+      - name: Format Frontend
+        run: npm run format
+      - name: Lint Frontend
+        run: npm run lint
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: xdebug
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install Node Dependencies
+        run: npm ci
+      - name: Install Dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+      - name: Copy Environment File
+        run: cp .env.example .env
+      - name: Generate Application Key
+        run: php artisan key:generate
+      - name: Build Assets
+        run: npm run build
+      - name: Tests
+        run: ./vendor/bin/pest
+
   deploy:
     name: Build, upload assets, deploy on server
     runs-on: ubuntu-latest
+    needs: [lint, test]
     timeout-minutes: 15
 
     steps:
