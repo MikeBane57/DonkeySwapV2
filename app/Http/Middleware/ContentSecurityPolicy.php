@@ -17,13 +17,23 @@ class ContentSecurityPolicy
     {
         $response = $next($request);
 
+        $scriptSrc = "'self' 'unsafe-inline' 'unsafe-eval'";
+        $connectSrc = "'self'";
+
+        if (app()->environment('local')) {
+            $host = $request->getHost();
+            $viteOrigin = "http://{$host}:5173";
+            $scriptSrc .= " {$viteOrigin}";
+            $connectSrc .= " {$viteOrigin} ws://{$host}:5173 wss://{$host}:5173";
+        }
+
         $directives = [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+            "script-src {$scriptSrc}",
             "style-src 'self' 'unsafe-inline' https://fonts.bunny.net",
             "img-src 'self' data: blob: https:",
             "font-src 'self' data: https://fonts.bunny.net",
-            "connect-src 'self'",
+            "connect-src {$connectSrc}",
             "frame-ancestors 'self'",
         ];
 

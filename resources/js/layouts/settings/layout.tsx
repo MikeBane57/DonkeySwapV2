@@ -37,6 +37,11 @@ const sidebarNavItems: NavItem[] = [
         href: '/app/settings/preferences',
         icon: null,
     },
+    {
+        title: 'Qualifications',
+        href: '/app/settings/qualifications',
+        icon: null,
+    },
 ];
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
