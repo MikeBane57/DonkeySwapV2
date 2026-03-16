@@ -255,7 +255,7 @@ class MessageCenterController extends Controller
             $user->notify(new \App\Notifications\WebPushSwapNotification(
                 title: $title,
                 body: $body,
-                url: url('/app'),
+                url: $notification->getPushUrl(),
                 tag: 'notification-'.$notification->id,
                 badgeCount: $badgeCount,
             ));

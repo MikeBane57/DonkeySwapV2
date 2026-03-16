@@ -76,14 +76,29 @@ class AppNotification extends Model
         $data = $this->data ?? [];
         $message = $data['message'] ?? $this->defaultPushMessage($this->type);
         if ($this->type === 'admin_message') {
-            $title = $data['title'] ?? 'Message from admin';
+            $title = (string) ($data['title'] ?? 'Message');
+            $body = (string) ($data['body'] ?? $data['message'] ?? $message);
 
-            return [$title, $data['body'] ?? $message];
+            return [$title, $body];
         }
         $title = config('app.name', 'Donkey Swap');
         $body = $this->getPushBodyWithContext();
 
         return [$title, $body ?? $message];
+    }
+
+    /**
+     * URL to open when the user clicks the push (dashboard; for new_offer includes open_offer so modal opens).
+     */
+    public function getPushUrl(): string
+    {
+        if ($this->type === 'new_offer') {
+            $offerId = $this->data['swap_offer_id'] ?? null;
+            if ($offerId !== null) {
+                return url('/app?open_offer=' . (int) $offerId);
+            }
+        }
+        return url('/app');
     }
 
     /**
@@ -110,12 +125,43 @@ class AppNotification extends Model
             }
         }
         if ($this->type === 'swap_accepted') {
+            $shiftLabel = $this->getShiftDateLabelForPush();
+            if ($shiftLabel !== null) {
+                return "Your response for {$shiftLabel} was accepted.";
+            }
             return 'Your response was accepted.';
         }
         if ($this->type === 'swap_rejected') {
+            $shiftLabel = $this->getShiftDateLabelForPush();
+            if ($shiftLabel !== null) {
+                return "Your offer for {$shiftLabel} was declined.";
+            }
             return 'Your offer was declined.';
         }
 
+        return null;
+    }
+
+    /**
+     * Short label for push body: "Dec 15 shift" or "shift on Dec 15" from notification's swap_post_id.
+     */
+    private function getShiftDateLabelForPush(): ?string
+    {
+        $postId = $this->data['swap_post_id'] ?? null;
+        if (! $postId) {
+            return null;
+        }
+        $post = SwapPost::with('shift')->find($postId);
+        if (! $post?->shift) {
+            return null;
+        }
+        $start = $post->shift->start_time_utc;
+        if ($start instanceof \Carbon\Carbon) {
+            return 'shift on ' . $start->format('M j');
+        }
+        if (is_string($start)) {
+            return 'shift on ' . \Carbon\Carbon::parse($start)->format('M j');
+        }
         return null;
     }
 

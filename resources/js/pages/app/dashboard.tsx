@@ -573,6 +573,20 @@ export default function AppDashboard() {
         return () => clearInterval(t);
     }, []);
 
+    // Open offer modal when arriving via push click (e.g. /app?open_offer=123)
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const offerIdParam = params.get('open_offer');
+        if (offerIdParam && actionRequired.length > 0) {
+            const offerId = parseInt(offerIdParam, 10);
+            if (Number.isFinite(offerId)) {
+                const item = actionRequired.find((a) => a.id === offerId);
+                if (item) setReviewOfferItem(item);
+            }
+            window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+        }
+    }, [actionRequired]);
+
     const handleDatesSet = useCallback((arg: { startStr: string; endStr: string }) => {
         fetchEvents(arg.startStr, arg.endStr);
         const from = arg.startStr.slice(0, 10);

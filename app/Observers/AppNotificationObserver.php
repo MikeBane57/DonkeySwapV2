@@ -26,7 +26,7 @@ class AppNotificationObserver
             $user->notify(new WebPushSwapNotification(
                 title: $title,
                 body: $body,
-                url: url('/app'),
+                url: $notification->getPushUrl(),
                 tag: 'swap-'.$notification->id,
                 badgeCount: $badgeCount
             ));
