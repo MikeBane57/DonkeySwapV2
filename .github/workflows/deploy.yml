@@ -140,7 +140,7 @@ jobs:
           script: |
             cd ${{ secrets.SERVER_APP_PATH }}
             git pull origin main
-            composer install --no-dev --optimize-autoloader --no-interaction
-            php artisan migrate --force
-            php artisan config:cache
-            php artisan route:cache
+            /opt/cpanel/ea-php84/root/usr/bin/php /opt/cpanel/composer/bin/composer install --no-dev --optimize-autoloader --no-interaction
+            /opt/cpanel/ea-php84/root/usr/bin/php artisan migrate --force
+            /opt/cpanel/ea-php84/root/usr/bin/php artisan config:cache
+            /opt/cpanel/ea-php84/root/usr/bin/php artisan route:cache
