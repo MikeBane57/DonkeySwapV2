@@ -49,6 +49,7 @@ class OfferController extends Controller
                     'errors' => $result['errors'] ?? [],
                 ], 422);
             }
+            $this->markNewOfferNotificationReadForOffer($user->id, $offer->id);
             return response()->json(['ok' => true, 'message' => 'Trade accepted. Shifts have been swapped.']);
         }
 
@@ -85,6 +86,7 @@ class OfferController extends Controller
             ],
         ]);
 
+        $this->markNewOfferNotificationReadForOffer($user->id, $offer->id);
         return response()->json(['ok' => true, 'message' => 'Response accepted.']);
     }
 
@@ -112,6 +114,7 @@ class OfferController extends Controller
             'data' => ['swap_post_id' => $offer->swap_post_id, 'swap_offer_id' => $offer->id, 'message' => 'Your offer was declined.'],
         ]);
 
+        $this->markNewOfferNotificationReadForOffer($user->id, $offer->id);
         return response()->json(['ok' => true, 'message' => 'Offer declined.']);
     }
 
@@ -133,5 +136,18 @@ class OfferController extends Controller
         $offer->save();
 
         return response()->json(['ok' => true, 'message' => 'Response cancelled.']);
+    }
+
+    /**
+     * When the poster accepts or rejects an offer, mark their "new_offer" notification
+     * for that offer as read so the badge count drops and they don't see a stale badge.
+     */
+    private function markNewOfferNotificationReadForOffer(int $posterUserId, int $offerId): void
+    {
+        AppNotification::where('user_id', $posterUserId)
+            ->where('type', 'new_offer')
+            ->where('data->swap_offer_id', $offerId)
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
     }
 }
