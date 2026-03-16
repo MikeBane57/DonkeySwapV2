@@ -53,7 +53,7 @@ jobs:
           port: 21
           timeout: 60000
 
-      - name: Deploy on server (git pull + deploy script)
+      - name: Deploy on server (git pull + composer + migrate + cache)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -63,4 +63,7 @@ jobs:
           script: |
             cd ${{ secrets.SERVER_APP_PATH }}
             git pull origin main
-            ./deploy/server-deploy.sh
+            composer install --no-dev --optimize-autoloader --no-interaction
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
