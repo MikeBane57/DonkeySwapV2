@@ -120,6 +120,10 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::post('message-center', [MessageCenterController::class, 'store'])->name('message-center.store');
         Route::delete('message-center/banners/{banner}', [MessageCenterController::class, 'destroyBanner'])->name('message-center.banners.destroy');
         Route::delete('message-center/notification-batches/{batch}', [MessageCenterController::class, 'destroyNotificationBatch'])->name('message-center.notification-batches.destroy');
+        Route::get('message-center/users/{user}/notifications', [MessageCenterController::class, 'userNotifications'])->name('message-center.user-notifications');
+        Route::post('message-center/users/{user}/notifications/clear-badge', [MessageCenterController::class, 'clearBadgeForUser'])->name('message-center.user-clear-badge');
+        Route::post('message-center/notifications/{notification}/push', [MessageCenterController::class, 'pushNotification'])->name('message-center.notifications.push');
+        Route::delete('message-center/notifications/{notification}', [MessageCenterController::class, 'destroyNotification'])->name('message-center.notifications.destroy');
         Route::get('app-icon', [AppIconController::class, 'index'])->name('app-icon');
         Route::post('app-icon', [AppIconController::class, 'store'])->name('app-icon.store');
         Route::post('app-icon/set-current', [AppIconController::class, 'setCurrent'])->name('app-icon.set-current');

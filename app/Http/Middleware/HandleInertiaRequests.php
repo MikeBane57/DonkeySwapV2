@@ -43,13 +43,9 @@ class HandleInertiaRequests extends Middleware
         $appIconUrl = Setting::appIconUrl();
 
         if ($user) {
-            $actionRequiredCount = SwapOffer::where('status', 'pending')
-                ->whereHas('swapPost', fn ($q) => $q->where('user_id', $user->id))
-                ->count();
-            $unreadNotificationCount = AppNotification::where('user_id', $user->id)
+            $badgeCount = AppNotification::where('user_id', $user->id)
                 ->whereNull('read_at')
                 ->count();
-            $badgeCount = $actionRequiredCount + $unreadNotificationCount;
         }
 
         $vapidPublicKey = config('webpush.vapid.public_key');

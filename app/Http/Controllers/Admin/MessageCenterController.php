@@ -9,6 +9,7 @@ use App\Models\AppNotification;
 use App\Models\User;
 use App\Models\Workgroup;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -171,6 +172,108 @@ class MessageCenterController extends Controller
         $batch->delete();
 
         return redirect()->back()->with('success', 'Notification batch deleted.');
+    }
+
+    /**
+     * Return recent notifications for a specific user (admin view).
+     */
+    public function userNotifications(User $user): JsonResponse
+    {
+        $notifications = AppNotification::where('user_id', $user->id)
+            ->orderByDesc('created_at')
+            ->limit(200)
+            ->get()
+            ->map(function (AppNotification $n) {
+                return [
+                    'id' => $n->id,
+                    'type' => $n->type,
+                    'created_at' => $n->created_at?->toIso8601String(),
+                    'read_at' => $n->read_at?->toIso8601String(),
+                    'title' => $n->data['title'] ?? null,
+                    'message' => $n->data['message'] ?? null,
+                    'data' => $n->data,
+                ];
+            })
+            ->values()
+            ->all();
+
+        return response()->json([
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ],
+            'notifications' => $notifications,
+        ]);
+    }
+
+    /**
+     * Clear the app badge for a user by sending a badgeCount=0 web push.
+     * Does not modify read/unread state.
+     */
+    public function clearBadgeForUser(User $user): JsonResponse
+    {
+        if (! config('webpush.vapid.public_key') || ! config('webpush.vapid.private_key')) {
+            return response()->json(['ok' => false, 'message' => 'Web push is not configured.'], 400);
+        }
+
+        try {
+            $user->notify(new \App\Notifications\WebPushSwapNotification(
+                title: config('app.name', 'Donkey Swap'),
+                body: 'Badge cleared.',
+                url: url('/app'),
+                tag: 'badge-clear-'.$user->id,
+                badgeCount: 0,
+            ));
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'message' => 'Push failed: '.$e->getMessage()], 500);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Re-send a web push notification for an existing AppNotification (without creating a new one).
+     */
+    public function pushNotification(AppNotification $notification): JsonResponse
+    {
+        if (! config('webpush.vapid.public_key') || ! config('webpush.vapid.private_key')) {
+            return response()->json(['ok' => false, 'message' => 'Web push is not configured.'], 400);
+        }
+
+        $user = $notification->user;
+        if (! $user) {
+            return response()->json(['ok' => false, 'message' => 'Notification has no user.'], 400);
+        }
+
+        [$title, $body] = $notification->getPushTitleAndBody();
+        $badgeCount = AppNotification::where('user_id', $user->id)
+            ->whereNull('read_at')
+            ->count();
+
+        try {
+            $user->notify(new \App\Notifications\WebPushSwapNotification(
+                title: $title,
+                body: $body,
+                url: url('/app'),
+                tag: 'notification-'.$notification->id,
+                badgeCount: $badgeCount,
+            ));
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'message' => 'Push failed: '.$e->getMessage()], 500);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Delete an individual notification for a user (admin).
+     */
+    public function destroyNotification(AppNotification $notification): JsonResponse
+    {
+        $notification->delete();
+
+        return response()->json(['ok' => true]);
     }
 
     private function bannerStatus(AdminBannerMessage $m, Carbon $now): string

@@ -37,11 +37,8 @@ class AppNotificationObserver
 
     private function getBadgeCountForUser(int $userId): int
     {
-        $actionRequired = SwapOffer::where('status', 'pending')
-            ->whereHas('swapPost', fn ($q) => $q->where('user_id', $userId))
+        return AppNotification::where('user_id', $userId)
+            ->whereNull('read_at')
             ->count();
-        $unread = AppNotification::where('user_id', $userId)->whereNull('read_at')->count();
-
-        return $actionRequired + $unread;
     }
 }

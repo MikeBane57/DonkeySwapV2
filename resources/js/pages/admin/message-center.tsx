@@ -62,6 +62,15 @@ type NotificationBatchRow = {
 type UserOption = { id: number; name: string; email: string };
 type WorkgroupOption = { id: number; name: string };
 
+type UserNotification = {
+    id: number;
+    type: string;
+    created_at: string | null;
+    read_at: string | null;
+    title?: string | null;
+    message?: string | null;
+};
+
 function formatDateTime(iso: string | null): string {
     if (!iso) return '—';
     try {
@@ -118,12 +127,30 @@ export default function AdminMessageCenter() {
     const [deletingBatchId, setDeletingBatchId] = useState<number | null>(null);
     const [expandedBannerId, setExpandedBannerId] = useState<number | null>(null);
     const [expandedBatchId, setExpandedBatchId] = useState<number | null>(null);
+    const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+    const [userNotifications, setUserNotifications] = useState<UserNotification[]>([]);
+    const [userNotificationsLoading, setUserNotificationsLoading] = useState(false);
+    const [userNotificationSearch, setUserNotificationSearch] = useState('');
+    const [clearingBadgeUserId, setClearingBadgeUserId] = useState<number | null>(null);
+    const [pushingNotificationId, setPushingNotificationId] = useState<number | null>(null);
+    const [deletingNotificationId, setDeletingNotificationId] = useState<number | null>(null);
 
     const filteredUsers = useMemo(() => {
         if (!userSearch.trim()) return users;
         const q = userSearch.trim().toLowerCase();
         return users.filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
     }, [users, userSearch]);
+
+    const filteredUserNotifications = useMemo(() => {
+        if (!userNotificationSearch.trim()) return userNotifications;
+        const q = userNotificationSearch.trim().toLowerCase();
+        return userNotifications.filter((n) => {
+            const type = n.type.toLowerCase();
+            const title = (n.title ?? '').toLowerCase();
+            const message = (n.message ?? '').toLowerCase();
+            return type.includes(q) || title.includes(q) || message.includes(q);
+        });
+    }, [userNotifications, userNotificationSearch]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -150,6 +177,69 @@ export default function AdminMessageCenter() {
 
     const toggleUser = (id: number) => {
         setTargetUserIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    };
+
+    const loadUserNotifications = async (userId: number) => {
+        setSelectedUserId(userId);
+        setUserNotifications([]);
+        setUserNotificationSearch('');
+        setUserNotificationsLoading(true);
+        try {
+            const res = await fetch(`/app/admin/message-center/users/${userId}/notifications`, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'include',
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setUserNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+            }
+        } finally {
+            setUserNotificationsLoading(false);
+        }
+    };
+
+    const clearBadgeForUser = async (userId: number) => {
+        if (!confirm('Send a badge-clear push for this user? This will attempt to clear their app icon badge.')) return;
+        setClearingBadgeUserId(userId);
+        try {
+            await fetch(`/app/admin/message-center/users/${userId}/notifications/clear-badge`, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'include',
+            });
+        } finally {
+            setClearingBadgeUserId(null);
+        }
+    };
+
+    const pushNotification = async (notificationId: number) => {
+        setPushingNotificationId(notificationId);
+        try {
+            await fetch(`/app/admin/message-center/notifications/${notificationId}/push`, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'include',
+            });
+        } finally {
+            setPushingNotificationId(null);
+        }
+    };
+
+    const deleteNotification = async (notificationId: number) => {
+        if (!confirm('Delete this notification for the user?')) return;
+        setDeletingNotificationId(notificationId);
+        try {
+            const res = await fetch(`/app/admin/message-center/notifications/${notificationId}`, {
+                method: 'DELETE',
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'include',
+            });
+            if (res.ok) {
+                setUserNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+            }
+        } finally {
+            setDeletingNotificationId(null);
+        }
     };
 
     const deleteBanner = (id: number) => {
@@ -366,6 +456,149 @@ export default function AdminMessageCenter() {
                         {sending ? 'Sending…' : 'Send'}
                     </Button>
                 </form>
+
+                {/* Per-user notifications & badge controls */}
+                <section className="rounded-xl border border-sidebar-border/70 bg-card p-4 space-y-4 dark:border-sidebar-border">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h2 className="text-sm font-semibold">User notifications & badges</h2>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Inspect notifications for a user, resend a push, delete a notification, or clear their app badge via web push.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <select
+                                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                                value={selectedUserId ?? ''}
+                                onChange={(e) => {
+                                    const id = e.target.value ? Number(e.target.value) : null;
+                                    if (id != null) {
+                                        void loadUserNotifications(id);
+                                    } else {
+                                        setSelectedUserId(null);
+                                        setUserNotifications([]);
+                                    }
+                                }}
+                            >
+                                <option value="">Select user…</option>
+                                {users.map((u) => (
+                                    <option key={u.id} value={u.id}>
+                                        {u.name} ({u.email})
+                                    </option>
+                                ))}
+                            </select>
+                            {selectedUserId != null && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 text-xs"
+                                    onClick={() => clearBadgeForUser(selectedUserId)}
+                                    disabled={clearingBadgeUserId === selectedUserId}
+                                >
+                                    {clearingBadgeUserId === selectedUserId ? 'Clearing…' : 'Clear badge via push'}
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+
+                    {selectedUserId != null && (
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs text-muted-foreground">
+                                    Showing up to 200 most recent notifications for the selected user.
+                                </p>
+                                <Input
+                                    type="text"
+                                    placeholder="Search type, title, or message…"
+                                    value={userNotificationSearch}
+                                    onChange={(e) => setUserNotificationSearch(e.target.value)}
+                                    className="h-8 w-56 text-xs"
+                                />
+                            </div>
+                            <div className="max-h-72 overflow-y-auto rounded-md border border-sidebar-border/60 bg-muted/30 text-xs dark:border-sidebar-border">
+                                <table className="min-w-full text-left text-xs">
+                                    <thead className="sticky top-0 bg-muted/80 backdrop-blur">
+                                        <tr>
+                                            <th className="px-2 py-1 font-medium">ID</th>
+                                            <th className="px-2 py-1 font-medium">Type</th>
+                                            <th className="px-2 py-1 font-medium">Created</th>
+                                            <th className="px-2 py-1 font-medium">Status</th>
+                                            <th className="px-2 py-1 font-medium">Title / Message</th>
+                                            <th className="px-2 py-1 font-medium text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {userNotificationsLoading ? (
+                                            <tr>
+                                                <td colSpan={6} className="px-2 py-4 text-center text-muted-foreground">
+                                                    Loading…
+                                                </td>
+                                            </tr>
+                                        ) : filteredUserNotifications.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className="px-2 py-4 text-center text-muted-foreground">
+                                                    No notifications found for this user.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredUserNotifications.map((n) => (
+                                                <tr key={n.id} className="border-t border-sidebar-border/40">
+                                                    <td className="px-2 py-1 align-top">{n.id}</td>
+                                                    <td className="px-2 py-1 align-top">
+                                                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+                                                            {n.type}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-2 py-1 align-top">
+                                                        {n.created_at ? formatDateTime(n.created_at) : '—'}
+                                                    </td>
+                                                    <td className="px-2 py-1 align-top">
+                                                        {n.read_at ? (
+                                                            <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-300">
+                                                                Read
+                                                            </span>
+                                                        ) : (
+                                                            <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 dark:text-sky-300">
+                                                                Unread
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-2 py-1 align-top max-w-xs">
+                                                        <div className="truncate font-medium">
+                                                            {n.title || n.message || '—'}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-2 py-1 align-top">
+                                                        <div className="flex justify-end gap-1">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 px-2 text-[10px]"
+                                                                onClick={() => pushNotification(n.id)}
+                                                                disabled={pushingNotificationId === n.id}
+                                                            >
+                                                                {pushingNotificationId === n.id ? 'Pushing…' : 'Push again'}
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                className="h-7 px-2 text-[10px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                                onClick={() => deleteNotification(n.id)}
+                                                                disabled={deletingNotificationId === n.id}
+                                                            >
+                                                                {deletingNotificationId === n.id ? 'Deleting…' : 'Delete'}
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </section>
 
                 <div>
                     <h2 className="text-lg font-medium mb-3">Banner message history</h2>
