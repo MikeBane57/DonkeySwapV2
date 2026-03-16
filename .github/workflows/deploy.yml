@@ -99,6 +99,11 @@ jobs:
       - name: Build frontend
         run: npm ci && npm run build
 
+      - name: Write deploy version (for live-site verification)
+        run: |
+          echo "COMMIT=$(git rev-parse HEAD)" > public/build/version.txt
+          echo "DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> public/build/version.txt
+
       - name: Upload public/build via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
