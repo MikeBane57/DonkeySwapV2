@@ -1,0 +1,52 @@
+# One push from Cursor → build assets, upload to FTP, then SSH to server and run git pull + deploy script.
+# Requires secrets: FTP_* (for assets), SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, SERVER_APP_PATH
+
+name: Deploy (push = deploy)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Build, upload assets, deploy on server
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Build frontend
+        run: npm ci && npm run build
+
+      - name: Upload public/build via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./public/build/
+          server-dir: ${{ secrets.FTP_REMOTE_DIR }}/public/build/
+          protocol: ftps
+          port: 21
+          security: loose
+          timeout: 60000
+
+      - name: Deploy on server (git pull + deploy script)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            cd ${{ secrets.SERVER_APP_PATH }}
+            git pull origin main
+            ./deploy/server-deploy.sh
