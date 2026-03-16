@@ -41,7 +41,7 @@ The deploy workflow runs **only if Lint and Test both pass**. If either fails, t
 4. If any job failed (red), open it and fix the error (e.g. failing test or lint). Then commit, push again, or use **Re-run all jobs** after fixing.
 5. If all jobs passed but the site still looks old, do a hard refresh (Ctrl+F5 or Cmd+Shift+R) to avoid cached JS/CSS.
 
-6. **Verify what’s actually on the server:** After a deploy, open `https://YOUR-LIVE-SITE/build/version.txt` (use your real domain). You should see `COMMIT=<sha>` and `DATE=...` from the last deploy. If that file is missing or shows an old commit, the FTP upload or deploy step failed or went to the wrong path; check the **Deploy** job logs in Actions.
+6. **Verify what’s actually on the server:** After a deploy, open `https://YOUR-LIVE-SITE/build/version.json` (use your real domain). You should see `{"commit":"<sha>","date":"..."}` from the last deploy. If that file is missing or shows an old commit, the FTP upload or deploy step failed or went to the wrong path; check the **Deploy** job logs in Actions.
 
 The built frontend (`public/build`) is **not** in the repo; it is built in the workflow and uploaded via FTP. So the live site only gets new UI (menus, notification bell, etc.) when the full workflow runs successfully.
 
