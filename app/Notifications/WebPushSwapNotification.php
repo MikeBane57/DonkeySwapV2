@@ -2,16 +2,16 @@
 
 namespace App\Notifications;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 use NotificationChannels\WebPush\WebPushChannel;
 use NotificationChannels\WebPush\WebPushMessage;
 
-class WebPushSwapNotification extends Notification implements ShouldQueue
+/**
+ * Sent synchronously so pushes work without a queue worker (e.g. on shared hosting).
+ * If you run queue:work, you can implement ShouldQueue again for background sending.
+ */
+class WebPushSwapNotification extends Notification
 {
-    use Queueable;
-
     public function __construct(
         public string $title,
         public string $body,
