@@ -1,7 +1,7 @@
 import { usePage } from '@inertiajs/react';
 
 const DEFAULT_LOGO = '/images/donkey-swap-logo.png';
-const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? '2.1.26a';
+const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? '2.1.27a';
 
 export default function AppLogo() {
     const logoUrl = (usePage().props as { app_icon_url?: string }).app_icon_url ?? DEFAULT_LOGO;

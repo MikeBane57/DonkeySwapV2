@@ -21,6 +21,17 @@ import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
 
+function getCsrfToken(): string {
+    const name = 'XSRF-TOKEN=';
+    const ca = document.cookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.startsWith(' ')) c = c.substring(1);
+        if (c.indexOf(name) === 0) return decodeURIComponent(c.substring(name.length, c.length));
+    }
+    return '';
+}
+
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Admin', href: '/app/admin' },
     { title: 'Message Center', href: '/app/admin/message-center' },
@@ -204,7 +215,7 @@ export default function AdminMessageCenter() {
         try {
             await fetch(`/app/admin/message-center/users/${userId}/notifications/clear-badge`, {
                 method: 'POST',
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-XSRF-TOKEN': getCsrfToken() },
                 credentials: 'include',
             });
         } finally {
@@ -217,7 +228,7 @@ export default function AdminMessageCenter() {
         try {
             await fetch(`/app/admin/message-center/notifications/${notificationId}/push`, {
                 method: 'POST',
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-XSRF-TOKEN': getCsrfToken() },
                 credentials: 'include',
             });
         } finally {
@@ -231,7 +242,7 @@ export default function AdminMessageCenter() {
         try {
             const res = await fetch(`/app/admin/message-center/notifications/${notificationId}`, {
                 method: 'DELETE',
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-XSRF-TOKEN': getCsrfToken() },
                 credentials: 'include',
             });
             if (res.ok) {
