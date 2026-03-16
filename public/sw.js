@@ -3,7 +3,8 @@
  */
 self.addEventListener('push', function (event) {
     if (!event.data) return;
-    var showPromise = event.data.text().then(function (text) {
+    var textOrPromise = event.data.text();
+    var showPromise = Promise.resolve(textOrPromise).then(function (text) {
         var payload;
         try {
             payload = JSON.parse(text);
