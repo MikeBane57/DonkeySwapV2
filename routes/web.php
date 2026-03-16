@@ -25,15 +25,6 @@ use Illuminate\Support\Facades\Route;
 // Public landing (no auth, no navbar)
 Route::get('/', LandingController::class)->name('home');
 
-// Temporary: debug what the web app sees for VAPID (no sensitive values). Remove after fixing live.
-Route::get('/app/debug-vapid', function () {
-    return response()->json([
-        'vapid_public_key_set' => ! empty(config('webpush.vapid.public_key')),
-        'env_VAPID_PUBLIC_KEY_set' => ! empty(env('VAPID_PUBLIC_KEY')),
-        'base_path' => base_path(),
-    ]);
-})->name('debug.vapid');
-
 // PWA web app manifest (needed for home screen install and badge support)
 Route::get('/manifest.webmanifest', function () {
     $iconUrl = asset(Setting::appIconUrl());

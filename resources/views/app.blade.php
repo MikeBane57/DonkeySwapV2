@@ -32,6 +32,9 @@
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
+        {{-- VAPID public key for push (fallback if Inertia shared prop is missing e.g. due to caching) --}}
+        <script>window.__VAPID_PUBLIC_KEY__ = @json(config('webpush.vapid.public_key'));</script>
+
         @php $appIconUrl = \App\Models\Setting::appIconUrl(); @endphp
         <link rel="icon" href="{{ asset($appIconUrl) }}" sizes="any">
         <link rel="icon" href="{{ asset($appIconUrl) }}" type="image/svg+xml">

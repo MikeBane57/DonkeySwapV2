@@ -30,10 +30,16 @@ function getCsrfToken(): string {
  * Registers the service worker and subscribes to push when the user is logged in
  * and vapid_public_key is available. Sends the subscription to the backend.
  */
+declare global {
+    interface Window {
+        __VAPID_PUBLIC_KEY__?: string | null;
+    }
+}
+
 export function usePushSubscription() {
     const page = usePage();
     const props = page.props as { auth?: { user?: unknown }; vapid_public_key?: string | null };
-    const vapidKey = props.vapid_public_key ?? null;
+    const vapidKey = props.vapid_public_key ?? (typeof window !== 'undefined' ? window.__VAPID_PUBLIC_KEY__ : null) ?? null;
     const isAuth = !!props.auth?.user;
     const [status, setStatus] = useState<'idle' | 'registering' | 'subscribed' | 'unsupported' | 'permission-denied' | 'error'>('idle');
     const attempted = useRef(false);
