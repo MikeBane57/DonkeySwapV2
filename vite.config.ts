@@ -1,8 +1,36 @@
+import { execSync } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { wayfinder } from '@laravel/vite-plugin-wayfinder';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import laravel from 'laravel-vite-plugin';
 import { defineConfig } from 'vite';
+
+/** Writes build/version.json during production build (for deploy verification on live site). */
+function deployVersionPlugin() {
+    return {
+        name: 'deploy-version',
+        closeBundle() {
+            const outDir = path.resolve(__dirname, 'public/build');
+            if (!fs.existsSync(outDir)) return;
+            let commit = '';
+            try {
+                commit = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+            } catch {
+                commit = 'unknown';
+            }
+            const version = {
+                commit,
+                date: new Date().toISOString(),
+            };
+            fs.writeFileSync(
+                path.join(outDir, 'version.json'),
+                JSON.stringify(version, null, 0),
+            );
+        },
+    };
+}
 
 export default defineConfig({
     server: {
@@ -15,6 +43,7 @@ export default defineConfig({
         },
     },
     plugins: [
+        deployVersionPlugin(),
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.tsx'],
             ssr: 'resources/js/ssr.tsx',
