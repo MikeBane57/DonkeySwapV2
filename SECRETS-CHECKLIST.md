@@ -2,6 +2,8 @@
 
 The deploy workflow needs these **repository secrets** (Settings → Secrets and variables → Actions). Use this to verify each one.
 
+**SSH auth failing?** See **[docs/RESET-SSH-SECRETS.md](docs/RESET-SSH-SECRETS.md)** for a full step-by-step to generate a new key and set all SSH secrets from scratch.
+
 ---
 
 ## FTP (used to upload `public/build/` to the server)
