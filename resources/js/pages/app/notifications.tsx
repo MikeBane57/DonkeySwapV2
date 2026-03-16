@@ -138,6 +138,7 @@ export default function NotificationsPage() {
                 setNotifications((prev) => prev.filter((n) => n.id !== id));
                 setDetailNotification((prev) => (prev?.id === id ? null : prev));
                 window.dispatchEvent(new CustomEvent('notifications-updated'));
+                router.reload({ only: ['badge_count'] });
             }
         } finally {
             setDismissingId(null);
@@ -161,7 +162,7 @@ export default function NotificationsPage() {
                 setNotifications([]);
                 setDetailNotification(null);
                 window.dispatchEvent(new CustomEvent('notifications-updated'));
-                router.reload({ only: ['notifications'] });
+                router.reload({ only: ['notifications', 'badge_count'] });
             }
         } finally {
             setDismissingAll(false);

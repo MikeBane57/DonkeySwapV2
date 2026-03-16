@@ -1,4 +1,5 @@
 import { router } from '@inertiajs/react';
+import { Bell } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 const POLL_VISIBLE_MS = 5000;
@@ -58,16 +59,19 @@ export function NotificationsBadge() {
         router.visit('/app/notifications');
     };
 
-    if (unreadCount === 0) return null;
-
     return (
         <a
             href="/app/notifications"
             onClick={handleClick}
-            className="relative z-10 flex h-9 min-w-9 shrink-0 items-center justify-center rounded-full bg-red-500 px-2 text-[10px] font-medium text-white no-underline transition-opacity hover:bg-red-600 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            aria-label={`${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}`}
+            className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground no-underline transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-label={unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'Notifications'}
         >
-            {unreadCount > 99 ? '99+' : unreadCount}
+            <Bell className="size-5" />
+            {unreadCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+            )}
         </a>
     );
 }

@@ -67,6 +67,7 @@ class AppNotification extends Model
 
     /**
      * Title and body for web push. Returns [title, body].
+     * Body is contextual when possible (e.g. "Jane Doe responded to your trade post.").
      *
      * @return array{0: string, 1: string}
      */
@@ -79,7 +80,39 @@ class AppNotification extends Model
             return [$title, $data['body'] ?? $message];
         }
         $title = config('app.name', 'Donkey Swap');
-        return [$title, $message];
+        $body = $this->getPushBodyWithContext();
+        return [$title, $body ?? $message];
+    }
+
+    /**
+     * Richer body for push banner (e.g. "Jane Doe responded to your trade post — action required.").
+     */
+    public function getPushBodyWithContext(): ?string
+    {
+        if ($this->type === 'new_offer') {
+            $offerId = $this->data['swap_offer_id'] ?? null;
+            if ($offerId) {
+                $offer = SwapOffer::with(['offeredBy', 'swapPost'])->find($offerId);
+                if ($offer && $offer->offeredBy && $offer->swapPost) {
+                    $name = $offer->offeredBy->name ?? 'Someone';
+                    $postType = match ($offer->swapPost->type ?? '') {
+                        'trade' => 'trade',
+                        'time_trade' => 'time trade',
+                        'cash' => 'giveaway',
+                        'flight_follow' => 'flight follow',
+                        default => 'post',
+                    };
+                    return "{$name} responded to your {$postType} post — action required.";
+                }
+            }
+        }
+        if ($this->type === 'swap_accepted') {
+            return 'Your response was accepted.';
+        }
+        if ($this->type === 'swap_rejected') {
+            return 'Your offer was declined.';
+        }
+        return null;
     }
 
     private function defaultPushMessage(string $type): string
