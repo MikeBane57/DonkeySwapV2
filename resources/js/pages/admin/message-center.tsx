@@ -119,7 +119,7 @@ export default function AdminMessageCenter() {
     };
     const banners = props.banners ?? [];
     const notificationBatches = props.notificationBatches ?? [];
-    const users = props.users ?? [];
+    const users = useMemo(() => props.users ?? [], [props.users]);
     const workgroups = props.workgroups ?? [];
     const flash = props.flash;
     const errors = props.errors ?? {};

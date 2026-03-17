@@ -223,6 +223,17 @@ export default function AvailablePage() {
         return deskTypeOptions.filter((opt) => allowed.includes(opt.value));
     }, [deskTypeOptions, deskTypesByWorkgroup, filters.workgroup_id]);
 
+    const applyFilters = useCallback((updates: Partial<typeof filters>) => {
+        const next = { ...filters, ...updates };
+        if (next.preferred_only === undefined) delete next.preferred_only;
+        if (next.eligible_only === undefined) delete next.eligible_only;
+        if (next.desk_type === 'all' || next.desk_type === '') delete next.desk_type;
+        if (next.desk_search === '') delete next.desk_search;
+        if (next.min_cash === '' || next.min_cash === undefined) delete next.min_cash;
+        if (next.hide_during_time_off === false) delete next.hide_during_time_off;
+        router.get('/app/available', next as Record<string, string | boolean>, { preserveState: true });
+    }, [filters]);
+
     useEffect(() => {
         const workgroupId = filters.workgroup_id;
         const deskType = filters.desk_type;
@@ -231,7 +242,7 @@ export default function AvailablePage() {
         if (allowed && allowed.length > 0 && !allowed.includes(deskType)) {
             applyFilters({ desk_type: undefined });
         }
-    }, [filters.workgroup_id, filters.desk_type, deskTypesByWorkgroup]);
+    }, [filters.workgroup_id, filters.desk_type, deskTypesByWorkgroup, applyFilters]);
     const [offerPostId, setOfferPostId] = useState<number | null>(null);
     const [offerShiftIds, setOfferShiftIds] = useState<number[]>([]);
     const [offerResponseNotes, setOfferResponseNotes] = useState('');
@@ -301,17 +312,6 @@ export default function AvailablePage() {
         const interval = setInterval(refresh, 30000);
         return () => clearInterval(interval);
     }, [refresh]);
-
-    const applyFilters = (updates: Partial<typeof filters>) => {
-        const next = { ...filters, ...updates };
-        if (next.preferred_only === undefined) delete next.preferred_only;
-        if (next.eligible_only === undefined) delete next.eligible_only;
-        if (next.desk_type === 'all' || next.desk_type === '') delete next.desk_type;
-        if (next.desk_search === '') delete next.desk_search;
-        if (next.min_cash === '' || next.min_cash === undefined) delete next.min_cash;
-        if (next.hide_during_time_off === false) delete next.hide_during_time_off;
-        router.get('/app/available', next as Record<string, string | boolean>, { preserveState: true });
-    };
 
     const offerPost = useMemo(() => {
         if (offerPostId == null) return null;

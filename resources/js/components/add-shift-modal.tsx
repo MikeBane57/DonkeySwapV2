@@ -142,7 +142,7 @@ export function AddShiftModal({
         if (!workgroupId) {
             setStartTime('');
         }
-    }, [workgroupId, allowedStartTimes]);
+    }, [workgroupId, allowedStartTimes, startTime]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

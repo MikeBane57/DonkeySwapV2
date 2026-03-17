@@ -14,7 +14,7 @@ import {
     Plus,
     ArrowLeftRight,
 } from 'lucide-react';
-import { Briefcase, CalendarOff, ChevronRight, Trash2, AlertCircle, MessageSquare, Check } from 'lucide-react';
+import { Briefcase, CalendarOff, Trash2, AlertCircle, MessageSquare, Check } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState  } from 'react';
 import type {ReactNode} from 'react';
 import { AddShiftModal } from '@/components/add-shift-modal';
@@ -509,7 +509,7 @@ export default function AppDashboard() {
     const upcomingShifts = props.upcomingShifts ?? [];
     const activePosts = props.activePosts ?? [];
     const activeLookingForWorkPosts = props.activeLookingForWorkPosts ?? [];
-    const actionRequired = props.actionRequired ?? [];
+    const actionRequired = useMemo(() => props.actionRequired ?? [], [props.actionRequired]);
     const monthStats = props.monthStats ?? { month_label: '', shifts_count: 0, days_off_count: 0, action_required_count: 0 };
     const auth = props.auth;
     const [events, setEvents] = useState<CalendarEvent[]>(props.initialEvents ?? []);
@@ -582,11 +582,6 @@ export default function AppDashboard() {
     const [dashboardLeftTab, setDashboardLeftTab] = useState<'overview' | 'time_off'>('overview');
     const [bulkLfwFrom, setBulkLfwFrom] = useState('');
     const [bulkLfwTo, setBulkLfwTo] = useState('');
-    const [bulkLfwCash, setBulkLfwCash] = useState('');
-    const [bulkLfwObo, setBulkLfwObo] = useState(false);
-    const [bulkLfwDeskTypes, setBulkLfwDeskTypes] = useState<string[]>([]);
-    const [bulkLfwNotes, setBulkLfwNotes] = useState('');
-    const [bulkLfwSubmitting, setBulkLfwSubmitting] = useState(false);
     /** Date range pucks in Time off tab: title + range; expand to show off-dates and post actions. Persisted in DB. */
     const [rangePucks, setRangePucks] = useState<LfwDateRangePuck[]>(props.lfwDateRanges ?? []);
     const [expandedPuckId, setExpandedPuckId] = useState<number | null>(null);
@@ -907,7 +902,7 @@ export default function AppDashboard() {
             .then((data) => { if (!cancelled) setEventsInSelectedRange(Array.isArray(data) ? data : []); })
             .catch(() => { if (!cancelled) setEventsInSelectedRange([]); });
         return () => { cancelled = true; };
-    }, [selectedRange?.id, selectedRange?.start_date, selectedRange?.end_date]);
+    }, [selectedRange]);
 
     const now = new Date();
     const shiftsInSelectedRange = eventsInSelectedRange.filter((e) => new Date(e.end) >= now && !e.extendedProps?.pending_incoming);
