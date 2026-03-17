@@ -4,9 +4,12 @@ namespace App\Http\Controllers\App;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminBannerMessage;
+use App\Models\LookingForWorkOffer;
+use App\Models\LookingForWorkPost;
 use App\Models\Shift;
 use App\Models\SwapOffer;
 use App\Models\SwapPost;
+use App\Models\UserLfwDateRange;
 use App\Models\UserTimeOffRange;
 use Carbon\Carbon;
 use Inertia\Inertia;
@@ -131,6 +134,7 @@ class DashboardController extends Controller
 
             return [
                 'id' => $offer->id,
+                'action_type' => 'swap_offer',
                 'swap_post_id' => $offer->swap_post_id,
                 'shift_id' => $offer->swapPost?->shift_id,
                 'post_type' => $offer->swapPost?->type,
@@ -146,6 +150,61 @@ class DashboardController extends Controller
                 'cash_amount' => $offer->swapPost?->cash_amount !== null ? (float) $offer->swapPost->cash_amount : null,
             ];
         })->values()->all();
+
+        // Looking for work: pending offers on my LFW posts (seeking_date >= today)
+        $lfwOffers = LookingForWorkOffer::with(['post', 'offeredBy', 'offeredShift'])
+            ->where('status', 'pending')
+            ->whereHas('post', fn ($q) => $q->where('user_id', $user->id)->where('seeking_date', '>=', $now->toDateString())->where('status', 'open'))
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $lfwActionItems = $lfwOffers->map(function (LookingForWorkOffer $offer) {
+            $post = $offer->post;
+            $shift = $offer->offeredShift;
+            $offeredShiftSummary = $shift
+                ? $shift->position_name.' · '.($shift->start_time_utc ? $shift->start_time_utc->format('M j, g:i A') : '')
+                : null;
+            $offerer = $offer->offeredBy;
+
+            return [
+                'id' => $offer->id,
+                'action_type' => 'looking_for_work_offer',
+                'looking_for_work_post_id' => $post->id,
+                'seeking_date' => $post->seeking_date->format('Y-m-d'),
+                'seeking_cash' => $post->seeking_cash !== null ? (float) $post->seeking_cash : null,
+                'seeking_obo' => (bool) $post->seeking_obo,
+                'position_name' => null,
+                'start_time_utc' => null,
+                'offered_by_name' => $offerer?->name,
+                'offered_by_contact' => null,
+                'offered_by_contact_method' => null,
+                'response_notes' => $offer->response_notes ? trim($offer->response_notes) : null,
+                'offered_shift_summary' => $offeredShiftSummary,
+                'offered_shifts' => $shift ? [['id' => $shift->id, 'position_name' => $shift->position_name, 'start_time_utc' => $shift->start_time_utc?->toIso8601String(), 'end_time_utc' => $shift->end_time_utc?->toIso8601String()]] : [],
+                'cash_amount' => $post->seeking_cash !== null ? (float) $post->seeking_cash : null,
+            ];
+        })->values()->all();
+
+        $actionRequired = array_merge($actionRequired, $lfwActionItems);
+
+        // Active looking-for-work posts (mine, open, seeking_date >= today)
+        $activeLookingForWorkPosts = LookingForWorkPost::where('user_id', $user->id)
+            ->where('status', 'open')
+            ->where('seeking_date', '>=', $now->toDateString())
+            ->orderBy('seeking_date')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn (LookingForWorkPost $p) => [
+                'id' => $p->id,
+                'seeking_date' => $p->seeking_date->format('Y-m-d'),
+                'seeking_cash' => $p->seeking_cash !== null ? (float) $p->seeking_cash : null,
+                'seeking_obo' => (bool) $p->seeking_obo,
+                'seeking_desk_types' => $p->seeking_desk_types ?? [],
+                'notes' => $p->notes,
+                'pending_offer_count' => (int) $p->pendingOffers()->count(),
+            ])
+            ->values()
+            ->all();
 
         // Calendar events (next 14 days)
         $shifts = Shift::with('workgroup')
@@ -228,6 +287,16 @@ class DashboardController extends Controller
                 'notes' => $r->notes,
             ]);
 
+        $lfwDateRanges = UserLfwDateRange::where('user_id', $user->id)
+            ->orderBy('date_from')
+            ->get()
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'title' => $r->title,
+                'dateFrom' => $r->date_from->format('Y-m-d'),
+                'dateTo' => $r->date_to->format('Y-m-d'),
+            ]);
+
         $userWorkgroups = $user->workgroups()
             ->selectRaw('workgroups.id as id, workgroups.name as name')
             ->with(['allowedStartTimes', 'deskTypes', 'positionRanges.deskType', 'qualifications'])
@@ -299,6 +368,8 @@ class DashboardController extends Controller
                 'days_off_count' => $daysOffThisMonth,
                 'action_required_count' => count($actionRequired),
             ],
+            'activeLookingForWorkPosts' => $activeLookingForWorkPosts,
+            'lfwDateRanges' => $lfwDateRanges,
             'timeOffRanges' => $timeOffRanges,
             'userWorkgroups' => $userWorkgroups,
             'userIsDispatch' => $userIsDispatch,

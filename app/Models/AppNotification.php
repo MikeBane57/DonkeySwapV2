@@ -81,6 +81,11 @@ class AppNotification extends Model
 
             return [$title, $body];
         }
+        if (in_array($this->type, ['looking_for_work_offer', 'looking_for_work_accepted', 'looking_for_work_not_selected'], true)) {
+            $title = config('app.name', 'Donkey Swap');
+            $body = (string) ($data['message'] ?? $this->defaultPushMessage($this->type));
+            return [$title, $body];
+        }
         $title = config('app.name', 'Donkey Swap');
         $body = $this->getPushBodyWithContext();
 
@@ -97,6 +102,9 @@ class AppNotification extends Model
             if ($offerId !== null) {
                 return url('/app?open_offer=' . (int) $offerId);
             }
+        }
+        if ($this->type === 'looking_for_work_offer') {
+            return url('/app/looking-for-work');
         }
         return url('/app');
     }
@@ -172,6 +180,9 @@ class AppNotification extends Model
             'swap_rejected' => 'Your offer was declined.',
             'new_offer' => 'Someone responded to your post — action required.',
             'admin_message' => 'Message from admin',
+            'looking_for_work_offer' => 'Someone offered a shift on your looking-for-work post.',
+            'looking_for_work_accepted' => 'Your offer was accepted. The shift has been transferred to you.',
+            'looking_for_work_not_selected' => 'Another offer was accepted on the post you responded to.',
             default => 'You have a new notification.',
         };
     }

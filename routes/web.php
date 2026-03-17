@@ -14,9 +14,11 @@ use App\Http\Controllers\Api\OfferController;
 use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\Api\SwapPostController;
+use App\Http\Controllers\Api\LfwDateRangeController;
 use App\Http\Controllers\Api\TimeOffRangeController;
 use App\Http\Controllers\App\AvailableController;
 use App\Http\Controllers\App\DashboardController;
+use App\Http\Controllers\App\LookingForWorkController;
 use App\Http\Controllers\App\NotificationsController as AppNotificationsController;
 use App\Http\Controllers\LandingController;
 use App\Models\Setting;
@@ -79,14 +81,26 @@ Route::prefix('api')->middleware(['auth'])->group(function () {
     Route::get('time-off-ranges', [TimeOffRangeController::class, 'index'])->name('api.time-off-ranges.index');
     Route::post('time-off-ranges', [TimeOffRangeController::class, 'store'])->name('api.time-off-ranges.store');
     Route::delete('time-off-ranges/{userTimeOffRange}', [TimeOffRangeController::class, 'destroy'])->name('api.time-off-ranges.destroy');
+    Route::post('lfw-date-ranges', [LfwDateRangeController::class, 'store'])->name('api.lfw-date-ranges.store');
+    Route::delete('lfw-date-ranges/{userLfwDateRange}', [LfwDateRangeController::class, 'destroy'])->name('api.lfw-date-ranges.destroy');
     Route::get('available/eligible-counts', [AvailableController::class, 'eligibleCounts'])->name('api.available.eligible-counts');
     Route::get('available/dates-with-eligible-giveaway', [AvailableController::class, 'datesWithEligibleGiveaway'])->name('api.available.dates-with-eligible-giveaway');
+    Route::post('looking-for-work/posts', [LookingForWorkController::class, 'store'])->name('api.looking-for-work.posts.store');
+    Route::post('looking-for-work/posts/bulk', [LookingForWorkController::class, 'storeBulk'])->name('api.looking-for-work.posts.bulk');
+    Route::put('looking-for-work/posts/{looking_for_work_post}', [LookingForWorkController::class, 'update'])->name('api.looking-for-work.posts.update');
+    Route::delete('looking-for-work/posts/{looking_for_work_post}', [LookingForWorkController::class, 'destroy'])->name('api.looking-for-work.posts.destroy');
+    Route::post('looking-for-work/posts/{looking_for_work_post}/offers', [LookingForWorkController::class, 'offer'])->name('api.looking-for-work.offers.store');
+    Route::post('looking-for-work/offers/{looking_for_work_offer}/accept', [LookingForWorkController::class, 'acceptOffer'])->name('api.looking-for-work.offers.accept');
+    Route::post('looking-for-work/offers/{looking_for_work_offer}/reject', [LookingForWorkController::class, 'rejectOffer'])->name('api.looking-for-work.offers.reject');
+    Route::post('looking-for-work/offers/{looking_for_work_offer}/withdraw', [LookingForWorkController::class, 'withdrawOffer'])->name('api.looking-for-work.offers.withdraw');
+    Route::put('looking-for-work/offers/{looking_for_work_offer}', [LookingForWorkController::class, 'updateOffer'])->name('api.looking-for-work.offers.update');
 });
 
 // Authenticated app routes under /app
 Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('available', [AvailableController::class, 'index'])->name('available');
+    Route::get('looking-for-work', [LookingForWorkController::class, 'index'])->name('looking-for-work');
     Route::get('notifications', [AppNotificationsController::class, 'index'])->name('notifications');
     Route::redirect('dashboard', '/app');
     Route::redirect('calendar', '/app')->name('calendar');

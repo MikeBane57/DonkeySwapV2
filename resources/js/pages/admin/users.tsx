@@ -179,6 +179,7 @@ export default function AdminUsers() {
         }, {
             onSuccess: () => {
                 setCreateOpen(false);
+                setSearchQuery('');
                 setSuccess('User created.');
             },
         });

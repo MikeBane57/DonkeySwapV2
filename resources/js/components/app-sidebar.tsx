@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { CalendarSync, ClipboardList, Shield } from 'lucide-react';
+import { Briefcase, CalendarSync, ClipboardList, Shield } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import {
@@ -17,9 +17,14 @@ const mainNavItems: NavItem[] = [
         icon: CalendarSync,
     },
     {
-        title: 'Available',
+        title: 'Available shifts',
         href: '/app/available',
         icon: ClipboardList,
+    },
+    {
+        title: 'Looking for work',
+        href: '/app/looking-for-work',
+        icon: Briefcase,
     },
 ];
 

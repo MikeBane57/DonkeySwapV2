@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\LookingForWorkOffer;
+use App\Models\LookingForWorkPost;
 use App\Models\Shift;
 use App\Models\ShiftActivityLog;
 use App\Models\SwapPost;
@@ -20,6 +22,13 @@ class PostManagerController extends Controller
 {
     public function index(Request $request): Response
     {
+        $typeFilter = $request->input('type');
+
+        // Looking for work posts (separate type)
+        if ($typeFilter === 'looking_for_work') {
+            return $this->indexLookingForWork($request);
+        }
+
         $query = Shift::query()
             ->whereHas('swapPosts')
             ->with([
@@ -287,6 +296,171 @@ class PostManagerController extends Controller
 
         return Inertia::render('admin/posts', [
             'posts' => $shifts,
+            'users' => $users,
+            'workgroups' => $workgroups,
+            'status_options' => $statusOptions,
+            'filters' => $request->only(['user_id', 'workgroup_id', 'status', 'type', 'date_from', 'date_to', 'min_transactions', 'min_offers', 'search']),
+            'sort' => $sort,
+            'dir' => $dir,
+        ]);
+    }
+
+    private function indexLookingForWork(Request $request): Response
+    {
+        $query = LookingForWorkPost::query()
+            ->with([
+                'user:id,name,email',
+                'offers.offeredBy:id,name,email',
+                'offers.offeredShift:id,position_name,start_time_utc,user_id',
+                'histories',
+            ]);
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->input('user_id'));
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+        if ($request->filled('date_from')) {
+            $query->where('seeking_date', '>=', Carbon::parse($request->input('date_from'))->startOfDay()->utc());
+        }
+        if ($request->filled('date_to')) {
+            $query->where('seeking_date', '<=', Carbon::parse($request->input('date_to'))->endOfDay()->utc());
+        }
+        if ($request->filled('search')) {
+            $term = trim($request->input('search'));
+            if ($term !== '') {
+                $query->whereHas('user', fn ($q) => $q->where('name', 'like', '%'.$term.'%')->orWhere('email', 'like', '%'.$term.'%'));
+            }
+        }
+
+        $sort = $request->input('sort', 'posts_created_at');
+        $dir = $request->input('dir', 'desc');
+        if (! in_array($dir, ['asc', 'desc'], true)) {
+            $dir = 'desc';
+        }
+        if ($sort === 'view_count' || $sort === 'click_count') {
+            $query->orderBy($sort, $dir);
+        } elseif ($sort === 'offers_count') {
+            $query->withCount('offers')->orderBy('offers_count', $dir);
+        } else {
+            $query->orderBy('created_at', $dir);
+        }
+
+        $paginator = $query->paginate(20)->withQueryString();
+        $posts = $paginator->getCollection();
+
+        $rows = $posts->map(function (LookingForWorkPost $post) {
+            $owner = $post->user;
+            $allOffers = $post->offers ?? collect();
+            $selectedOffer = $allOffers->first(fn ($o) => ($o->status ?? '') === 'selected');
+            $acceptedByName = $selectedOffer?->offeredBy?->name;
+            $acceptedByEmail = $selectedOffer?->offeredBy?->email;
+
+            $editHistories = collect($post->histories ?? [])->map(fn ($h) => [
+                'at' => $h->changed_at?->toIso8601String(),
+                'event' => 'edit',
+                'label' => 'Edit: '.(is_array($h->changes) ? implode(', ', array_map(fn ($c) => ($c['field'] ?? '').' '.json_encode($c['old'] ?? '').' → '.json_encode($c['new'] ?? ''), $h->changes)) : ''),
+                'actor' => null,
+                'changes' => $h->changes,
+            ])->all();
+            usort($editHistories, fn ($x, $y) => strcmp($y['at'] ?? '', $x['at'] ?? ''));
+
+            $offersRows = $allOffers->map(function ($o) use ($post) {
+                $status = $o->status ?? '';
+                $displayStatus = match ($status) {
+                    'pending' => 'Pending',
+                    'selected' => 'Accepted',
+                    'rejected' => 'Rejected',
+                    'withdrawn' => 'Withdrawn',
+                    default => $status,
+                };
+
+                return [
+                    'id' => $o->id,
+                    'offered_by_id' => $o->offered_by_user_id,
+                    'offered_by_name' => $o->offeredBy?->name,
+                    'offered_by_email' => $o->offeredBy?->email,
+                    'offered_shift_id' => $o->offered_shift_id,
+                    'offered_shift_summary' => $o->offeredShift
+                        ? $o->offeredShift->position_name.' · '.($o->offeredShift->start_time_utc ? $o->offeredShift->start_time_utc->format('M j, g:i A') : '')
+                        : null,
+                    'status' => $displayStatus,
+                    'status_raw' => $status,
+                    'response_notes' => $o->response_notes,
+                    'created_at' => $o->created_at?->toIso8601String(),
+                    'poster_name' => $post->user?->name,
+                    'poster_email' => $post->user?->email,
+                    'shift_going_to_name' => null,
+                    'cash_amount' => $post->seeking_cash ? (float) $post->seeking_cash : null,
+                    'post_type_label' => 'Looking for work',
+                ];
+            })->values()->all();
+
+            return [
+                'shift_id' => null,
+                'looking_for_work_post_id' => $post->id,
+                'post_ids' => [$post->id],
+                'owner_id' => $owner?->id,
+                'owner_name' => $owner?->name,
+                'owner_email' => $owner?->email,
+                'accepted_by_name' => $acceptedByName,
+                'accepted_by_email' => $acceptedByEmail,
+                'types' => ['looking_for_work'],
+                'types_label' => 'Looking for work',
+                'status' => ucfirst($post->status ?? ''),
+                'statuses' => [$post->status ?? ''],
+                'cash_amount' => $post->seeking_cash ? (float) $post->seeking_cash : null,
+                'flight_follow_minutes' => null,
+                'notes' => $post->notes,
+                'view_count' => (int) ($post->view_count ?? 0),
+                'click_count' => (int) ($post->click_count ?? 0),
+                'hidden_by_count' => 0,
+                'transaction_count' => $selectedOffer ? 1 : 0,
+                'offers_count' => $allOffers->count(),
+                'posts_created_at' => $post->created_at?->toIso8601String(),
+                'posts_updated_at' => $post->updated_at?->toIso8601String(),
+                'shift' => null,
+                'seeking_date' => $post->seeking_date?->format('Y-m-d'),
+                'posts' => [[
+                    'id' => $post->id,
+                    'type' => 'looking_for_work',
+                    'type_label' => 'Looking for work',
+                    'status' => $post->status ?? '',
+                    'cash_amount' => $post->seeking_cash ? (float) $post->seeking_cash : null,
+                    'flight_follow_minutes' => null,
+                    'notes' => $post->notes,
+                ]],
+                'offers' => $offersRows,
+                'activity' => $editHistories,
+            ];
+        })->values()->all();
+
+        $users = User::orderBy('name')->get(['id', 'name', 'email'])->map(fn ($u) => [
+            'id' => $u->id,
+            'name' => $u->name,
+            'email' => $u->email,
+        ]);
+        $workgroups = Workgroup::orderBy('name')->get(['id', 'name'])->map(fn ($wg) => [
+            'id' => $wg->id,
+            'name' => $wg->name,
+        ]);
+
+        $statusOptions = [['value' => '__all__', 'label' => 'Any status']];
+        foreach (LookingForWorkPost::distinct()->pluck('status')->filter()->sort()->values() as $s) {
+            $statusOptions[] = ['value' => $s, 'label' => ucfirst(strtolower($s))];
+        }
+
+        $postsPaginated = new \Illuminate\Pagination\LengthAwarePaginator(
+            $rows,
+            $paginator->total(),
+            $paginator->perPage(),
+            $paginator->currentPage(),
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return Inertia::render('admin/posts', [
+            'posts' => $postsPaginated,
             'users' => $users,
             'workgroups' => $workgroups,
             'status_options' => $statusOptions,

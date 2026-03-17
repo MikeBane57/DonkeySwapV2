@@ -77,7 +77,9 @@ type PostSubRow = {
 };
 
 type PostRow = {
-    shift_id: number;
+    shift_id: number | null;
+    looking_for_work_post_id?: number;
+    seeking_date?: string;
     post_ids: number[];
     owner_id: number | null;
     owner_name: string | null;
@@ -167,6 +169,7 @@ const TYPE_OPTIONS = [
     { value: 'time_trade', label: 'Time trade' },
     { value: 'cash', label: 'Giveaway' },
     { value: 'flight_follow', label: 'Flight following' },
+    { value: 'looking_for_work', label: 'Looking for work' },
 ];
 
 const SORT_OPTIONS = [
@@ -467,17 +470,20 @@ export default function AdminPosts() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                data.map((row) => (
-                                    <Fragment key={row.shift_id}>
-                                            <TableRow className={expandedShiftId === row.shift_id ? 'bg-muted/50' : ''}>
+                                data.map((row) => {
+                                    const rowKey = row.shift_id ?? row.looking_for_work_post_id ?? 0;
+                                    const isLfw = row.shift_id == null && row.looking_for_work_post_id != null;
+                                    return (
+                                    <Fragment key={rowKey}>
+                                            <TableRow className={expandedShiftId === rowKey ? 'bg-muted/50' : ''}>
                                                 <TableCell className="w-8">
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
                                                         className="h-8 w-8"
-                                                        onClick={() => setExpandedShiftId(expandedShiftId === row.shift_id ? null : row.shift_id)}
+                                                        onClick={() => setExpandedShiftId(expandedShiftId === rowKey ? null : rowKey)}
                                                     >
-                                                        {expandedShiftId === row.shift_id ? (
+                                                        {expandedShiftId === rowKey ? (
                                                             <ChevronDown className="h-4 w-4" />
                                                         ) : (
                                                             <ChevronRight className="h-4 w-4" />
@@ -498,6 +504,11 @@ export default function AdminPosts() {
                                                             <div className="text-xs text-muted-foreground">
                                                                 {formatDateTime(row.shift.start_time_utc)} · {row.shift.workgroup_name ?? '—'}
                                                             </div>
+                                                        </>
+                                                    ) : isLfw && row.seeking_date ? (
+                                                        <>
+                                                            <div>Looking for work</div>
+                                                            <div className="text-xs text-muted-foreground">{row.seeking_date}</div>
                                                         </>
                                                     ) : (
                                                         '—'
@@ -538,43 +549,45 @@ export default function AdminPosts() {
                                                 </TableCell>
                                                 <TableCell className="text-right">{row.offers_count ?? row.offers.length}</TableCell>
                                                 <TableCell className="text-right whitespace-nowrap">
-                                                    {row.status !== 'Open' && (
+                                                    {!isLfw && row.status !== 'Open' && (
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            onClick={() => setShiftPostsStatus(row.shift_id, 'open')}
+                                                            onClick={() => setShiftPostsStatus(row.shift_id!, 'open')}
                                                             title="Activate all (set Open)"
                                                         >
                                                             <Eye className="h-4 w-4" />
                                                         </Button>
                                                     )}
-                                                    {row.status === 'Open' && (
+                                                    {!isLfw && row.status === 'Open' && (
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            onClick={() => setShiftPostsStatus(row.shift_id, 'closed')}
+                                                            onClick={() => setShiftPostsStatus(row.shift_id!, 'closed')}
                                                             title="Deactivate all (set Closed)"
                                                         >
                                                             <EyeOff className="h-4 w-4" />
                                                         </Button>
                                                     )}
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="text-destructive hover:text-destructive"
-                                                        onClick={() => removeShiftPosts(row.shift_id)}
-                                                        title="Remove all posts for this shift"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
+                                                    {!isLfw && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="text-destructive hover:text-destructive"
+                                                            onClick={() => removeShiftPosts(row.shift_id!)}
+                                                            title="Remove all posts for this shift"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
                                                 </TableCell>
                                             </TableRow>
-                                            {expandedShiftId === row.shift_id && (
+                                            {expandedShiftId === rowKey && (
                                                 <TableRow className="bg-muted/30 hover:bg-muted/30">
                                                     <TableCell colSpan={15} className="p-4">
                                                         <div className="grid gap-6 md:grid-cols-2">
                                                             <div>
-                                                                <h4 className="font-medium mb-2">Shift & post history (admin only)</h4>
+                                                                <h4 className="font-medium mb-2">{isLfw ? 'Post history (admin only)' : 'Shift & post history (admin only)'}</h4>
                                                                 {(!row.activity || row.activity.length === 0) ? (
                                                                     <p className="text-sm text-muted-foreground">No activity yet.</p>
                                                                 ) : (
@@ -646,7 +659,8 @@ export default function AdminPosts() {
                                                 </TableRow>
                                             )}
                                     </Fragment>
-                                ))
+                                    );
+                                })
                             )}
                         </TableBody>
                     </Table>

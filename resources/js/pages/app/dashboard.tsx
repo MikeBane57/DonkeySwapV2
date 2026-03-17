@@ -14,7 +14,7 @@ import {
     Plus,
     ArrowLeftRight,
 } from 'lucide-react';
-import { CalendarOff, Trash2, AlertCircle, MessageSquare, Check } from 'lucide-react';
+import { Briefcase, CalendarOff, ChevronRight, Trash2, AlertCircle, MessageSquare, Check } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState  } from 'react';
 import type {ReactNode} from 'react';
 import { AddShiftModal } from '@/components/add-shift-modal';
@@ -181,12 +181,17 @@ type OfferedShiftOption = {
 
 type ActionRequiredItem = {
     id: number;
-    swap_post_id: number;
+    action_type?: 'swap_offer' | 'looking_for_work_offer';
+    swap_post_id?: number;
+    looking_for_work_post_id?: number;
     shift_id?: number | null;
-    post_type: string;
-    position_name?: string;
-    start_time_utc?: string;
-    end_time_utc?: string;
+    post_type?: string;
+    position_name?: string | null;
+    start_time_utc?: string | null;
+    end_time_utc?: string | null;
+    seeking_date?: string;
+    seeking_cash?: number | null;
+    seeking_obo?: boolean;
     offered_by_name?: string;
     offered_by_contact?: string | null;
     offered_by_contact_method?: string | null;
@@ -242,7 +247,24 @@ type TimeOffRange = {
     notes?: string | null;
 };
 
-const DASHBOARD_RELOAD_ONLY = ['activePosts', 'actionRequired', 'currentShift', 'nextShift', 'upcomingShifts', 'monthStats', 'timeOffRanges', 'initialEvents'] as const;
+type ActiveLookingForWorkPost = {
+    id: number;
+    seeking_date: string;
+    seeking_cash: number | null;
+    seeking_obo: boolean;
+    seeking_desk_types: string[];
+    notes?: string | null;
+    pending_offer_count: number;
+};
+
+type LfwDateRangePuck = {
+    id: number;
+    title: string;
+    dateFrom: string;
+    dateTo: string;
+};
+
+const DASHBOARD_RELOAD_ONLY = ['activePosts', 'activeLookingForWorkPosts', 'actionRequired', 'currentShift', 'nextShift', 'upcomingShifts', 'monthStats', 'timeOffRanges', 'lfwDateRanges', 'initialEvents'] as const;
 
 function getCsrfToken(): string {
     const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
@@ -470,10 +492,12 @@ export default function AppDashboard() {
         nextShift?: ShiftSummary | null;
         upcomingShifts?: ShiftSummary[];
         activePosts?: ActivePost[];
+        activeLookingForWorkPosts?: ActiveLookingForWorkPost[];
         actionRequired?: ActionRequiredItem[];
         initialEvents?: CalendarEvent[];
         monthStats?: MonthStats;
         timeOffRanges?: TimeOffRange[];
+        lfwDateRanges?: LfwDateRangePuck[];
         userWorkgroups?: { id: number; name: string; allowed_start_times?: { start_time: string; default_duration_minutes: number }[]; desk_types?: { code: string; label: string }[] }[];
         userIsDispatch?: boolean;
         defaultWorkgroupId?: number | null;
@@ -484,6 +508,7 @@ export default function AppDashboard() {
     const nextShift = props.nextShift ?? null;
     const upcomingShifts = props.upcomingShifts ?? [];
     const activePosts = props.activePosts ?? [];
+    const activeLookingForWorkPosts = props.activeLookingForWorkPosts ?? [];
     const actionRequired = props.actionRequired ?? [];
     const monthStats = props.monthStats ?? { month_label: '', shifts_count: 0, days_off_count: 0, action_required_count: 0 };
     const auth = props.auth;
@@ -532,6 +557,10 @@ export default function AppDashboard() {
         preselectFlightFollow?: boolean;
     } | null>(null);
     const [reviewOfferItem, setReviewOfferItem] = useState<ActionRequiredItem | null>(null);
+    /** When multiple LFW offers for same post, show all in one modal. */
+    const [reviewLfwOfferGroup, setReviewLfwOfferGroup] = useState<ActionRequiredItem[] | null>(null);
+    /** When multiple swap offers for same post (giveaway, trade, etc.), show all in one modal. */
+    const [reviewSwapOfferGroup, setReviewSwapOfferGroup] = useState<ActionRequiredItem[] | null>(null);
     /** For trade/time_trade: which of the offered shifts the poster selected to accept. */
     const [reviewSelectedShiftId, setReviewSelectedShiftId] = useState<number | null>(null);
     /** When true, hide offered shifts that fall on days the poster needs off. */
@@ -546,6 +575,31 @@ export default function AppDashboard() {
         const d = new Date();
         return { month: d.getMonth(), year: d.getFullYear() };
     });
+    const [editLfwPost, setEditLfwPost] = useState<ActiveLookingForWorkPost | null>(null);
+    const [editLfwForm, setEditLfwForm] = useState<{ date: string; cash: string; obo: boolean; deskTypes: string[]; notes: string } | null>(null);
+    const [editLfwSaving, setEditLfwSaving] = useState(false);
+    const [deletingLfwPostId, setDeletingLfwPostId] = useState<number | null>(null);
+    const [dashboardLeftTab, setDashboardLeftTab] = useState<'overview' | 'time_off'>('overview');
+    const [bulkLfwFrom, setBulkLfwFrom] = useState('');
+    const [bulkLfwTo, setBulkLfwTo] = useState('');
+    const [bulkLfwCash, setBulkLfwCash] = useState('');
+    const [bulkLfwObo, setBulkLfwObo] = useState(false);
+    const [bulkLfwDeskTypes, setBulkLfwDeskTypes] = useState<string[]>([]);
+    const [bulkLfwNotes, setBulkLfwNotes] = useState('');
+    const [bulkLfwSubmitting, setBulkLfwSubmitting] = useState(false);
+    /** Date range pucks in Time off tab: title + range; expand to show off-dates and post actions. Persisted in DB. */
+    const [rangePucks, setRangePucks] = useState<LfwDateRangePuck[]>(props.lfwDateRanges ?? []);
+    const [expandedPuckId, setExpandedPuckId] = useState<number | null>(null);
+    const [bulkLfwRangeTitle, setBulkLfwRangeTitle] = useState('LFW');
+    const [postingLfwDate, setPostingLfwDate] = useState<string | null>(null);
+    const [postingLfwAllPuckId, setPostingLfwAllPuckId] = useState<number | null>(null);
+    const [addingLfwPuck, setAddingLfwPuck] = useState(false);
+
+    useEffect(() => {
+        if (Array.isArray(props.lfwDateRanges)) {
+            setRangePucks(props.lfwDateRanges);
+        }
+    }, [props.lfwDateRanges]);
 
     const fetchEvents = useCallback(async (start?: string, end?: string) => {
         const params = new URLSearchParams();
@@ -676,6 +730,20 @@ export default function AppDashboard() {
         }
     }, [reviewOfferItem?.id, reviewOfferItem?.offered_shifts]);
 
+    useEffect(() => {
+        if (editLfwPost) {
+            setEditLfwForm({
+                date: editLfwPost.seeking_date,
+                cash: String(editLfwPost.seeking_cash ?? 0),
+                obo: editLfwPost.seeking_obo,
+                deskTypes: editLfwPost.seeking_desk_types ?? [],
+                notes: editLfwPost.notes ?? '',
+            });
+        } else {
+            setEditLfwForm(null);
+        }
+    }, [editLfwPost]);
+
     const visibleOfferedShifts = useMemo(() => {
         const offered = reviewOfferItem?.offered_shifts ?? [];
         if (!reviewHideNeedOff || timeOffRanges.length === 0) return offered;
@@ -683,6 +751,39 @@ export default function AppDashboard() {
             (s) => !isDateInTimeOffRanges(s.start_time_utc?.slice(0, 10) ?? '', timeOffRanges)
         );
     }, [reviewOfferItem?.offered_shifts, reviewHideNeedOff, timeOffRanges]);
+
+    /** Group action items by post so we show one row per post; multiple offers = one review. */
+    const groupedActionRequired = useMemo(() => {
+        const lfw = actionRequired.filter((a) => a.action_type === 'looking_for_work_offer');
+        const swap = actionRequired.filter((a) => a.action_type !== 'looking_for_work_offer');
+        const lfwByPost = new Map<number, ActionRequiredItem[]>();
+        for (const item of lfw) {
+            const pid = item.looking_for_work_post_id ?? 0;
+            if (!lfwByPost.has(pid)) lfwByPost.set(pid, []);
+            lfwByPost.get(pid)!.push(item);
+        }
+        const swapByPost = new Map<number, ActionRequiredItem[]>();
+        for (const item of swap) {
+            const pid = item.swap_post_id ?? 0;
+            if (!swapByPost.has(pid)) swapByPost.set(pid, []);
+            swapByPost.get(pid)!.push(item);
+        }
+        return [
+            ...Array.from(swapByPost.values()).map((group) => ({ single: group[0], group: group.length > 1 ? group : null })),
+            ...Array.from(lfwByPost.values()).map((group) => ({ single: group[0], group: group.length > 1 ? group : null })),
+        ];
+    }, [actionRequired]);
+
+    /** Dates that have at least one shift (from calendar events). */
+    const datesWithShifts = useMemo(() => {
+        const set = new Set<string>();
+        for (const ev of events) {
+            if (ev.extendedProps?.shiftId && ev.start) {
+                set.add(ev.start.slice(0, 10));
+            }
+        }
+        return set;
+    }, [events]);
 
     useEffect(() => {
         if (reviewHideNeedOff && visibleOfferedShifts.length > 0 && reviewSelectedShiftId != null) {
@@ -693,12 +794,17 @@ export default function AppDashboard() {
         }
     }, [reviewHideNeedOff, visibleOfferedShifts, reviewSelectedShiftId]);
 
-    const handleRespondToOffer = useCallback(async (offerId: number, action: 'accept' | 'reject', selectedShiftId?: number | null) => {
+    const handleRespondToOffer = useCallback(async (item: ActionRequiredItem, action: 'accept' | 'reject', selectedShiftId?: number | null) => {
+        const offerId = item.id;
+        const isLfw = item.action_type === 'looking_for_work_offer';
         setOfferRespondError(null);
         setOfferResponding(action);
         try {
-            const body = action === 'accept' && selectedShiftId != null ? { selected_shift_id: selectedShiftId } : {};
-            const res = await fetch(`/api/offers/${offerId}/${action}`, {
+            const url = isLfw
+                ? `/api/looking-for-work/offers/${offerId}/${action}`
+                : `/api/offers/${offerId}/${action}`;
+            const body = !isLfw && action === 'accept' && selectedShiftId != null ? { selected_shift_id: selectedShiftId } : {};
+            const res = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -712,6 +818,8 @@ export default function AppDashboard() {
             const data = await res.json().catch(() => ({}));
             if (res.ok && data.ok) {
                 setReviewOfferItem(null);
+                setReviewLfwOfferGroup(null);
+                setReviewSwapOfferGroup(null);
                 fetchEvents();
                 router.reload({ only: DASHBOARD_RELOAD_ONLY });
             } else {
@@ -1115,42 +1223,88 @@ export default function AppDashboard() {
                     <section className="space-y-3">
                         <h2 className="text-sm font-medium text-muted-foreground">Action required</h2>
                         <ul className="space-y-2">
-                            {actionRequired.map((item) => (
+                            {groupedActionRequired.map(({ single, group }) => {
+                                const isLfw = single.action_type === 'looking_for_work_offer';
+                                const isMultiLfw = isLfw && group != null && group.length > 1;
+                                const isMultiSwap = !isLfw && group != null && group.length > 1;
+                                const label = isLfw
+                                    ? (isMultiLfw
+                                        ? `${group!.length} offers on your Looking for work post${single.seeking_date ? ` (${single.seeking_date})` : ''}`
+                                        : `Someone responded to your Looking for work post${single.seeking_date ? ` (${single.seeking_date})` : ''}`)
+                                    : (isMultiSwap
+                                        ? `${group!.length} people responded to your ${postTypeLabel(single.post_type)}${single.position_name ? ` · ${single.position_name}` : ''}`
+                                        : `Someone responded to your ${postTypeLabel(single.post_type)}${single.position_name ? ` · ${single.position_name}` : ''}`);
+                                const key = isMultiLfw ? `lfw-post-${single.looking_for_work_post_id}` : isMultiSwap ? `swap-post-${single.swap_post_id}` : (isLfw ? `lfw-${single.id}` : String(single.id));
+                                return (
                                 <li
-                                    key={item.id}
+                                    key={key}
                                     className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 dark:border-amber-500/30 dark:bg-amber-500/10"
                                 >
                                     <div>
-                                        <p className="font-medium">
-                                            Someone responded to your {postTypeLabel(item.post_type)}
-                                            {item.position_name && ` · ${item.position_name}`}
-                                        </p>
-                                        {item.start_time_utc && (
+                                        <p className="font-medium">{label}</p>
+                                        {!isLfw && single.start_time_utc && (
                                             <p className="text-sm text-muted-foreground">
-                                                {formatCentral(item.start_time_utc)}
+                                                {formatCentral(single.start_time_utc)}
                                             </p>
                                         )}
-                                        {item.offered_shift_summary && (item.post_type === 'trade' || item.post_type === 'time_trade') && (
+                                        {isLfw && single.seeking_date && (
+                                            <p className="text-sm text-muted-foreground">{single.seeking_date}</p>
+                                        )}
+                                        {!isMultiLfw && !isMultiSwap && single.offered_shift_summary && (isLfw || single.post_type === 'trade' || single.post_type === 'time_trade') && (
                                             <p className="text-xs text-muted-foreground">
-                                                Offered: {item.offered_shift_summary}
+                                                Offered: {single.offered_shift_summary}
                                             </p>
                                         )}
                                     </div>
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => setReviewOfferItem(item)}
+                                        onClick={() => {
+                                            if (isMultiLfw && group) {
+                                                setReviewSwapOfferGroup(null);
+                                                setReviewLfwOfferGroup(group);
+                                                setReviewOfferItem(group[0]);
+                                            } else if (isMultiSwap && group) {
+                                                setReviewLfwOfferGroup(null);
+                                                setReviewSwapOfferGroup(group);
+                                                setReviewOfferItem(group[0]);
+                                            } else {
+                                                setReviewLfwOfferGroup(null);
+                                                setReviewSwapOfferGroup(null);
+                                                setReviewOfferItem(single);
+                                            }
+                                        }}
                                     >
                                         Review
                                     </Button>
                                 </li>
-                            ))}
+                                );
+                            })}
                         </ul>
                     </section>
                 )}
 
-                {/* Dates I need off + Active posts — stack on small, side by side on large */}
+                {/* Tabs: Time off | Available to work */}
+                <div className="flex gap-1 border-b border-sidebar-border/50 pb-2">
+                    <button
+                        type="button"
+                        className={`rounded px-3 py-1.5 text-sm font-medium ${dashboardLeftTab === 'overview' ? 'bg-background text-foreground shadow' : 'text-muted-foreground hover:text-foreground'}`}
+                        onClick={() => setDashboardLeftTab('overview')}
+                    >
+                        Time off
+                    </button>
+                    <button
+                        type="button"
+                        className={`rounded px-3 py-1.5 text-sm font-medium ${dashboardLeftTab === 'time_off' ? 'bg-background text-foreground shadow' : 'text-muted-foreground hover:text-foreground'}`}
+                        onClick={() => setDashboardLeftTab('time_off')}
+                    >
+                        Available to work
+                    </button>
+                </div>
+
+                {/* Left column switches by tab; right column (My active posts) always visible */}
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 min-w-0">
+                {dashboardLeftTab === 'overview' ? (
                 <section className="rounded-xl border border-sidebar-border/50 bg-card p-3 shadow-sm min-w-0">
                     <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                         <CalendarOff className="size-3.5" />
@@ -1238,11 +1392,11 @@ export default function AppDashboard() {
                             </div>
                         )}
                         <div className="mt-3 rounded-lg border border-sidebar-border/50 bg-muted/50 p-3 dark:bg-muted/30">
+                            <p className="text-xs font-bold text-foreground">
+                                {selectedRange ? `Shifts of ${formatRangeShort(selectedRange.start_date, selectedRange.end_date)}` : 'Shifts to cover'}
+                            </p>
                             {selectedRange ? (
                                 <>
-                                    <p className="text-xs font-bold text-foreground">
-                                        Shifts in {formatRangeShort(selectedRange.start_date, selectedRange.end_date)} to cover
-                                    </p>
                                     {shiftsInSelectedRange.length === 0 ? (
                                         <p className="mt-1 text-xs text-muted-foreground">No shifts in this range.</p>
                                     ) : (
@@ -1321,13 +1475,184 @@ export default function AppDashboard() {
                                     )}
                                 </>
                             ) : (
-                                <>
-                                    <p className="text-xs font-bold text-foreground">Shifts to cover</p>
-                                    <p className="mt-1 text-xs text-muted-foreground">Select a date range above to see shifts in that range.</p>
-                                </>
+                                <p className="mt-1 text-xs text-muted-foreground">Select a date range above to see shifts in that range.</p>
                             )}
                         </div>
                 </section>
+                ) : (
+                <section className="rounded-xl border border-sidebar-border/50 bg-card p-3 shadow-sm min-w-0">
+                    <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Briefcase className="size-3.5" />
+                        Looking for work
+                    </h3>
+                    <div className="mt-2 space-y-2">
+                        <div className="flex flex-col gap-1">
+                            <Label className="text-[10px]">Title for this date range</Label>
+                            <Input type="text" placeholder="e.g. March availability" value={bulkLfwRangeTitle} onChange={(e) => setBulkLfwRangeTitle(e.target.value)} className="h-8 text-xs" />
+                        </div>
+                        <div className="flex gap-2">
+                            <div className="flex flex-col gap-1">
+                                <Label className="text-[10px]">Start</Label>
+                                <Input type="date" value={bulkLfwFrom} onChange={(e) => { const v = e.target.value; setBulkLfwFrom(v); setBulkLfwTo((p) => (!p || v > p ? v : p)); }} className="h-8 text-xs" min={new Date().toISOString().slice(0, 10)} />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <Label className="text-[10px]">End</Label>
+                                <Input type="date" value={bulkLfwTo} onChange={(e) => setBulkLfwTo(e.target.value)} className="h-8 text-xs" min={bulkLfwFrom || new Date().toISOString().slice(0, 10)} />
+                            </div>
+                            <div className="flex items-end">
+                                <Button size="sm" className="h-8" disabled={!bulkLfwFrom || !bulkLfwTo || addingLfwPuck} onClick={async () => {
+                                    if (!bulkLfwFrom || !bulkLfwTo) return;
+                                    setAddingLfwPuck(true);
+                                    try {
+                                        const res = await fetch('/api/lfw-date-ranges', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+                                            credentials: 'include',
+                                            body: JSON.stringify({ title: bulkLfwRangeTitle.trim() || 'LFW', date_from: bulkLfwFrom, date_to: bulkLfwTo }),
+                                        });
+                                        if (res.ok) {
+                                            const data = await res.json();
+                                            setRangePucks((prev) => [...prev, { id: data.id, title: data.title, dateFrom: data.dateFrom, dateTo: data.dateTo }]);
+                                            setBulkLfwRangeTitle('LFW');
+                                            setBulkLfwFrom('');
+                                            setBulkLfwTo('');
+                                        }
+                                    } finally {
+                                        setAddingLfwPuck(false);
+                                    }
+                                }}>{addingLfwPuck ? '…' : 'Add'}</Button>
+                            </div>
+                        </div>
+                    </div>
+                    {rangePucks.length > 0 && (
+                        <div className="mt-3 max-h-44 overflow-y-auto">
+                            <ul className="flex flex-wrap gap-2">
+                                {rangePucks.map((puck) => {
+                                    const from = new Date(puck.dateFrom + 'T12:00:00Z');
+                                    const to = new Date(puck.dateTo + 'T12:00:00Z');
+                                    const datesInRange: string[] = [];
+                                    for (let t = from.getTime(); t <= to.getTime(); t += 24 * 60 * 60 * 1000) datesInRange.push(new Date(t).toISOString().slice(0, 10));
+                                    const offDates = datesInRange.filter((d) => !datesWithShifts.has(d) && d >= new Date().toISOString().slice(0, 10));
+                                    const daysOffCount = offDates.length;
+                                    const isExpanded = expandedPuckId === puck.id;
+                                    return (
+                                        <li
+                                            key={puck.id}
+                                            className={`flex min-w-0 max-w-[220px] flex-1 basis-40 items-start justify-between gap-1.5 rounded-lg border px-2 py-1.5 text-xs ${
+                                                isExpanded ? 'border-primary bg-primary/5' : 'border-sidebar-border/50'
+                                            }`}
+                                        >
+                                            <button
+                                                type="button"
+                                                className="min-w-0 flex-1 shrink text-left hover:underline"
+                                                onClick={() => setExpandedPuckId(isExpanded ? null : puck.id)}
+                                            >
+                                                <span className="block font-medium">{puck.title}</span>
+                                                <span className="block text-muted-foreground">{formatRangeShort(puck.dateFrom, puck.dateTo)} · <span className="font-medium">{daysOffCount} day{daysOffCount !== 1 ? 's' : ''} off</span></span>
+                                            </button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
+                                                onClick={async () => {
+                                                    if (!window.confirm('Remove this date range?')) return;
+                                                    const id = puck.id;
+                                                    try {
+                                                        const res = await fetch(`/api/lfw-date-ranges/${id}`, {
+                                                            method: 'DELETE',
+                                                            headers: { 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+                                                            credentials: 'include',
+                                                        });
+                                                        if (res.ok) {
+                                                            setRangePucks((prev) => prev.filter((p) => p.id !== id));
+                                                            if (expandedPuckId === id) setExpandedPuckId(null);
+                                                        }
+                                                    } catch {
+                                                        // ignore
+                                                    }
+                                                }}
+                                            >
+                                                <Trash2 className="size-3.5" />
+                                            </Button>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+                    )}
+                    <div className="mt-3 rounded-lg border border-sidebar-border/50 bg-muted/50 p-3 dark:bg-muted/30">
+                        <p className="text-xs font-bold text-foreground">
+                            {expandedPuckId ? (() => {
+                                const puck = rangePucks.find((p) => p.id === expandedPuckId);
+                                return puck ? `Days of ${formatRangeShort(puck.dateFrom, puck.dateTo)}` : 'Days available to work';
+                            })() : 'Days available to work'}
+                        </p>
+                        {!expandedPuckId ? (
+                            <p className="mt-1 text-xs text-muted-foreground">Select a date range above to see days without a shift and post Looking for work.</p>
+                        ) : (() => {
+                            const puck = rangePucks.find((p) => p.id === expandedPuckId);
+                            if (!puck) return null;
+                            const from = new Date(puck.dateFrom + 'T12:00:00Z');
+                            const to = new Date(puck.dateTo + 'T12:00:00Z');
+                            const datesInRange: string[] = [];
+                            for (let t = from.getTime(); t <= to.getTime(); t += 24 * 60 * 60 * 1000) datesInRange.push(new Date(t).toISOString().slice(0, 10));
+                            const offDates = datesInRange.filter((d) => !datesWithShifts.has(d) && d >= new Date().toISOString().slice(0, 10));
+                            return (
+                                <>
+                                    {offDates.length === 0 ? (
+                                        <p className="mt-1 text-xs text-muted-foreground">No days without a shift in this range (or all in the past).</p>
+                                    ) : (
+                                        <>
+                                            <ul className="mt-1.5 max-h-32 space-y-1 overflow-y-auto text-xs">
+                                                {offDates.map((dateStr) => {
+                                                    const existing = activeLookingForWorkPosts.find((p) => p.seeking_date === dateStr);
+                                                    return (
+                                                        <li key={dateStr} className="flex items-center justify-between gap-2">
+                                                            <span className="text-muted-foreground">{dateStr}</span>
+                                                            <div className="flex gap-1">
+                                                                {existing ? (
+                                                                    <>
+                                                                        <Button variant="outline" size="sm" className="h-6 px-2 text-[10px]" onClick={() => setEditLfwPost(existing)}>Edit</Button>
+                                                                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-destructive hover:text-destructive" disabled={deletingLfwPostId === existing.id} onClick={async () => {
+                                                                            if (!window.confirm('Remove this Looking for work post?')) return;
+                                                                            setDeletingLfwPostId(existing.id);
+                                                                            try {
+                                                                                const res = await fetch(`/api/looking-for-work/posts/${existing.id}`, { method: 'DELETE', headers: { Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'include' });
+                                                                                if (res.ok) router.reload({ only: DASHBOARD_RELOAD_ONLY });
+                                                                            } finally { setDeletingLfwPostId(null); }
+                                                                        }}><Trash2 className="size-3.5" /></Button>
+                                                                    </>
+                                                                ) : (
+                                                                    <Button variant="outline" size="sm" className="h-6 px-2 text-[10px]" disabled={postingLfwDate != null} onClick={async () => {
+                                                                        setPostingLfwDate(dateStr);
+                                                                        try {
+                                                                            const res = await fetch('/api/looking-for-work/posts', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'include', body: JSON.stringify({ seeking_date: dateStr, seeking_cash: 0, seeking_obo: false, notes: null, seeking_desk_types: null }) });
+                                                                            if (res.ok) router.reload({ only: DASHBOARD_RELOAD_ONLY });
+                                                                        } finally { setPostingLfwDate(null); }
+                                                                    }}>{postingLfwDate === dateStr ? '…' : 'Post'}</Button>
+                                                                )}
+                                                            </div>
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                            <Button size="sm" className="mt-2 h-7 w-full" disabled={postingLfwAllPuckId != null || offDates.every((d) => activeLookingForWorkPosts.some((p) => p.seeking_date === d))} onClick={async () => {
+                                                const toPost = offDates.filter((d) => !activeLookingForWorkPosts.some((p) => p.seeking_date === d));
+                                                if (toPost.length === 0) return;
+                                                setPostingLfwAllPuckId(puck.id);
+                                                try {
+                                                    for (const dateStr of toPost) await fetch('/api/looking-for-work/posts', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'include', body: JSON.stringify({ seeking_date: dateStr, seeking_cash: 0, seeking_obo: false, notes: null, seeking_desk_types: null }) });
+                                                    router.reload({ only: DASHBOARD_RELOAD_ONLY });
+                                                } finally { setPostingLfwAllPuckId(null); }
+                                            }}>{postingLfwAllPuckId === puck.id ? 'Posting…' : `Post all (${offDates.filter((d) => !activeLookingForWorkPosts.some((p) => p.seeking_date === d)).length} dates)`}</Button>
+                                        </>
+                                    )}
+                                </>
+                            );
+                        })()}
+                    </div>
+                </section>
+                )}
 
                 <section className="flex min-h-0 flex-col rounded-xl border border-sidebar-border/50 bg-card p-3 shadow-sm min-w-0">
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1338,7 +1663,7 @@ export default function AppDashboard() {
                             </h3>
                             <p className="mt-1 text-[10px] text-muted-foreground">Active until shift start.</p>
                         </div>
-                        {activePosts.length > 0 && (
+                        {(activePosts.length > 0 || activeLookingForWorkPosts.length > 0) && (
                             <div className="flex shrink-0 items-center gap-2">
                                 <select
                                     value={activePostTypeFilter}
@@ -1349,6 +1674,7 @@ export default function AppDashboard() {
                                     <option value="trade">Trade</option>
                                     <option value="cash">Giveaway</option>
                                     <option value="flight_follow">Flight following</option>
+                                    <option value="looking_for_work">Looking for work</option>
                                 </select>
                                 <input
                                     type="text"
@@ -1360,8 +1686,8 @@ export default function AppDashboard() {
                             </div>
                         )}
                     </div>
-                    {activePosts.length === 0 ? (
-                        <p className="mt-2 text-xs text-muted-foreground">No open postings. Post a shift from the calendar to trade, give away, or offer flight following.</p>
+                    {activePosts.length === 0 && activeLookingForWorkPosts.length === 0 ? (
+                        <p className="mt-2 text-xs text-muted-foreground">No open postings. Post a shift from the calendar to trade, give away, or offer flight following. Or create a Looking for work post.</p>
                     ) : (
                         <div className="mt-2">
                             <div className="h-80 min-w-0 overflow-y-auto rounded-md border border-sidebar-border/30 bg-muted/20 p-2 dark:bg-muted/10">
@@ -1369,7 +1695,10 @@ export default function AppDashboard() {
                                     const groups = groupActivePosts(activePosts);
                                     const typeFilter = activePostTypeFilter.trim().toLowerCase();
                                     const search = activePostSearch.trim().toLowerCase();
+                                    const showLfw = !typeFilter || typeFilter === 'looking_for_work';
+                                    const showSwap = !typeFilter || typeFilter === 'trade' || typeFilter === 'cash' || typeFilter === 'flight_follow';
                                     const filtered = groups.filter((group) => {
+                                        if (!showSwap) return false;
                                         if (typeFilter && !group.posts.some((p) => p.type === typeFilter)) return false;
                                         if (!search) return true;
                                         const shortDate = formatShortDate(group.start);
@@ -1377,11 +1706,83 @@ export default function AppDashboard() {
                                         const deskLabel = group.desk_type ? getDeskTypeLabel(userWorkgroups, group.workgroup_id ?? null, group.desk_type) : '';
                                         return position.includes(search) || shortDate.includes(search) || deskLabel.toLowerCase().includes(search);
                                     });
-                                    if (filtered.length === 0) {
+                                    const filteredLfw = showLfw
+                                        ? activeLookingForWorkPosts.filter((p) => {
+                                            if (!search) return true;
+                                            const shortDate = formatShortDate(p.seeking_date);
+                                            return shortDate.includes(search) || (p.notes ?? '').toLowerCase().includes(search);
+                                        })
+                                        : [];
+                                    if (filtered.length === 0 && filteredLfw.length === 0) {
                                         return <p className="py-2 text-xs text-muted-foreground">No posts match the filter.</p>;
                                     }
                                     return (
                                         <ul className="flex flex-wrap gap-2 pr-1">
+                                            {filteredLfw.map((p) => (
+                                                <li
+                                                    key={`lfw-${p.id}`}
+                                                    className="flex min-w-[160px] max-w-[280px] flex-1 basis-48 items-start justify-between gap-2 rounded-lg border border-sidebar-border/50 px-2.5 py-2 text-xs"
+                                                >
+                                                    <div className="min-w-0 flex-1 shrink">
+                                                        <span className="block text-sm font-bold text-foreground">LFW</span>
+                                                        <p className="mt-0.5 text-muted-foreground">{formatShortDate(p.seeking_date)}</p>
+                                                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                                            <span className="inline-flex items-center gap-1 rounded bg-green-500/20 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-300">
+                                                                ${Number(p.seeking_cash ?? 0).toFixed(0)}
+                                                                {p.seeking_obo && ' OBO'}
+                                                            </span>
+                                                            {p.seeking_desk_types?.length > 0 && (
+                                                                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                                                    {p.seeking_desk_types.join(', ')}
+                                                                </span>
+                                                            )}
+                                                            {p.notes && (
+                                                                <span className="truncate max-w-[120px] rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground" title={p.notes}>
+                                                                    {p.notes}
+                                                                </span>
+                                                            )}
+                                                            {p.pending_offer_count > 0 && (
+                                                                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                                                    {p.pending_offer_count} offer{p.pending_offer_count !== 1 ? 's' : ''}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex shrink-0 items-start gap-1">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-6 text-xs"
+                                                            onClick={() => setEditLfwPost(p)}
+                                                        >
+                                                            Edit
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                            title="Delete post"
+                                                            disabled={deletingLfwPostId === p.id}
+                                                            onClick={async () => {
+                                                                if (!window.confirm('Remove this Looking for work post? Pending offerers will be notified.')) return;
+                                                                setDeletingLfwPostId(p.id);
+                                                                try {
+                                                                    const res = await fetch(`/api/looking-for-work/posts/${p.id}`, {
+                                                                        method: 'DELETE',
+                                                                        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+                                                                        credentials: 'include',
+                                                                    });
+                                                                    if (res.ok) router.reload({ only: DASHBOARD_RELOAD_ONLY });
+                                                                } finally {
+                                                                    setDeletingLfwPostId(null);
+                                                                }
+                                                            }}
+                                                        >
+                                                            {deletingLfwPostId === p.id ? <span className="text-xs">…</span> : <Trash2 className="size-3.5" />}
+                                                        </Button>
+                                                    </div>
+                                                </li>
+                                            ))}
                                             {filtered.map((group) => {
                                                 const shiftDateShort = group.start ? formatShortDate(group.start) : '';
                                                 return (
@@ -1833,7 +2234,19 @@ export default function AppDashboard() {
                 />
             )}
 
-            <Dialog open={reviewOfferItem != null} onOpenChange={(open) => { if (!open) { setReviewOfferItem(null); setReviewSelectedShiftId(null); setReviewHideNeedOff(false); setOfferRespondError(null); } }}>
+            <Dialog
+                open={reviewOfferItem != null || (reviewLfwOfferGroup != null && reviewLfwOfferGroup.length > 0) || (reviewSwapOfferGroup != null && reviewSwapOfferGroup.length > 0)}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setReviewOfferItem(null);
+                        setReviewLfwOfferGroup(null);
+                        setReviewSwapOfferGroup(null);
+                        setReviewSelectedShiftId(null);
+                        setReviewHideNeedOff(false);
+                        setOfferRespondError(null);
+                    }
+                }}
+            >
                 <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
                     <DialogHeader>
                         <DialogTitle>Review response</DialogTitle>
@@ -1841,7 +2254,130 @@ export default function AppDashboard() {
                             Accept only once the proper positive contact has been made and the change in workzone has been input.
                         </p>
                     </DialogHeader>
-                    {reviewOfferItem && (() => {
+                    {reviewLfwOfferGroup && reviewLfwOfferGroup.length > 0 ? (
+                        <div className="space-y-4 py-2">
+                            <p className="text-sm text-muted-foreground">
+                                {reviewLfwOfferGroup[0].seeking_date && `Date you wanted to work: ${reviewLfwOfferGroup[0].seeking_date}. `}
+                                Choose one offer to accept or decline each.
+                            </p>
+                            <ul className="space-y-3">
+                                {reviewLfwOfferGroup.map((item) => (
+                                    <li key={item.id} className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                                        <p className="font-medium">{item.offered_by_name ?? 'Someone'}</p>
+                                        {item.offered_shift_summary && (
+                                            <p className="mt-0.5 text-muted-foreground">Offered: {item.offered_shift_summary}</p>
+                                        )}
+                                        {item.response_notes && (
+                                            <p className="mt-1 text-xs text-muted-foreground">Notes: {item.response_notes}</p>
+                                        )}
+                                        <div className="mt-2 flex gap-2">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={async () => {
+                                                    setOfferRespondError(null);
+                                                    setOfferResponding('reject');
+                                                    try {
+                                                        const res = await fetch(`/api/looking-for-work/offers/${item.id}/reject`, {
+                                                            method: 'POST',
+                                                            headers: { Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+                                                            credentials: 'include',
+                                                        });
+                                                        if (res.ok) {
+                                                            const next = reviewLfwOfferGroup?.filter((o) => o.id !== item.id) ?? [];
+                                                            setReviewLfwOfferGroup(next.length > 0 ? next : null);
+                                                            if (next.length === 0) setReviewOfferItem(null);
+                                                            router.reload({ only: DASHBOARD_RELOAD_ONLY });
+                                                        }
+                                                    } finally {
+                                                        setOfferResponding(null);
+                                                    }
+                                                }}
+                                                disabled={offerResponding != null}
+                                            >
+                                                {offerResponding === 'reject' ? 'Declining…' : 'Decline'}
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                className="bg-green-600 hover:bg-green-700"
+                                                onClick={() => item && handleRespondToOffer(item, 'accept')}
+                                                disabled={offerResponding != null}
+                                            >
+                                                {offerResponding === 'accept' ? 'Accepting…' : 'Accept'}
+                                            </Button>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                            {offerRespondError && <p className="text-sm text-destructive">{offerRespondError}</p>}
+                        </div>
+                    ) : reviewSwapOfferGroup && reviewSwapOfferGroup.length > 0 ? (
+                        <div className="space-y-4 py-2">
+                            <p className="text-sm text-muted-foreground">
+                                {reviewSwapOfferGroup[0].position_name && `${reviewSwapOfferGroup[0].position_name} · `}
+                                {reviewSwapOfferGroup[0].start_time_utc && `${formatCentral(reviewSwapOfferGroup[0].start_time_utc)}. `}
+                                Choose one response to accept or decline each.
+                            </p>
+                            <ul className="space-y-3">
+                                {reviewSwapOfferGroup.map((item) => (
+                                    <li key={item.id} className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                                        <p className="font-medium">{item.offered_by_name ?? 'Someone'}</p>
+                                        {item.offered_shift_summary && (item.post_type === 'trade' || item.post_type === 'time_trade') && (
+                                            <p className="mt-0.5 text-muted-foreground">Offered: {item.offered_shift_summary}</p>
+                                        )}
+                                        {item.cash_amount != null && Number(item.cash_amount) > 0 && item.post_type === 'cash' && (
+                                            <p className="mt-0.5 text-muted-foreground">${Number(item.cash_amount).toFixed(0)}</p>
+                                        )}
+                                        {item.response_notes && (
+                                            <p className="mt-1 text-xs text-muted-foreground">Notes: {item.response_notes}</p>
+                                        )}
+                                        <div className="mt-2 flex gap-2">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={async () => {
+                                                    setOfferRespondError(null);
+                                                    setOfferResponding('reject');
+                                                    try {
+                                                        const res = await fetch(`/api/offers/${item.id}/reject`, {
+                                                            method: 'POST',
+                                                            headers: { Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+                                                            credentials: 'include',
+                                                        });
+                                                        if (res.ok) {
+                                                            const next = reviewSwapOfferGroup.filter((o) => o.id !== item.id);
+                                                            setReviewSwapOfferGroup(next.length > 0 ? next : null);
+                                                            if (next.length === 0) setReviewOfferItem(null);
+                                                            router.reload({ only: DASHBOARD_RELOAD_ONLY });
+                                                        }
+                                                    } finally {
+                                                        setOfferResponding(null);
+                                                    }
+                                                }}
+                                                disabled={offerResponding != null}
+                                            >
+                                                {offerResponding === 'reject' ? 'Declining…' : 'Decline'}
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                className="bg-green-600 hover:bg-green-700"
+                                                onClick={() => {
+                                                    const isTrade = item.post_type === 'trade' || item.post_type === 'time_trade';
+                                                    const selectedId = isTrade && item.offered_shifts?.length ? item.offered_shifts[0].id : undefined;
+                                                    handleRespondToOffer(item, 'accept', selectedId);
+                                                }}
+                                                disabled={offerResponding != null}
+                                            >
+                                                {offerResponding === 'accept' ? 'Accepting…' : 'Accept'}
+                                            </Button>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                            {offerRespondError && <p className="text-sm text-destructive">{offerRespondError}</p>}
+                        </div>
+                    ) : reviewOfferItem ? (() => {
+                        const isLfw = reviewOfferItem.action_type === 'looking_for_work_offer';
                         const isTrade = reviewOfferItem.post_type === 'trade' || reviewOfferItem.post_type === 'time_trade';
                         const isCash = reviewOfferItem.post_type === 'cash';
                         const isFlightFollow = reviewOfferItem.post_type === 'flight_follow';
@@ -1855,20 +2391,24 @@ export default function AppDashboard() {
                         <div className="space-y-4 py-2">
                             <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
                                 <p className="font-medium">
-                                    {isCash && `${offererName} wants your shift${cashLabel}`}
+                                    {isLfw && `${offererName} offered a shift for your Looking for work post${reviewOfferItem.seeking_date ? ` (${reviewOfferItem.seeking_date})` : ''}`}
+                                    {isCash && !isLfw && `${offererName} wants your shift${cashLabel}`}
                                     {isTrade && (offeredShifts.length > 0
                                         ? `${offererName} offered these days in exchange for working the posted shift`
                                         : `${offererName} offered a trade`)}
                                     {isFlightFollow && `${offererName} responded to your flight following`}
-                                    {!isCash && !isTrade && !isFlightFollow && `${offererName} responded to your ${postTypeLabel(reviewOfferItem.post_type)}`}
-                                    {reviewOfferItem.position_name && ` · ${reviewOfferItem.position_name}`}
+                                    {!isLfw && !isCash && !isTrade && !isFlightFollow && `${offererName} responded to your ${postTypeLabel(reviewOfferItem.post_type)}`}
+                                    {!isLfw && reviewOfferItem.position_name && ` · ${reviewOfferItem.position_name}`}
                                 </p>
                                 {reviewOfferItem.start_time_utc && (
                                     <p className="mt-1 text-muted-foreground">{formatCentral(reviewOfferItem.start_time_utc)}</p>
                                 )}
-                                {isTrade && offeredShifts.length === 0 && reviewOfferItem.offered_shift_summary && (
-                                    <p className="mt-1 text-muted-foreground">Offered: {reviewOfferItem.offered_shift_summary}</p>
+                                {isLfw && reviewOfferItem.seeking_date && (
+                                    <p className="mt-1 text-muted-foreground">Date you wanted to work: {reviewOfferItem.seeking_date}</p>
                                 )}
+                                {(isLfw && reviewOfferItem.offered_shift_summary) || (isTrade && offeredShifts.length === 0 && reviewOfferItem.offered_shift_summary) ? (
+                                    <p className="mt-1 text-muted-foreground">Offered: {reviewOfferItem.offered_shift_summary}</p>
+                                ) : null}
                                 {reviewOfferItem.offered_by_contact && (
                                     <p className="mt-1.5 text-sm">
                                         <span className="font-medium text-foreground">Contact: </span>
@@ -1987,13 +2527,13 @@ export default function AppDashboard() {
                             <div className="flex flex-wrap gap-2 justify-end">
                                 <Button
                                     variant="outline"
-                                    onClick={() => handleRespondToOffer(reviewOfferItem.id, 'reject')}
+                                    onClick={() => reviewOfferItem && handleRespondToOffer(reviewOfferItem, 'reject')}
                                     disabled={offerResponding != null}
                                 >
                                     {offerResponding === 'reject' ? 'Declining…' : 'Decline'}
                                 </Button>
                                 <Button
-                                    onClick={() => handleRespondToOffer(reviewOfferItem.id, 'accept', isTrade && offeredShifts.length > 0 ? (selectedId ?? undefined) : undefined)}
+                                    onClick={() => reviewOfferItem && handleRespondToOffer(reviewOfferItem, 'accept', isTrade && offeredShifts.length > 0 ? (selectedId ?? undefined) : undefined)}
                                     disabled={offerResponding != null}
                                 >
                                     {offerResponding === 'accept' ? 'Accepting…' : 'Accept'}
@@ -2001,7 +2541,129 @@ export default function AppDashboard() {
                             </div>
                         </div>
                         );
-                    })()}
+                    })() : null}
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Looking for work post */}
+            <Dialog open={!!editLfwPost} onOpenChange={(open) => !open && setEditLfwPost(null)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Edit Looking for work post</DialogTitle>
+                    </DialogHeader>
+                    {editLfwPost && editLfwForm && (
+                        <div className="space-y-4 py-2">
+                            <div>
+                                <Label className="text-xs">Date you want to work</Label>
+                                <Input
+                                    type="date"
+                                    value={editLfwForm.date}
+                                    onChange={(e) => setEditLfwForm((f) => f ? { ...f, date: e.target.value } : null)}
+                                    className="mt-1 h-8 text-sm"
+                                    min={new Date().toISOString().slice(0, 10)}
+                                />
+                            </div>
+                            <div>
+                                <Label className="text-xs">Cash ($)</Label>
+                                <Input
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    value={editLfwForm.cash}
+                                    onChange={(e) => setEditLfwForm((f) => f ? { ...f, cash: e.target.value } : null)}
+                                    className="mt-1 h-8 text-sm"
+                                />
+                            </div>
+                            <label className="flex items-center gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={editLfwForm.obo}
+                                    onChange={(e) => setEditLfwForm((f) => f ? { ...f, obo: e.target.checked } : null)}
+                                    className="h-4 w-4 rounded border-input"
+                                />
+                                <span>Or best offer (OBO)</span>
+                            </label>
+                            <div>
+                                <Label className="text-xs">Desk types (optional)</Label>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {((): { code: string; label: string }[] => {
+                                        const m = new Map<string, { code: string; label: string }>();
+                                        for (const w of userWorkgroups) {
+                                            for (const d of w.desk_types ?? []) {
+                                                if (!m.has(d.code)) m.set(d.code, d);
+                                            }
+                                        }
+                                        return [...m.values()];
+                                    })().map((dt) => (
+                                        <label key={dt.code} className="flex items-center gap-2 text-sm">
+                                            <input
+                                                type="checkbox"
+                                                checked={editLfwForm.deskTypes.includes(dt.code)}
+                                                onChange={(e) => setEditLfwForm((f) => {
+                                                    if (!f) return null;
+                                                    const next = e.target.checked
+                                                        ? [...f.deskTypes, dt.code]
+                                                        : f.deskTypes.filter((c) => c !== dt.code);
+                                                    return { ...f, deskTypes: next };
+                                                })}
+                                                className="h-4 w-4 rounded border-input"
+                                            />
+                                            <span>{dt.label || dt.code}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <Label className="text-xs">Notes (optional)</Label>
+                                <Input
+                                    value={editLfwForm.notes}
+                                    onChange={(e) => setEditLfwForm((f) => f ? { ...f, notes: e.target.value } : null)}
+                                    className="mt-1 h-8 text-sm"
+                                    placeholder="e.g. prefer morning"
+                                />
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setEditLfwPost(null)} disabled={editLfwSaving}>
+                                    Cancel
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    disabled={editLfwSaving || !editLfwForm.date || editLfwForm.cash === ''}
+                                    onClick={async () => {
+                                        if (!editLfwPost || !editLfwForm) return;
+                                        setEditLfwSaving(true);
+                                        try {
+                                            const res = await fetch(`/api/looking-for-work/posts/${editLfwPost.id}`, {
+                                                method: 'PUT',
+                                                headers: {
+                                                    'Content-Type': 'application/json',
+                                                    'Accept': 'application/json',
+                                                    'X-XSRF-TOKEN': getCsrfToken(),
+                                                    'X-Requested-With': 'XMLHttpRequest',
+                                                },
+                                                credentials: 'include',
+                                                body: JSON.stringify({
+                                                    seeking_date: editLfwForm.date,
+                                                    seeking_cash: Number(editLfwForm.cash) || 0,
+                                                    seeking_obo: editLfwForm.obo,
+                                                    seeking_desk_types: editLfwForm.deskTypes.length ? editLfwForm.deskTypes : null,
+                                                    notes: editLfwForm.notes || null,
+                                                }),
+                                            });
+                                            if (res.ok) {
+                                                setEditLfwPost(null);
+                                                router.reload({ only: DASHBOARD_RELOAD_ONLY });
+                                            }
+                                        } finally {
+                                            setEditLfwSaving(false);
+                                        }
+                                    }}
+                                >
+                                    {editLfwSaving ? 'Saving…' : 'Save'}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
 

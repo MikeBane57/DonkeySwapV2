@@ -110,6 +110,9 @@ class NotificationsController extends Controller
             'swap_accepted' => 'A swap was accepted.',
             'swap_rejected' => 'An offer was declined.',
             'admin_message' => 'Message from admin',
+            'looking_for_work_offer' => 'Someone offered a shift on your looking-for-work post.',
+            'looking_for_work_accepted' => 'Your offer was accepted. The shift has been transferred to you.',
+            'looking_for_work_not_selected' => 'Another offer was accepted on the post you responded to.',
             default => 'You have a new notification.',
         };
     }

@@ -74,7 +74,20 @@ class OfferController extends Controller
         $offer->save();
         $post->status = 'accepted';
         $post->save();
+
+        $rejectedOffers = SwapOffer::where('swap_post_id', $post->id)->where('id', '!=', $offer->id)->where('status', 'pending')->get();
         SwapOffer::where('swap_post_id', $post->id)->where('id', '!=', $offer->id)->where('status', 'pending')->update(['status' => 'rejected']);
+        foreach ($rejectedOffers as $rejected) {
+            AppNotification::create([
+                'user_id' => $rejected->offered_by_user_id,
+                'type' => 'swap_rejected',
+                'data' => [
+                    'swap_post_id' => $post->id,
+                    'swap_offer_id' => $rejected->id,
+                    'message' => 'Another offer was accepted.',
+                ],
+            ]);
+        }
 
         AppNotification::create([
             'user_id' => $offer->offered_by_user_id,

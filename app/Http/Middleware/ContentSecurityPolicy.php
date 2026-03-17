@@ -25,6 +25,10 @@ class ContentSecurityPolicy
             $viteOrigin = "http://{$host}:5173";
             $scriptSrc .= " {$viteOrigin}";
             $connectSrc .= " {$viteOrigin} ws://{$host}:5173 wss://{$host}:5173";
+            // Allow localhost:5173 so Vite HMR works when app is opened via IP but dev server is on localhost
+            if ($host !== 'localhost' && $host !== '127.0.0.1') {
+                $connectSrc .= " http://localhost:5173 http://127.0.0.1:5173 ws://localhost:5173 wss://localhost:5173 ws://127.0.0.1:5173 wss://127.0.0.1:5173";
+            }
         }
 
         $directives = [

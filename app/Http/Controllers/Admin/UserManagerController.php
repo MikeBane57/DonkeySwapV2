@@ -43,10 +43,12 @@ class UserManagerController extends Controller
             'qualifications' => $wg->qualifications->map(fn ($q) => ['id' => $q->id, 'code' => $q->code, 'label' => $q->label])->values()->all(),
         ]);
 
-        return Inertia::render('admin/users', [
+        $response = Inertia::render('admin/users', [
             'users' => $users,
             'workgroups' => $workgroups,
         ]);
+
+        return $response->toResponse(request())->header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 
     public function store(StoreUserRequest $request): RedirectResponse
@@ -65,6 +67,7 @@ class UserManagerController extends Controller
         foreach ($workgroups as $w) {
             $sync[(int) $w['workgroup_id']] = [
                 'classification_seniority_date' => $w['classification_seniority_date'] ?? null,
+                'dispatch_qualified' => false,
             ];
         }
         $user->workgroups()->sync($sync);
@@ -102,6 +105,7 @@ class UserManagerController extends Controller
         foreach ($workgroups as $w) {
             $sync[(int) $w['workgroup_id']] = [
                 'classification_seniority_date' => $w['classification_seniority_date'] ?? null,
+                'dispatch_qualified' => false,
             ];
         }
         $user->workgroups()->sync($sync);

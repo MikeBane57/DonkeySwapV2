@@ -179,8 +179,20 @@ class SwapTransactionService
                 $offer->status = 'selected';
                 $offer->save();
 
-                // Reject other pending offers on this post
+                // Reject other pending offers and notify those offerers
+                $rejectedOffers = SwapOffer::where('swap_post_id', $post->id)->where('id', '!=', $offer->id)->where('status', 'pending')->get();
                 SwapOffer::where('swap_post_id', $post->id)->where('id', '!=', $offer->id)->where('status', 'pending')->update(['status' => 'rejected']);
+                foreach ($rejectedOffers as $rejected) {
+                    AppNotification::create([
+                        'user_id' => $rejected->offered_by_user_id,
+                        'type' => 'swap_rejected',
+                        'data' => [
+                            'swap_post_id' => $post->id,
+                            'swap_offer_id' => $rejected->id,
+                            'message' => 'Another offer was accepted.',
+                        ],
+                    ]);
+                }
 
                 // Notifications
                 AppNotification::create([

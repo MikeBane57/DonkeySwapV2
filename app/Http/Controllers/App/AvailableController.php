@@ -85,6 +85,14 @@ class AvailableController extends Controller
             ->get()
             ->keyBy('swap_post_id');
 
+        // Pending offer count per post (so others can see "has offer(s)" on the card)
+        $pendingOfferCountByPostId = SwapOffer::whereIn('swap_post_id', $posts->pluck('id'))
+            ->where('status', 'pending')
+            ->selectRaw('swap_post_id, count(*) as c')
+            ->groupBy('swap_post_id')
+            ->pluck('c', 'swap_post_id')
+            ->all();
+
         $timeOffRanges = UserTimeOffRange::where('user_id', $user->id)
             ->orderBy('start_date')
             ->get()
@@ -224,6 +232,7 @@ class AvailableController extends Controller
             }
 
             $myOffer = $myOffersByPostId->get($post->id);
+            $pendingOfferCount = (int) ($pendingOfferCountByPostId[$post->id] ?? 0);
             $byShift[$shiftId]['posts'][] = [
                 'id' => $post->id,
                 'type' => $post->type,
@@ -237,6 +246,7 @@ class AvailableController extends Controller
                 'ineligible_reason' => $ineligibleReason,
                 'ineligible_reason_detail' => $ineligibleReasonDetail ?? null,
                 'would_be_double' => $wouldBeDouble,
+                'pending_offer_count' => $pendingOfferCount,
                 'my_offer' => $myOffer ? [
                     'id' => $myOffer->id,
                     'offered_shift_id' => $myOffer->offered_shift_id,

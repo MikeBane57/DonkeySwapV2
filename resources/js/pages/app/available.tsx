@@ -29,7 +29,7 @@ import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/app' },
-    { title: 'Available', href: '/app/available' },
+    { title: 'Available shifts', href: '/app/available' },
 ];
 
 const DESK_TYPE_LABELS: Record<string, string> = {
@@ -119,6 +119,7 @@ type PostPart = {
     ineligible_reason: string | null;
     ineligible_reason_detail: string | null;
     would_be_double?: boolean;
+    pending_offer_count?: number;
     my_offer?: MyOfferPart | null;
 };
 
@@ -685,17 +686,23 @@ export default function AvailablePage() {
                                                 </Tooltip>
                                             )}
                                             {item.posts.map((p) => (
-                                                <span
-                                                    key={p.id}
-                                                    className={`shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${
-                                                        p.type === 'trade' || p.type === 'time_trade'
-                                                            ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
-                                                            : p.type === 'cash'
-                                                              ? 'bg-green-500/20 text-green-700 dark:text-green-300'
-                                                              : 'bg-purple-500/20 text-purple-700 dark:text-purple-300'
-                                                    }`}
-                                                >
-                                                    {typeLabel(p.type)}
+                                                <span key={p.id} className="inline-flex flex-wrap items-center gap-1">
+                                                    <span
+                                                        className={`shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${
+                                                            p.type === 'trade' || p.type === 'time_trade'
+                                                                ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                                                                : p.type === 'cash'
+                                                                  ? 'bg-green-500/20 text-green-700 dark:text-green-300'
+                                                                  : 'bg-purple-500/20 text-purple-700 dark:text-purple-300'
+                                                        }`}
+                                                    >
+                                                        {typeLabel(p.type)}
+                                                    </span>
+                                                    {(p.pending_offer_count ?? 0) > 0 && (
+                                                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground" title="This post has pending offer(s)">
+                                                            {p.pending_offer_count === 1 ? '1 offer' : `${p.pending_offer_count} offers`}
+                                                        </span>
+                                                    )}
                                                 </span>
                                             ))}
                                         </div>

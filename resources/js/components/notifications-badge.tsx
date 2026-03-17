@@ -56,6 +56,9 @@ function notificationSummary(n: NotificationRecord): string {
     }
     if (n.type === 'swap_accepted') return 'Your response was accepted.';
     if (n.type === 'swap_rejected') return 'Your offer was declined.';
+    if (n.type === 'looking_for_work_offer') return (data.message as string) ?? 'Someone offered a shift on your looking-for-work post.';
+    if (n.type === 'looking_for_work_accepted') return 'Your offer was accepted. The shift has been transferred to you.';
+    if (n.type === 'looking_for_work_not_selected') return 'Another offer was accepted on the post you responded to.';
     return (data.message as string) ?? 'New notification';
 }
 
