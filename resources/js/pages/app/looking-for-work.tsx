@@ -1,5 +1,5 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { Briefcase, ChevronRight, DollarSign, Plus, RefreshCw } from 'lucide-react';
+import { ChevronRight, DollarSign, Plus, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -111,7 +111,6 @@ export default function LookingForWorkPage() {
     }, [filters.min_cash]);
     const [createOpen, setCreateOpen] = useState(false);
     const [offerPostId, setOfferPostId] = useState<number | null>(null);
-    const [acceptingOfferId, setAcceptingOfferId] = useState<number | null>(null);
 
     const [createDate, setCreateDate] = useState('');
     const [createDeskTypes, setCreateDeskTypes] = useState<string[]>([]);
@@ -239,27 +238,6 @@ export default function LookingForWorkPage() {
             setOfferSubmitting(false);
         }
     }, [offerShiftId, offerCash, offerNotes, refresh]);
-
-    const handleAcceptOffer = useCallback(async (offerId: number) => {
-        setAcceptingOfferId(offerId);
-        try {
-            const res = await fetch(`/api/looking-for-work/offers/${offerId}/accept`, {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'X-XSRF-TOKEN': getCsrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                credentials: 'include',
-            });
-            const data = await res.json().catch(() => ({}));
-            if (res.ok && data.ok) {
-                refresh();
-            }
-        } finally {
-            setAcceptingOfferId(null);
-        }
-    }, [refresh]);
 
     const allDeskTypes = workgroups.flatMap((wg) => (wg.desk_types ?? []).map((d) => ({ ...d, workgroup: wg.name })));
     const postForOffer = offerPostId ? posts.find((p) => p.id === offerPostId) : null;

@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -90,7 +90,7 @@ export function AddShiftModal({
     const [error, setError] = useState<string | null>(null);
 
     const selectedWorkgroup = workgroupId ? workgroups.find((wg) => wg.id === parseInt(workgroupId, 10)) : null;
-    const allowedStartTimes = selectedWorkgroup?.allowed_start_times ?? [];
+    const allowedStartTimes = useMemo(() => selectedWorkgroup?.allowed_start_times ?? [], [selectedWorkgroup]);
     const positionOptions = selectedWorkgroup?.positions ?? [];
     const hasPositionOptions = positionOptions.length > 0;
 
