@@ -34,10 +34,16 @@ class WebPushSwapNotification extends Notification
         if ($this->badgeCount !== null && $this->badgeCount >= 0) {
             $data['badgeCount'] = min(99, $this->badgeCount);
         }
+        // Android requires icon/badge to be absolute HTTPS URLs; build from app URL if path-only.
+        $iconPath = \App\Models\Setting::appIconUrl();
+        $iconUrl = (str_starts_with($iconPath, 'http://') || str_starts_with($iconPath, 'https://'))
+            ? $iconPath
+            : rtrim(config('app.url'), '/').'/'.ltrim($iconPath, '/');
+
         $message = (new WebPushMessage)
             ->title($this->title)
             ->body($this->body)
-            ->icon(asset(\App\Models\Setting::appIconUrl()))
+            ->icon($iconUrl)
             ->data($data)
             ->options(['TTL' => 86400]); // 24h
 
