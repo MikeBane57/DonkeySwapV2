@@ -8,6 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('looking_for_work_post_histories')) {
+            return;
+        }
         Schema::create('looking_for_work_post_histories', function (Blueprint $table) {
             $table->id();
             $table->foreignId('looking_for_work_post_id')->constrained()->cascadeOnDelete();
