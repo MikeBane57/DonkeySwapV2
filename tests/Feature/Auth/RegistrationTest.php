@@ -14,6 +14,7 @@ test('new users can register', function () {
     $response = $this->post(route('register.store'), [
         'name' => 'Test User',
         'email' => $email,
+        'employee_id' => 'test-'.uniqid(),
         'password' => 'password',
         'password_confirmation' => 'password',
         'preferred_contact_method' => 'email',

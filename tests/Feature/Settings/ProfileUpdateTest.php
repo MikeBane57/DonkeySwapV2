@@ -15,11 +15,14 @@ test('profile page is displayed', function () {
 test('profile information can be updated', function () {
     $user = User::factory()->create();
 
+    $user->update(['employee_id' => 'emp-'.uniqid()]);
+
     $response = $this
         ->actingAs($user)
         ->patch(route('profile.update'), [
             'name' => 'Test User',
             'email' => 'test@example.com',
+            'employee_id' => $user->employee_id,
             'preferred_contact_method' => 'email',
         ]);
 
@@ -36,12 +39,14 @@ test('profile information can be updated', function () {
 
 test('email verification status is unchanged when the email address is unchanged', function () {
     $user = User::factory()->create();
+    $user->update(['employee_id' => 'emp-'.uniqid()]);
 
     $response = $this
         ->actingAs($user)
         ->patch(route('profile.update'), [
             'name' => 'Test User',
             'email' => $user->email,
+            'employee_id' => $user->employee_id,
             'preferred_contact_method' => 'email',
         ]);
 

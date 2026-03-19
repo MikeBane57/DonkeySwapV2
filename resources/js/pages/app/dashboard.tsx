@@ -14,7 +14,7 @@ import {
     Plus,
     ArrowLeftRight,
 } from 'lucide-react';
-import { Briefcase, CalendarOff, Trash2, AlertCircle, MessageSquare, Check, Pencil, ChevronRight } from 'lucide-react';
+import { Briefcase, CalendarOff, Trash2, MessageSquare, Check, Pencil, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState  } from 'react';
 import type {ReactNode} from 'react';
 import { AddShiftModal } from '@/components/add-shift-modal';

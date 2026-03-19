@@ -86,7 +86,6 @@ export function PostShiftModal({
     existingPosts,
     preselectFlightFollow = false,
     onSuccess,
-    onDeleteShift,
 }: PostShiftModalProps) {
     const isTraining = shift.is_training ?? false;
     const safePosts = existingPosts.filter((p): p is ExistingPost => p != null && typeof p.type === 'string');

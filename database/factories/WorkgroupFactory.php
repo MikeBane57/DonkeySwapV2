@@ -13,15 +13,9 @@ class WorkgroupFactory extends Factory
     {
         return [
             'name' => fake()->unique()->words(2, true),
-            'regulatory' => false,
             'max_hours_per_day' => 10,
             'rest_required_hours' => 8,
             'allow_double' => false,
         ];
-    }
-
-    public function regulatory(): static
-    {
-        return $this->state(fn (array $attributes) => ['regulatory' => true]);
     }
 }

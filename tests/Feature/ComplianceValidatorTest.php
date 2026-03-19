@@ -12,7 +12,7 @@ beforeEach(function () {
 
 test('regulatory block: daily hours exceed max', function () {
     $user = User::factory()->create();
-    $wg = Workgroup::factory()->create(['regulatory' => true, 'max_hours_per_day' => 10]);
+    $wg = Workgroup::factory()->create(['max_hours_per_day' => 10]);
     $day = Carbon::today()->utc()->addDay()->format('Y-m-d');
 
     $shifts = [

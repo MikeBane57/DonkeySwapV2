@@ -1,12 +1,11 @@
 import dayGridPlugin from '@fullcalendar/daygrid';
 import FullCalendar from '@fullcalendar/react';
 import { Head, router } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
-import { getCsrfToken } from '@/lib/csrf';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -44,32 +43,33 @@ function formatUtc(iso: string): string {
     }
 }
 
-export default function ReconcileSchedule({
+function buildDefaultActions(rec: Reconciliation): Record<string, { action: string; reason: string }> {
+    if (!rec?.items) return {};
+    const d: Record<string, { action: string; reason: string }> = {};
+    rec.items.forEach((i) => {
+        if (i.type === 'added') d[String(i.id)] = { action: 'accepted', reason: '' };
+        if (i.type === 'removed') d[String(i.id)] = { action: 'removed', reason: '' };
+    });
+    return d;
+}
+
+function ReconcileScheduleContent({
     reconciliation,
     message,
 }: {
     reconciliation: Reconciliation;
     message: string;
 }) {
-    const [actions, setActions] = useState<Record<string, { action: string; reason: string }>>({});
+    const [actions, setActions] = useState<Record<string, { action: string; reason: string }>>(() => buildDefaultActions(reconciliation));
     const [submitting, setSubmitting] = useState(false);
-
-    useEffect(() => {
-        if (!reconciliation?.items) return;
-        const defaults: Record<string, { action: string; reason: string }> = {};
-        reconciliation.items.forEach((i) => {
-            if (i.type === 'added') defaults[String(i.id)] = { action: 'accepted', reason: '' };
-            if (i.type === 'removed') defaults[String(i.id)] = { action: 'removed', reason: '' };
-        });
-        setActions((prev) => ({ ...defaults, ...prev }));
-    }, [reconciliation?.id]);
 
     const setAction = (itemId: number, action: string, reason: string = '') => {
         setActions((prev) => ({ ...prev, [String(itemId)]: { action, reason } }));
     };
 
-    const added = reconciliation?.items.filter((i) => i.type === 'added') ?? [];
-    const removed = reconciliation?.items.filter((i) => i.type === 'removed') ?? [];
+    const items = useMemo(() => reconciliation?.items ?? [], [reconciliation?.items]);
+    const added = useMemo(() => items.filter((i) => i.type === 'added'), [items]);
+    const removed = useMemo(() => items.filter((i) => i.type === 'removed'), [items]);
 
     const calendarEvents = useMemo(() => {
         const evs: { id: string; title: string; start: string; end: string; backgroundColor: string }[] = [];
@@ -274,4 +274,8 @@ export default function ReconcileSchedule({
             </div>
         </AppLayout>
     );
+}
+
+export default function ReconcileSchedule(props: { reconciliation: Reconciliation; message: string }) {
+    return <ReconcileScheduleContent key={props.reconciliation?.id ?? 'none'} {...props} />;
 }

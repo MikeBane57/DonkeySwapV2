@@ -14,7 +14,7 @@ test('trade atomic swap: ownership exchanges and post closed', function () {
     $validator = new ComplianceValidator;
     $service = new SwapTransactionService($validator);
 
-    $wg = Workgroup::factory()->create(['regulatory' => false, 'allow_double' => false]);
+    $wg = Workgroup::factory()->create(['allow_double' => false]);
     $userA = User::factory()->create();
     $userB = User::factory()->create();
     $userA->workgroups()->attach($wg->id);
@@ -68,7 +68,7 @@ test('flight follow qualification block: non-qualified user cannot accept', func
     $validator = new ComplianceValidator;
     $service = new SwapTransactionService($validator);
 
-    $wg = Workgroup::factory()->create(['regulatory' => true]);
+    $wg = Workgroup::factory()->create();
     $dsp = WorkgroupQualification::create(['workgroup_id' => $wg->id, 'code' => 'DSP', 'label' => 'DSP', 'sort_order' => 0]);
     $userA = User::factory()->create();
     $userB = User::factory()->create();

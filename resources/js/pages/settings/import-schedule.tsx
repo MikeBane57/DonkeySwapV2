@@ -605,7 +605,6 @@ export default function ImportSchedule() {
                                                             value={row.desk_type}
                                                             onChange={(e) => {
                                                                 const code = e.target.value;
-                                                                const opt = deskTypeOptions.find((d) => d.code === code);
                                                                 setPreview((prev) => {
                                                                     if (!prev) return null;
                                                                     const next = [...prev];
