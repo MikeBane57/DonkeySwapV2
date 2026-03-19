@@ -105,15 +105,9 @@ export default function ImportSchedule() {
     const [errors, setErrors] = useState<string[]>([]);
     const [applyResult, setApplyResult] = useState<ApplyResult | null>(null);
     const [historyRuns, setHistoryRuns] = useState<HistoryRun[]>([]);
-    const [dismissedMissingIds, setDismissedMissingIds] = useState<Set<number>>(new Set());
-    const [moveShift, setMoveShift] = useState<MissingShift | null>(null);
-    const [moveDate, setMoveDate] = useState('');
-    const [moveTime, setMoveTime] = useState('');
-    const [moveSubmitting, setMoveSubmitting] = useState(false);
     const [editPreviewIndex, setEditPreviewIndex] = useState<number | null>(null);
     const [editPreviewDate, setEditPreviewDate] = useState('');
     const [editPreviewTimeCode, setEditPreviewTimeCode] = useState('');
-    const [deleteAllMissingLoading, setDeleteAllMissingLoading] = useState(false);
     const [pastCountFromPreview, setPastCountFromPreview] = useState(0);
     const [userDeskTypes, setUserDeskTypes] = useState<WorkgroupDeskTypes[]>([]);
     const [fileLastModified, setFileLastModified] = useState<number | null>(null);
@@ -135,7 +129,6 @@ export default function ImportSchedule() {
         if (auth?.user?.employee_id) fetchHistory();
     }, [auth?.user?.employee_id, fetchHistory]);
 
-    const missingShifts = (applyResult?.missing_shifts ?? []).filter((s) => !dismissedMissingIds.has(s.id));
 
     const sendCsv = useCallback(async (endpoint: 'preview' | 'apply', rowsToApply?: PreviewRow[]) => {
         if (endpoint === 'preview') {
@@ -282,34 +275,6 @@ export default function ImportSchedule() {
         }
     };
 
-    const onDeleteMissing = async (id: number) => {
-        if (!window.confirm('Remove this shift from your schedule? Any post for this shift will also be removed. This cannot be undone.')) return;
-        const res = await fetch(`/api/shifts/${id}`, {
-            method: 'DELETE',
-            headers: { Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
-            credentials: 'include',
-        });
-        if (res.ok) setDismissedMissingIds((prev) => new Set([...prev, id]));
-    };
-
-    const onDeleteAllMissing = async () => {
-        if (missingShifts.length === 0) return;
-        if (!window.confirm(`Remove all ${missingShifts.length} shift(s) from your schedule? Any posts will also be removed. This cannot be undone.`)) return;
-        setDeleteAllMissingLoading(true);
-        try {
-            for (const s of missingShifts) {
-                const res = await fetch(`/api/shifts/${s.id}`, {
-                    method: 'DELETE',
-                    headers: { Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
-                    credentials: 'include',
-                });
-                if (res.ok) setDismissedMissingIds((prev) => new Set([...prev, s.id]));
-            }
-        } finally {
-            setDeleteAllMissingLoading(false);
-        }
-    };
-
     const removePreviewRow = (index: number) => {
         setPreview((prev) => (prev ? prev.filter((_, i) => i !== index) : null));
     };
@@ -325,32 +290,6 @@ export default function ImportSchedule() {
             return next;
         });
         setEditPreviewIndex(null);
-    };
-
-    const onMoveSubmit = async () => {
-        if (!moveShift || !moveDate) return;
-        setMoveSubmitting(true);
-        try {
-            const res = await fetch(`/api/shifts/${moveShift.id}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-XSRF-TOKEN': getCsrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                credentials: 'include',
-                body: JSON.stringify({ start_date: moveDate, start_time: moveTime || undefined }),
-            });
-            if (res.ok) {
-                setDismissedMissingIds((prev) => new Set([...prev, moveShift.id]));
-                setMoveShift(null);
-                setMoveDate('');
-                setMoveTime('');
-            }
-        } finally {
-            setMoveSubmitting(false);
-        }
     };
 
     const noEmployeeId = !auth?.user?.employee_id;
@@ -667,72 +606,6 @@ export default function ImportSchedule() {
                                     <li>{applyResult.past_count} shift{(applyResult.past_count ?? 0) !== 1 ? 's' : ''} in the past were not added</li>
                                 )}
                                 {applyResult.conflict > 0 && <li>Conflicts (shift has active post): {applyResult.conflict}</li>}
-                                {applyResult.missing_shift_ids.length > 0 && (
-                                    <li>Shifts on your board not in file: {applyResult.missing_shift_ids.length} (reconcile below)</li>
-                                )}
-                            </ul>
-                        </div>
-                    )}
-
-                    {missingShifts.length > 0 && (
-                        <div className="rounded-lg border border-border p-4">
-                            <h2 className="font-medium mb-2">Reconcile shifts not in import</h2>
-                            <p className="text-sm text-muted-foreground mb-3">
-                                These shifts are on your board but were not in the file. Keep them, move to a different date, or remove. Deleting will remove the shift and any post for it.
-                            </p>
-                            <div className="mb-3 flex gap-2">
-                                <Button
-                                    type="button"
-                                    variant="destructive"
-                                    size="sm"
-                                    disabled={deleteAllMissingLoading}
-                                    onClick={onDeleteAllMissing}
-                                >
-                                    {deleteAllMissingLoading ? 'Deleting…' : 'Delete all'}
-                                </Button>
-                            </div>
-                            <ul className="space-y-2">
-                                {missingShifts.map((s) => (
-                                    <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-border/70 bg-muted/20 p-2 text-sm">
-                                        <span>
-                                            {s.position_name} · {formatDate(s.start_time_utc)}
-                                        </span>
-                                        <span className="flex gap-1">
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-7 text-xs"
-                                                onClick={() => setDismissedMissingIds((prev) => new Set([...prev, s.id]))}
-                                            >
-                                                Keep
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-7 text-xs"
-                                                onClick={() => {
-                                                    const start = s.start_time_utc.slice(0, 10);
-                                                    setMoveShift(s);
-                                                    setMoveDate(start);
-                                                    setMoveTime(s.start_time_utc.slice(11, 16) || '');
-                                                }}
-                                            >
-                                                Move date
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant="destructive"
-                                                size="sm"
-                                                className="h-7 text-xs"
-                                                onClick={() => onDeleteMissing(s.id)}
-                                            >
-                                                Delete
-                                            </Button>
-                                        </span>
-                                    </li>
-                                ))}
                             </ul>
                         </div>
                     )}
@@ -804,42 +677,6 @@ export default function ImportSchedule() {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={!!moveShift} onOpenChange={(open) => !open && setMoveShift(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Move shift to new date</DialogTitle>
-                    </DialogHeader>
-                    {moveShift && (
-                        <>
-                            <p className="text-sm text-muted-foreground">
-                                {moveShift.position_name} — choose the new date (and optional time).
-                            </p>
-                            <div className="grid gap-2">
-                                <Label>New date</Label>
-                                <Input
-                                    type="date"
-                                    value={moveDate}
-                                    onChange={(e) => setMoveDate(e.target.value)}
-                                />
-                                <Label>Time (optional, keeps same time if blank)</Label>
-                                <Input
-                                    type="time"
-                                    value={moveTime}
-                                    onChange={(e) => setMoveTime(e.target.value)}
-                                />
-                            </div>
-                            <DialogFooter>
-                                <Button variant="ghost" onClick={() => setMoveShift(null)}>
-                                    Cancel
-                                </Button>
-                                <Button disabled={!moveDate || moveSubmitting} onClick={onMoveSubmit}>
-                                    {moveSubmitting ? 'Moving…' : 'Move shift'}
-                                </Button>
-                            </DialogFooter>
-                        </>
-                    )}
-                </DialogContent>
-            </Dialog>
         </AppLayout>
     );
 }

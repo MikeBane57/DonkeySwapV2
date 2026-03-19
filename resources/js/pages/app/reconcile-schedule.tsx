@@ -62,6 +62,7 @@ function ReconcileScheduleContent({
 }) {
     const [actions, setActions] = useState<Record<string, { action: string; reason: string }>>(() => buildDefaultActions(reconciliation));
     const [submitting, setSubmitting] = useState(false);
+    const [view, setView] = useState<'calendar' | 'table'>('calendar');
 
     const setAction = (itemId: number, action: string, reason: string = '') => {
         setActions((prev) => ({ ...prev, [String(itemId)]: { action, reason } }));
@@ -136,7 +137,25 @@ function ReconcileScheduleContent({
                 <h1 className="text-xl font-semibold">Review schedule discrepancies</h1>
                 <p className="text-muted-foreground">{message}</p>
 
-                {calendarEvents.length > 0 && (
+                <div className="flex gap-1 border-b border-border mb-4">
+                    <button
+                        type="button"
+                        onClick={() => setView('calendar')}
+                        className={`px-4 py-2 text-sm font-medium rounded-t transition-colors ${view === 'calendar' ? 'bg-muted border border-border border-b-0 -mb-px' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                        Calendar
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setView('table')}
+                        className={`px-4 py-2 text-sm font-medium rounded-t transition-colors ${view === 'table' ? 'bg-muted border border-border border-b-0 -mb-px' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                        Table
+                    </button>
+                </div>
+
+                {view === 'calendar' && (
+                    calendarEvents.length > 0 ? (
                     <section className="rounded-lg border border-border bg-card p-4">
                         <h2 className="text-sm font-medium text-muted-foreground mb-2">Changes on calendar</h2>
                         <div className="min-h-[320px]">
@@ -160,8 +179,12 @@ function ReconcileScheduleContent({
                             <span><span className="inline-block w-3 h-3 rounded align-middle mr-1" style={{ backgroundColor: 'rgb(245 158 11)' }} /> Remove from board</span>
                         </div>
                     </section>
+                    ) : (
+                    <p className="text-muted-foreground text-sm">No changes to show on calendar. Use the Table tab to review and submit.</p>
+                    )
                 )}
 
+                {view === 'table' && (
                 <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
                     {added.length > 0 && (
                         <section>
@@ -271,6 +294,7 @@ function ReconcileScheduleContent({
                         </Button>
                     </div>
                 </form>
+                )}
             </div>
         </AppLayout>
     );
