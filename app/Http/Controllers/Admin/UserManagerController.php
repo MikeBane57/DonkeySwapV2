@@ -24,6 +24,7 @@ class UserManagerController extends Controller
                     'id' => $u->id,
                     'name' => $u->name,
                     'email' => $u->email,
+                    'employee_id' => $u->employee_id,
                     'phone' => $u->phone,
                     'preferred_contact_method' => $u->preferred_contact_method,
                     'role' => $u->role,
@@ -43,12 +44,10 @@ class UserManagerController extends Controller
             'qualifications' => $wg->qualifications->map(fn ($q) => ['id' => $q->id, 'code' => $q->code, 'label' => $q->label])->values()->all(),
         ]);
 
-        $response = Inertia::render('admin/users', [
+        return Inertia::render('admin/users', [
             'users' => $users,
             'workgroups' => $workgroups,
         ]);
-
-        return $response->toResponse(request())->header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 
     public function store(StoreUserRequest $request): RedirectResponse
@@ -56,12 +55,14 @@ class UserManagerController extends Controller
         $user = User::create([
             'name' => $request->input('name'),
             'email' => $request->input('email'),
+            'employee_id' => $request->input('employee_id'),
             'password' => $request->input('password'),
-            'role' => $request->input('role'),
             'time_display_preference' => $request->input('time_display_preference'),
             'phone' => $request->input('phone') ? trim($request->input('phone')) : null,
             'preferred_contact_method' => $request->input('preferred_contact_method') ?: 'email',
         ]);
+        $user->role = $request->input('role');
+        $user->save();
         $workgroups = $request->input('workgroups', []);
         $sync = [];
         foreach ($workgroups as $w) {
@@ -85,8 +86,12 @@ class UserManagerController extends Controller
         if ($request->has('email')) {
             $updates['email'] = $request->input('email');
         }
+        if ($request->has('employee_id')) {
+            $updates['employee_id'] = $request->input('employee_id') ?: null;
+        }
         if ($request->has('role')) {
-            $updates['role'] = $request->input('role');
+            $user->role = $request->input('role');
+            $user->save();
         }
         if ($request->has('time_display_preference')) {
             $updates['time_display_preference'] = $request->input('time_display_preference');

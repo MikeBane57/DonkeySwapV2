@@ -39,6 +39,10 @@ class SwapPostController extends Controller
             'postings.*.preferred_start_times' => ['nullable', 'array'],
             'postings.*.preferred_start_times.*' => ['string', 'regex:/^\d{1,2}:\d{2}$/'],
             'postings.*.preferred_desk_type' => ['nullable', 'string', 'max:64'],
+            'postings.*.payback_date_ranges' => ['nullable', 'array'],
+            'postings.*.payback_date_ranges.*.start' => ['date'],
+            'postings.*.payback_date_ranges.*.end' => ['date'],
+            'postings.*.allow_counter_offers' => ['nullable', 'boolean'],
             'delete_ids' => ['sometimes', 'array'],
             'delete_ids.*' => ['integer', 'exists:swap_posts,id'],
         ]);
@@ -108,6 +112,10 @@ class SwapPostController extends Controller
                 ? (string) $p['preferred_desk_type']
                 : null;
 
+            $newPaybackRanges = $this->normalizePaybackDateRanges($p['type'], $p['payback_date_ranges'] ?? null);
+
+            $newAllowCounterOffers = $p['type'] === 'cash' && ($p['allow_counter_offers'] ?? false);
+
             $data = [
                 'shift_id' => $shift->id,
                 'user_id' => $user->id,
@@ -119,9 +127,11 @@ class SwapPostController extends Controller
                 'notes' => $newNotes,
                 'preferred_start_times' => $newPreferred,
                 'preferred_desk_type' => $newPreferredDeskType,
+                'payback_date_ranges' => $newPaybackRanges,
+                'allow_counter_offers' => $newAllowCounterOffers,
             ];
             if ($existing) {
-                $changes = $this->postChanges($existing, $newCash, $newFf, $newFfAt, $newNotes, $newPreferred, $newPreferredDeskType);
+                $changes = $this->postChanges($existing, $newCash, $newFf, $newFfAt, $newNotes, $newPreferred, $newPreferredDeskType, $newPaybackRanges, $newAllowCounterOffers);
                 if (! empty($changes)) {
                     SwapPostHistory::create([
                         'swap_post_id' => $existing->id,
@@ -146,8 +156,31 @@ class SwapPostController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /**
+     * Normalize payback_date_ranges from request. Only for trade/time_trade. Returns array of {start, end} (Y-m-d) or null.
+     *
+     * @param  array<int, array{start?: string, end?: string}>|null  $ranges
+     * @return array<int, array{start: string, end: string}>|null
+     */
+    private function normalizePaybackDateRanges(string $postType, $ranges): ?array
+    {
+        if (! in_array($postType, ['trade', 'time_trade'], true) || ! is_array($ranges) || empty($ranges)) {
+            return null;
+        }
+        $out = [];
+        foreach ($ranges as $r) {
+            $start = isset($r['start']) ? Carbon::parse($r['start'])->startOfDay()->format('Y-m-d') : null;
+            $end = isset($r['end']) ? Carbon::parse($r['end'])->startOfDay()->format('Y-m-d') : null;
+            if ($start && $end && $end >= $start) {
+                $out[] = ['start' => $start, 'end' => $end];
+            }
+        }
+
+        return $out !== [] ? $out : null;
+    }
+
     /** @return array<int, array{field: string, old: mixed, new: mixed}> */
-    private function postChanges(SwapPost $post, ?float $newCash, ?int $newFf, ?string $newFfAt, ?string $newNotes, ?array $newPreferred = null, ?string $newPreferredDeskType = null): array
+    private function postChanges(SwapPost $post, ?float $newCash, ?int $newFf, ?string $newFfAt, ?string $newNotes, ?array $newPreferred = null, ?string $newPreferredDeskType = null, ?array $newPaybackRanges = null, bool $newAllowCounterOffers = false): array
     {
         $changes = [];
         $oldCash = $post->cash_amount !== null ? (float) $post->cash_amount : null;
@@ -174,6 +207,14 @@ class SwapPostController extends Controller
         if ($oldPreferredDesk !== $newPreferredDeskType) {
             $changes[] = ['field' => 'preferred_desk_type', 'old' => $oldPreferredDesk, 'new' => $newPreferredDeskType];
         }
+        $oldPayback = $post->payback_date_ranges;
+        if (json_encode($oldPayback) !== json_encode($newPaybackRanges)) {
+            $changes[] = ['field' => 'payback_date_ranges', 'old' => $oldPayback, 'new' => $newPaybackRanges];
+        }
+        $oldAllowCounter = (bool) $post->allow_counter_offers;
+        if ($oldAllowCounter !== $newAllowCounterOffers) {
+            $changes[] = ['field' => 'allow_counter_offers', 'old' => $oldAllowCounter, 'new' => $newAllowCounterOffers];
+        }
 
         return $changes;
     }
@@ -197,6 +238,10 @@ class SwapPostController extends Controller
             'postings.*.preferred_start_times' => ['nullable', 'array'],
             'postings.*.preferred_start_times.*' => ['string', 'regex:/^\d{1,2}:\d{2}$/'],
             'postings.*.preferred_desk_type' => ['nullable', 'string', 'max:64'],
+            'postings.*.payback_date_ranges' => ['nullable', 'array'],
+            'postings.*.payback_date_ranges.*.start' => ['date'],
+            'postings.*.payback_date_ranges.*.end' => ['date'],
+            'postings.*.allow_counter_offers' => ['nullable', 'boolean'],
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -265,6 +310,9 @@ class SwapPostController extends Controller
                     ? (string) $p['preferred_desk_type']
                     : null;
 
+                $paybackRanges = $this->normalizePaybackDateRanges($p['type'], $p['payback_date_ranges'] ?? null);
+                $allowCounterOffers = $p['type'] === 'cash' && ($p['allow_counter_offers'] ?? false);
+
                 $data = [
                     'shift_id' => $shiftId,
                     'user_id' => $user->id,
@@ -276,6 +324,8 @@ class SwapPostController extends Controller
                     'notes' => $p['notes'] ?? null,
                     'preferred_start_times' => $preferred,
                     'preferred_desk_type' => $preferredDeskType,
+                    'payback_date_ranges' => $paybackRanges,
+                    'allow_counter_offers' => $allowCounterOffers,
                 ];
                 if ($existing) {
                     $existing->update($data);
@@ -424,6 +474,17 @@ class SwapPostController extends Controller
             $responseNotes = null;
         }
 
+        $counterCash = null;
+        if ($request->filled('counter_cash_amount') && is_numeric($request->input('counter_cash_amount'))) {
+            $val = (float) $request->input('counter_cash_amount');
+            if ($val >= 0) {
+                $allowForCash = $post->type === 'cash' && $post->allow_counter_offers;
+                if (in_array($post->type, ['trade', 'time_trade'], true) || $allowForCash) {
+                    $counterCash = $val;
+                }
+            }
+        }
+
         $offer = SwapOffer::create([
             'swap_post_id' => $post->id,
             'offered_by_user_id' => $user->id,
@@ -431,6 +492,7 @@ class SwapPostController extends Controller
             'offered_shift_preference_order' => $offeredShiftPreferenceOrder,
             'status' => 'pending',
             'response_notes' => $responseNotes,
+            'counter_cash_amount' => $counterCash,
         ]);
 
         $post->increment('click_count');
@@ -445,11 +507,48 @@ class SwapPostController extends Controller
             ],
         ]);
 
+        if ($offeredShiftId && in_array($post->type, ['trade', 'time_trade'], true)) {
+            $ranges = $post->payback_date_ranges;
+            if (is_array($ranges) && count($ranges) > 0) {
+                $offeredShift = Shift::find($offeredShiftId);
+                if ($offeredShift && $offeredShift->start_time_utc) {
+                    $offerDate = $offeredShift->start_time_utc->format('Y-m-d');
+                    if (! $this->isDateInPaybackRanges($offerDate, $ranges)) {
+                        AppNotification::create([
+                            'user_id' => $post->user_id,
+                            'type' => 'offer_outside_payback',
+                            'data' => [
+                                'swap_post_id' => $post->id,
+                                'swap_offer_id' => $offer->id,
+                                'message' => 'The offered shift ('.($offeredShift->start_time_utc->format('M j, Y')).') is outside your requested payback date ranges.',
+                            ],
+                        ]);
+                    }
+                }
+            }
+        }
+
         $message = in_array($post->type, ['trade', 'time_trade'], true)
             ? 'Offer submitted. The poster will be notified.'
             : 'Your response has been submitted. The poster will be notified.';
 
         return response()->json(['ok' => true, 'message' => $message]);
+    }
+
+    /**
+     * @param  array<int, array{start: string, end: string}>  $ranges
+     */
+    private function isDateInPaybackRanges(string $dateYmd, array $ranges): bool
+    {
+        foreach ($ranges as $r) {
+            $start = $r['start'] ?? '';
+            $end = $r['end'] ?? '';
+            if ($dateYmd >= $start && $dateYmd <= $end) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function postTypeLabel(string $type): string

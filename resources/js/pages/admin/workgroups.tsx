@@ -27,13 +27,12 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 type AllowedStartTime = { id: number; start_time: string; default_duration_minutes: number };
-type DeskType = { id?: number; code: string; label: string; workgroup_qualification_code?: string };
+type DeskType = { id?: number; code: string; label: string; is_regulatory?: boolean; workgroup_qualification_code?: string };
 type PositionRange = { id?: number; range_spec: string; parity: string; desk_type_code: string };
 type WorkgroupQualification = { id?: number; code: string; label: string };
 type Workgroup = {
     id: number;
     name: string;
-    regulatory: boolean;
     max_hours_per_day: number | null;
     rest_required_hours: number | null;
     allow_double: boolean;
@@ -100,12 +99,11 @@ export default function AdminWorkgroups() {
 
     const [form, setForm] = useState({
         name: '',
-        regulatory: false,
         max_hours_per_day: 10,
         rest_required_hours: 8,
         allow_double: false,
         allowed_start_times: [emptyStartTime()],
-        desk_types: [] as { code: string; label: string; workgroup_qualification_code: string }[],
+        desk_types: [] as { code: string; label: string; is_regulatory: boolean; workgroup_qualification_code: string }[],
         position_ranges: [] as { range_spec: string; parity: string; desk_type_code: string }[],
         qualifications: [] as { code: string; label: string }[],
     });
@@ -113,7 +111,6 @@ export default function AdminWorkgroups() {
     const openCreate = () => {
         setForm({
             name: '',
-            regulatory: false,
             max_hours_per_day: 10,
             rest_required_hours: 8,
             allow_double: false,
@@ -166,7 +163,6 @@ export default function AdminWorkgroups() {
         setEditSection(section);
         setForm({
             name: wg.name,
-            regulatory: wg.regulatory,
             max_hours_per_day: wg.max_hours_per_day ?? 10,
             rest_required_hours: wg.rest_required_hours ?? 8,
             allow_double: wg.allow_double,
@@ -181,6 +177,7 @@ export default function AdminWorkgroups() {
                 ? wg.desk_types.map((d) => ({
                       code: d.code,
                       label: d.label,
+                      is_regulatory: d.is_regulatory ?? false,
                       workgroup_qualification_code: d.workgroup_qualification_code ?? '',
                   }))
                 : [],
@@ -260,7 +257,7 @@ export default function AdminWorkgroups() {
     const removeDeskType = (index: number) => {
         setForm((f) => ({ ...f, desk_types: f.desk_types.filter((_, i) => i !== index) }));
     };
-    const updateDeskType = (index: number, field: 'code' | 'label' | 'workgroup_qualification_code', value: string) => {
+    const updateDeskType = (index: number, field: 'code' | 'label' | 'workgroup_qualification_code' | 'is_regulatory', value: string | boolean) => {
         setForm((f) => ({
             ...f,
             desk_types: f.desk_types.map((d, i) => (i === index ? { ...d, [field]: value } : d)),
@@ -336,7 +333,7 @@ export default function AdminWorkgroups() {
                     <div>
                         <h1 className="text-2xl font-semibold">Workgroup Manager</h1>
                         <p className="mt-2 text-muted-foreground text-sm">
-                            Create workgroups, set regulatory flag, max hours, rest hours, allowed start times.
+                            Create workgroups, set max hours, rest hours, allowed start times, and desk types (regulatory per desk type).
                         </p>
                     </div>
                     <Button onClick={openCreate}>
@@ -355,7 +352,6 @@ export default function AdminWorkgroups() {
                             <thead>
                                 <tr className="border-b border-sidebar-border/70 bg-muted/50">
                                     <th className="p-3 text-left font-medium">Name</th>
-                                    <th className="p-3 text-left font-medium">Regulatory</th>
                                     <th className="p-3 text-left font-medium">Max hrs/day</th>
                                     <th className="p-3 text-left font-medium">Rest hrs</th>
                                     <th className="p-3 text-left font-medium">Double</th>
@@ -372,7 +368,7 @@ export default function AdminWorkgroups() {
                             <tbody>
                                 {workgroups.length === 0 && (
                                     <tr>
-                                        <td colSpan={10} className="p-4 text-muted-foreground">
+                                        <td colSpan={9} className="p-4 text-muted-foreground">
                                             No workgroups yet. Click “Add workgroup” to create one.
                                         </td>
                                     </tr>
@@ -393,7 +389,6 @@ export default function AdminWorkgroups() {
                                                 </Button>
                                             </div>
                                         </td>
-                                        <td className="p-3">{wg.regulatory ? 'Yes' : 'No'}</td>
                                         <td className="p-3">{wg.max_hours_per_day ?? '—'}</td>
                                         <td className="p-3">{wg.rest_required_hours ?? '—'}</td>
                                         <td className="p-3">{wg.allow_double ? 'Yes' : 'No'}</td>
@@ -436,6 +431,7 @@ export default function AdminWorkgroups() {
                                                             className="inline-block rounded bg-muted px-1.5 py-0.5 text-xs"
                                                         >
                                                             {d.label}
+                                                            {d.is_regulatory ? ' (Reg)' : ''}
                                                             {d.workgroup_qualification_code ? ` (${d.workgroup_qualification_code})` : ''}
                                                         </span>
                                                     ))
@@ -566,14 +562,7 @@ export default function AdminWorkgroups() {
                                     className="mt-1"
                                 />
                             </div>
-                            <div className="flex items-center gap-4">
-                                <Label className="flex items-center gap-2">
-                                    <Checkbox
-                                        checked={form.regulatory}
-                                        onCheckedChange={(v) => setForm((f) => ({ ...f, regulatory: v === true }))}
-                                    />
-                                    Regulatory
-                                </Label>
+                                            <div className="flex items-center gap-4">
                                 <Label className="flex items-center gap-2">
                                     <Checkbox
                                         checked={form.allow_double}
@@ -816,13 +805,6 @@ export default function AdminWorkgroups() {
                             <div className="flex items-center gap-4">
                                 <Label className="flex items-center gap-2">
                                     <Checkbox
-                                        checked={form.regulatory}
-                                        onCheckedChange={(v) => setForm((f) => ({ ...f, regulatory: v === true }))}
-                                    />
-                                    Regulatory
-                                </Label>
-                                <Label className="flex items-center gap-2">
-                                    <Checkbox
                                         checked={form.allow_double}
                                         onCheckedChange={(v) => setForm((f) => ({ ...f, allow_double: v === true }))}
                                     />
@@ -1022,13 +1004,6 @@ export default function AdminWorkgroups() {
                                     <div className="flex items-center gap-4">
                                         <Label className="flex items-center gap-2">
                                             <Checkbox
-                                                checked={form.regulatory}
-                                                onCheckedChange={(v) => setForm((f) => ({ ...f, regulatory: v === true }))}
-                                            />
-                                            Regulatory
-                                        </Label>
-                                        <Label className="flex items-center gap-2">
-                                            <Checkbox
                                                 checked={form.allow_double}
                                                 onCheckedChange={(v) => setForm((f) => ({ ...f, allow_double: v === true }))}
                                             />
@@ -1125,7 +1100,7 @@ export default function AdminWorkgroups() {
                                         </Button>
                                     </div>
                                     <p className="mt-1 text-xs text-muted-foreground">
-                                        Code (e.g. domestic_dispatch), label, and optional required qualification.
+                                        Code (e.g. domestic_dispatch), label, regulatory flag, and optional required qualification.
                                     </p>
                                     <div className="mt-2 space-y-2">
                                         {form.desk_types.map((d, i) => (
@@ -1142,6 +1117,13 @@ export default function AdminWorkgroups() {
                                                     onChange={(e) => updateDeskType(i, 'label', e.target.value)}
                                                     className="w-36"
                                                 />
+                                                <Label className="flex items-center gap-1.5 text-xs">
+                                                    <Checkbox
+                                                        checked={d.is_regulatory}
+                                                        onCheckedChange={(v) => updateDeskType(i, 'is_regulatory', v === true)}
+                                                    />
+                                                    Reg
+                                                </Label>
                                                 <select
                                                     value={d.workgroup_qualification_code}
                                                     onChange={(e) => updateDeskType(i, 'workgroup_qualification_code', e.target.value)}

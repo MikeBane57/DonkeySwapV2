@@ -242,6 +242,8 @@ class AvailableController extends Controller
                 'notes' => $post->notes,
                 'preferred_start_times' => $post->preferred_start_times,
                 'preferred_desk_type' => $post->preferred_desk_type,
+                'payback_date_ranges' => $post->payback_date_ranges,
+                'allow_counter_offers' => (bool) $post->allow_counter_offers,
                 'eligible' => $eligible,
                 'ineligible_reason' => $ineligibleReason,
                 'ineligible_reason_detail' => $ineligibleReasonDetail ?? null,

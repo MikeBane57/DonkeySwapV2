@@ -193,7 +193,7 @@ class PostEligibilityService
             $userShifts,
             [],
             $workgroup->id,
-            $workgroup->regulatory,
+            $workgroup->hasRegulatoryDeskTypes(),
             $workgroup->max_hours_per_day ?? 10,
             $workgroup->rest_required_hours ?? ComplianceValidator::REST_HOURS,
             $workgroup->allow_double ?? false

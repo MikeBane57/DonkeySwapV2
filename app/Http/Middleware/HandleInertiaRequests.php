@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\AppNotification;
+use App\Models\ScheduleReconciliation;
 use App\Models\Setting;
 use App\Models\SwapOffer;
 use Illuminate\Http\Request;
@@ -40,12 +41,16 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         $badgeCount = 0;
+        $pendingReconciliation = false;
         $appIconUrl = Setting::appIconUrl();
 
         if ($user) {
             $badgeCount = AppNotification::where('user_id', $user->id)
                 ->whereNull('read_at')
                 ->count();
+            $pendingReconciliation = ScheduleReconciliation::where('user_id', $user->id)
+                ->where('status', 'pending')
+                ->exists();
         }
 
         $vapidPublicKey = config('webpush.vapid.public_key');
@@ -55,6 +60,7 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'app_icon_url' => $appIconUrl,
             'badge_count' => $badgeCount,
+            'pending_reconciliation' => $pendingReconciliation,
             'vapid_public_key' => $vapidPublicKey ?: null,
             'auth' => [
                 'user' => $user ? (function () use ($user) {
@@ -70,6 +76,7 @@ class HandleInertiaRequests extends Middleware
                         'time_display_preference' => $u->time_display_preference ?? null,
                         'phone' => $u->phone ?? null,
                         'preferred_contact_method' => $u->preferred_contact_method ?? null,
+                        'employee_id' => $u->employee_id ?? null,
                     ];
                 })() : null,
             ],

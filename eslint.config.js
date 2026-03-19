@@ -45,6 +45,18 @@ export default [
         },
         rules: {
             '@typescript-eslint/no-explicit-any': 'off',
+            // Prevent "Cannot access X before initialization" (use const/let/useMemo/useCallback before declaring)
+            '@typescript-eslint/no-use-before-define': [
+                'error',
+                {
+                    functions: true,
+                    classes: true,
+                    enums: true,
+                    variables: true,
+                    typedefs: true,
+                    ignoreTypeReferences: true,
+                },
+            ],
             '@typescript-eslint/consistent-type-imports': [
                 'error',
                 {

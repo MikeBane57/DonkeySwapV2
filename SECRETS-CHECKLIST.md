@@ -46,3 +46,15 @@ The deploy workflow needs these **repository secrets** (Settings → Secrets and
 - Confirm **FTP_REMOTE_DIR** has **no trailing slash** and points to the **app root** (so the workflow uploads to `FTP_REMOTE_DIR/public/build/` = your Laravel `public/build/`).
 - In cPanel **File Manager**, go to the app root and check `public/build/`. After a deploy, `manifest.json` and `version.json` should have recent timestamps. If they’re old or missing, the FTP upload is going to the wrong path or failing (check the “Upload public/build via FTP” step in the Actions run logs).
 - The workflow now has a “Verify deploy secrets are set” step; if any secret is missing, the deploy job fails with a message listing which ones to add.
+
+---
+
+## Dependency security audits
+
+Run periodically (e.g. before releases or monthly) to check for known vulnerabilities:
+
+- **Composer + npm:** `composer run security-check` (runs `composer audit` and `npm audit`)
+- **npm only:** `npm run audit`
+- **Composer only:** `composer audit`
+
+Fix or accept risks for any reported advisories. You can add a CI step that runs `composer run security-check` to block deploys when vulnerabilities are found.

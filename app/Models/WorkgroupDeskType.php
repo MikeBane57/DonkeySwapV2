@@ -12,9 +12,17 @@ class WorkgroupDeskType extends Model
         'workgroup_id',
         'code',
         'label',
+        'is_regulatory',
         'workgroup_qualification_id',
         'sort_order',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_regulatory' => 'boolean',
+        ];
+    }
 
     public function workgroup(): BelongsTo
     {

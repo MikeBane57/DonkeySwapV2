@@ -1,5 +1,5 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { ChevronRight, DollarSign, Plus, RefreshCw } from 'lucide-react';
+import { ChevronRight, DollarSign, Plane, Plus, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
+import { getCsrfToken } from '@/lib/csrf';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -66,6 +67,10 @@ type PostItem = {
     seeking_obo: boolean;
     status: string;
     notes: string | null;
+    willing_to_follow?: boolean;
+    willing_to_follow_time_frame?: string | null;
+    willing_to_follow_slots?: string[];
+    willing_to_follow_custom?: string | null;
     pending_offer_count: number;
     is_mine: boolean;
     my_offer: {
@@ -76,12 +81,6 @@ type PostItem = {
     } | null;
     offers: OfferSummary[];
 };
-
-function getCsrfToken(): string {
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    if (!match) return '';
-    return decodeURIComponent(match[1].trim());
-}
 
 function formatTime(iso: string): string {
     try {
@@ -100,26 +99,41 @@ export default function LookingForWorkPage() {
         posts: PostItem[];
         workgroups: Workgroup[];
         myShiftsByDate: Record<string, ShiftSummary[]>;
-        filters: { date_from?: string; date_to?: string; workgroup_id?: string; desk_type?: string; min_cash?: string };
+        filters: { date_from?: string; date_to?: string; workgroup_id?: string; desk_type?: string; min_cash?: string; willing?: string };
     };
     const { posts, workgroups, myShiftsByDate = {}, filters = {} } = props;
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [onlyDaysWithShifts, setOnlyDaysWithShifts] = useState(false);
     const [minCashLocal, setMinCashLocal] = useState(filters.min_cash ?? '');
-    useEffect(() => {
-        setMinCashLocal(filters.min_cash ?? '');
-    }, [filters.min_cash]);
     const [createOpen, setCreateOpen] = useState(false);
-    const [offerPostId, setOfferPostId] = useState<number | null>(null);
-
     const [createDate, setCreateDate] = useState('');
     const [createDeskTypes, setCreateDeskTypes] = useState<string[]>([]);
     const [createCash, setCreateCash] = useState('');
     const [createObo, setCreateObo] = useState(false);
     const [createNotes, setCreateNotes] = useState('');
+    const [createWillingToFollow, setCreateWillingToFollow] = useState(false);
+    const [createHaveShiftOnDate, setCreateHaveShiftOnDate] = useState<boolean | null>(null);
+    const [createWillingToFollowTimeFrame, setCreateWillingToFollowTimeFrame] = useState<'before' | 'after' | 'any'>('any');
+    const [createWillingToFollowSlots, setCreateWillingToFollowSlots] = useState<string[]>([]);
+    const [createWillingToFollowCustom, setCreateWillingToFollowCustom] = useState('');
     const [createSubmitting, setCreateSubmitting] = useState(false);
     const [createError, setCreateError] = useState<string | null>(null);
 
+    const openCreateWithWilling = filters.willing === '1' || filters.willing === 'true';
+    useEffect(() => {
+        setMinCashLocal(filters.min_cash ?? '');
+    }, [filters.min_cash]);
+    useEffect(() => {
+        if (openCreateWithWilling) {
+            setCreateOpen(true);
+            setCreateWillingToFollow(true);
+            if (filters.date_from && filters.date_to) {
+                setCreateDate(filters.date_from);
+            }
+        }
+    }, [openCreateWithWilling, filters.date_from, filters.date_to]);
+
+    const [offerPostId, setOfferPostId] = useState<number | null>(null);
     const [offerShiftId, setOfferShiftId] = useState<number | null>(null);
     const [offerCash, setOfferCash] = useState('');
     const [offerNotes, setOfferNotes] = useState('');
@@ -182,6 +196,10 @@ export default function LookingForWorkPage() {
                     seeking_cash: Number(createCash),
                     seeking_obo: createObo,
                     notes: createNotes.trim() || null,
+                    willing_to_follow: createWillingToFollow,
+                    willing_to_follow_time_frame: createWillingToFollow && createHaveShiftOnDate === true ? createWillingToFollowTimeFrame : null,
+                    willing_to_follow_slots: createWillingToFollow && createHaveShiftOnDate === false && createWillingToFollowSlots.length > 0 ? createWillingToFollowSlots : null,
+                    willing_to_follow_custom: createWillingToFollow && createHaveShiftOnDate === false && createWillingToFollowCustom.trim() ? createWillingToFollowCustom.trim() : null,
                 }),
             });
             const data = await res.json().catch(() => ({}));
@@ -192,6 +210,11 @@ export default function LookingForWorkPage() {
                 setCreateCash('');
                 setCreateObo(false);
                 setCreateNotes('');
+                setCreateWillingToFollow(false);
+                setCreateHaveShiftOnDate(null);
+                setCreateWillingToFollowTimeFrame('any');
+                setCreateWillingToFollowSlots([]);
+                setCreateWillingToFollowCustom('');
                 refresh();
             } else {
                 setCreateError(data.message || (res.status === 422 ? 'Validation failed.' : 'Failed to create post.'));
@@ -199,7 +222,7 @@ export default function LookingForWorkPage() {
         } finally {
             setCreateSubmitting(false);
         }
-    }, [createDate, createCash, createDeskTypes, createObo, createNotes, refresh]);
+    }, [createDate, createCash, createDeskTypes, createObo, createNotes, createWillingToFollow, createHaveShiftOnDate, createWillingToFollowTimeFrame, createWillingToFollowSlots, createWillingToFollowCustom, refresh]);
 
     const handleOffer = useCallback(async (post: PostItem) => {
         if (!offerShiftId) {
@@ -390,22 +413,40 @@ export default function LookingForWorkPage() {
                                     }`}
                                 >
                                     <div className="flex flex-1 flex-wrap items-start justify-between gap-1.5">
-                                        <div className="min-w-0 flex-1">
+                                        <div className="min-w-0 flex-1 space-y-2">
                                             <div className="flex flex-wrap items-center gap-1.5">
                                                 <span className="truncate text-sm font-medium">{post.poster_name ?? 'Someone'}</span>
-                                                <span className="shrink-0 rounded bg-green-500/20 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">
-                                                    <DollarSign className="inline h-3 w-3" /> ${Number(post.seeking_cash).toFixed(0)}
-                                                    {post.seeking_obo && ' OBO'}
-                                                </span>
                                                 {post.pending_offer_count > 0 && (
                                                     <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
                                                         {post.pending_offer_count === 1 ? '1 offer' : `${post.pending_offer_count} offers`}
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-xs text-muted-foreground">{post.seeking_date}</p>
-                                            {post.seeking_desk_types?.length > 0 && (
-                                                <p className="text-xs text-muted-foreground">Desk types: {post.seeking_desk_types.join(', ')}</p>
+                                            <div className="rounded-lg border border-border/70 bg-muted/20 px-2 py-1.5">
+                                                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Full shift</p>
+                                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                                    <span className="rounded bg-green-500/20 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">
+                                                        <DollarSign className="inline h-3 w-3" /> ${Number(post.seeking_cash).toFixed(0)}
+                                                        {post.seeking_obo && ' OBO'}
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground">{post.seeking_date}</span>
+                                                </div>
+                                                {post.seeking_desk_types?.length > 0 && (
+                                                    <p className="text-xs text-muted-foreground mt-0.5">Desk types: {post.seeking_desk_types.join(', ')}</p>
+                                                )}
+                                            </div>
+                                            {post.willing_to_follow && (
+                                                <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-2 py-1.5">
+                                                    <p className="text-[10px] font-medium uppercase tracking-wider text-purple-700 dark:text-purple-300">Flight following</p>
+                                                    <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mt-0.5 inline-flex items-center gap-1 flex-wrap">
+                                                        <Plane className="size-3 shrink-0" />
+                                                        {post.willing_to_follow_time_frame
+                                                            ? (post.willing_to_follow_time_frame === 'before' ? 'Before my shift' : post.willing_to_follow_time_frame === 'after' ? 'After my shift' : 'Any')
+                                                            : (post.willing_to_follow_slots?.length
+                                                                ? post.willing_to_follow_slots.map((s) => s.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())).join(', ')
+                                                                : '') + (post.willing_to_follow_custom ? (post.willing_to_follow_slots?.length ? ' · ' : '') + post.willing_to_follow_custom : '') || 'Any'}
+                                                    </p>
+                                                </div>
                                             )}
                                         </div>
                                         <div className="flex shrink-0 flex-wrap items-center gap-1">
@@ -485,35 +526,138 @@ export default function LookingForWorkPage() {
                         <DialogTitle>Create &quot;Looking for work&quot; post</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
-                        <div>
-                            <Label>Date you want to work</Label>
-                            <Input type="date" value={createDate} onChange={(e) => setCreateDate(e.target.value)} className="mt-1" min={new Date().toISOString().slice(0, 10)} />
-                        </div>
-                        <div>
-                            <Label>Desk types (optional)</Label>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                                {allDeskTypes.map((dt) => (
-                                    <label key={dt.code} className="flex items-center gap-2 text-sm">
-                                        <Checkbox
-                                            checked={createDeskTypes.includes(dt.code)}
-                                            onCheckedChange={(c) => setCreateDeskTypes((prev) => (c ? [...prev, dt.code] : prev.filter((x) => x !== dt.code)))}
-                                        />
-                                        {dt.label}
-                                    </label>
-                                ))}
+                        <div className="space-y-3">
+                            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Full shift</p>
+                            <div>
+                                <Label>Date you want to work</Label>
+                                <Input type="date" value={createDate} onChange={(e) => setCreateDate(e.target.value)} className="mt-1" min={new Date().toISOString().slice(0, 10)} />
+                            </div>
+                            <div>
+                                <Label>Desk types (optional)</Label>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {allDeskTypes.map((dt) => (
+                                        <label key={dt.code} className="flex items-center gap-2 text-sm">
+                                            <Checkbox
+                                                checked={createDeskTypes.includes(dt.code)}
+                                                onCheckedChange={(c) => setCreateDeskTypes((prev) => (c ? [...prev, dt.code] : prev.filter((x) => x !== dt.code)))}
+                                            />
+                                            {dt.label}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <Label>Cash amount ($)</Label>
+                                <Input type="number" min={0} step={1} value={createCash} onChange={(e) => setCreateCash(e.target.value)} className="mt-1" placeholder="e.g. 500" />
+                            </div>
+                            <label className="flex items-center gap-2 text-sm">
+                                <Checkbox checked={createObo} onCheckedChange={(c) => setCreateObo(!!c)} />
+                                Or best offer (OBO) — responders can offer more or less
+                            </label>
+                            <div>
+                                <Label>Notes (optional)</Label>
+                                <Textarea value={createNotes} onChange={(e) => setCreateNotes(e.target.value)} className="mt-1" rows={2} placeholder="e.g. Prefer morning" />
                             </div>
                         </div>
-                        <div>
-                            <Label>Cash amount ($)</Label>
-                            <Input type="number" min={0} step={1} value={createCash} onChange={(e) => setCreateCash(e.target.value)} className="mt-1" placeholder="e.g. 500" />
-                        </div>
-                        <label className="flex items-center gap-2 text-sm">
-                            <Checkbox checked={createObo} onCheckedChange={(c) => setCreateObo(!!c)} />
-                            Or best offer (OBO) — responders can offer more or less
-                        </label>
-                        <div>
-                            <Label>Notes (optional)</Label>
-                            <Textarea value={createNotes} onChange={(e) => setCreateNotes(e.target.value)} className="mt-1" rows={2} placeholder="e.g. Prefer morning" />
+
+                        <div className="space-y-3 border-t border-border pt-3">
+                            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Flight following</p>
+                            <div
+                                className={`flex items-start gap-3 rounded-xl border-2 p-3 transition-colors cursor-pointer ${
+                                    createWillingToFollow ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                                }`}
+                                onClick={(e) => {
+                                    if ((e.target as HTMLElement).closest('select, input, textarea') !== null) return;
+                                    setCreateWillingToFollow(!createWillingToFollow);
+                                }}
+                            >
+                                <Checkbox
+                                    checked={createWillingToFollow}
+                                    onCheckedChange={(c) => setCreateWillingToFollow(!!c)}
+                                    onClick={(e) => e.stopPropagation()}
+                                />
+                                <div className="flex-1 min-w-0 space-y-3">
+                                    <div>
+                                        <Label className="flex items-center gap-2 font-medium">
+                                            <Plane className="size-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                                            Willing to follow
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Subject to 10-hour duty day and 8-hour rest before shift start.</p>
+                                    </div>
+                                    {createWillingToFollow && (
+                                        <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+                                            <div>
+                                                <Label className="text-xs">Do you have a shift on this date?</Label>
+                                                <div className="mt-1.5 flex gap-3">
+                                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                                        <input type="radio" name="create_have_shift" checked={createHaveShiftOnDate === true} onChange={() => setCreateHaveShiftOnDate(true)} className="size-3.5" />
+                                                        Yes
+                                                    </label>
+                                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                                        <input type="radio" name="create_have_shift" checked={createHaveShiftOnDate === false} onChange={() => setCreateHaveShiftOnDate(false)} className="size-3.5" />
+                                                        No
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            {createHaveShiftOnDate === true && (
+                                                <div>
+                                                    <Label className="text-xs">When you&apos;re available (up to 10 hours)</Label>
+                                                    <select
+                                                        value={createWillingToFollowTimeFrame}
+                                                        onChange={(e) => setCreateWillingToFollowTimeFrame((e.target.value || 'any') as 'before' | 'after' | 'any')}
+                                                        className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                                                    >
+                                                        <option value="any">Any</option>
+                                                        <option value="before">Before my shift</option>
+                                                        <option value="after">After my shift</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                            {createHaveShiftOnDate === false && (
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs">When you&apos;re available to follow (choose all that apply)</Label>
+                                                    <p className="text-[11px] text-muted-foreground">e.g. after an AM shift, or before a PM shift</p>
+                                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                                                        <div className="space-y-1.5">
+                                                            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Before</p>
+                                                            {['before_am', 'before_pm', 'before_mid'].map((slot) => (
+                                                                <label key={slot} className="flex items-center gap-2 text-sm cursor-pointer">
+                                                                    <Checkbox
+                                                                        checked={createWillingToFollowSlots.includes(slot)}
+                                                                        onCheckedChange={(c) => setCreateWillingToFollowSlots((prev) => (c ? [...prev, slot] : prev.filter((s) => s !== slot)))}
+                                                                    />
+                                                                    {slot.includes('_am') ? 'AM' : slot.includes('_pm') ? 'PM' : 'Mid'}
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                        <div className="space-y-1.5">
+                                                            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">After</p>
+                                                            {['after_am', 'after_pm', 'after_mid'].map((slot) => (
+                                                                <label key={slot} className="flex items-center gap-2 text-sm cursor-pointer">
+                                                                    <Checkbox
+                                                                        checked={createWillingToFollowSlots.includes(slot)}
+                                                                        onCheckedChange={(c) => setCreateWillingToFollowSlots((prev) => (c ? [...prev, slot] : prev.filter((s) => s !== slot)))}
+                                                                    />
+                                                                    {slot.includes('_am') ? 'AM' : slot.includes('_pm') ? 'PM' : 'Mid'}
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-2">
+                                                        <Label className="text-xs">Other (describe)</Label>
+                                                        <Input
+                                                            value={createWillingToFollowCustom}
+                                                            onChange={(e) => setCreateWillingToFollowCustom(e.target.value)}
+                                                            placeholder="e.g. flexible 06–14"
+                                                            className="mt-0.5 h-8 text-sm"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                         {createError && <p className="text-sm text-destructive">{createError}</p>}
                         <div className="flex justify-end gap-2">

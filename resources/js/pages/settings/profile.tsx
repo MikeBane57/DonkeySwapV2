@@ -90,6 +90,25 @@ export default function Profile({
                                         message={errors.email}
                                     />
                                 </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="employee_id">Employee ID</Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Enter your Employee ID without the E (e.g. 121883).
+                                    </p>
+                                    <Input
+                                        id="employee_id"
+                                        className="mt-1 block w-full"
+                                        defaultValue={(auth.user as { employee_id?: string })?.employee_id ?? ''}
+                                        name="employee_id"
+                                        required
+                                        autoComplete="off"
+                                        placeholder="e.g. 121883"
+                                    />
+                                    <InputError
+                                        className="mt-2"
+                                        message={errors.employee_id}
+                                    />
+                                </div>
 
                                 <div className="grid gap-2">
                                     <Label htmlFor="preferred_contact_method">Preferred contact method</Label>

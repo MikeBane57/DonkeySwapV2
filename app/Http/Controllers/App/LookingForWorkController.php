@@ -17,6 +17,18 @@ use Inertia\Response;
 
 class LookingForWorkController extends Controller
 {
+    /** Valid values for willing_to_follow_slots (time-of-day when no shift to reference). */
+    private const LFW_FF_SLOTS = ['before_am', 'before_pm', 'before_mid', 'after_am', 'after_pm', 'after_mid'];
+
+    private static function normalizeWillingToFollowSlots(?array $slots): ?array
+    {
+        if ($slots === null || $slots === []) {
+            return null;
+        }
+        $out = array_values(array_intersect($slots, self::LFW_FF_SLOTS));
+        return $out === [] ? null : $out;
+    }
+
     public function index(Request $request): Response
     {
         $user = $request->user();
@@ -82,7 +94,11 @@ class LookingForWorkController extends Controller
                 'seeking_obo' => (bool) $post->seeking_obo,
                 'status' => $post->status,
                 'notes' => $post->notes,
-                'pending_offer_count' => $pendingCount,
+            'willing_to_follow' => (bool) $post->willing_to_follow,
+            'willing_to_follow_time_frame' => $post->willing_to_follow_time_frame,
+            'willing_to_follow_slots' => $post->willing_to_follow_slots ?? [],
+            'willing_to_follow_custom' => $post->willing_to_follow_custom,
+            'pending_offer_count' => $pendingCount,
                 'is_mine' => $post->user_id === $user->id,
                 'my_offer' => $myOffer ? [
                     'id' => $myOffer->id,
@@ -132,7 +148,64 @@ class LookingForWorkController extends Controller
                 'end_time_utc' => $s->end_time_utc->toIso8601String(),
                 'workgroup_name' => $s->workgroup?->name,
             ])->values()->all())->all(),
-            'filters' => $request->only(['date_from', 'date_to', 'workgroup_id', 'desk_type', 'min_cash']),
+            'filters' => $request->only(['date_from', 'date_to', 'workgroup_id', 'desk_type', 'min_cash', 'willing']),
+        ]);
+    }
+
+    /**
+     * Return open LFW posts for a date that have willing_to_follow (for dashboard Find FF flow).
+     * Optional time_frame: before, after, any — filters to posts matching that frame or "any".
+     */
+    public function postsForDate(Request $request): JsonResponse
+    {
+        $request->validate([
+            'date' => ['required', 'date', 'after_or_equal:today'],
+            'time_frame' => ['nullable', 'string', 'in:before,after,any'],
+        ]);
+        $user = $request->user();
+        $date = $request->input('date');
+        $timeFrame = $request->input('time_frame');
+
+        $query = LookingForWorkPost::with('user:id,name')
+            ->where('status', 'open')
+            ->where('seeking_date', $date)
+            ->where('willing_to_follow', true)
+            ->where('user_id', '!=', $user->id);
+
+        if (in_array($timeFrame, ['before', 'after'], true)) {
+            $slotPrefix = $timeFrame === 'before' ? 'before_' : 'after_';
+            $matchingSlots = array_filter(self::LFW_FF_SLOTS, fn (string $s) => str_starts_with($s, $slotPrefix));
+            $query->where(function ($q) use ($timeFrame, $matchingSlots) {
+                $q->where('willing_to_follow_time_frame', $timeFrame)
+                    ->orWhereNull('willing_to_follow_time_frame')
+                    ->orWhere('willing_to_follow_time_frame', 'any');
+                foreach ($matchingSlots as $slot) {
+                    $q->orWhereJsonContains('willing_to_follow_slots', $slot);
+                }
+            });
+        }
+
+        $posts = $query->orderBy('created_at')
+            ->get()
+            ->map(fn (LookingForWorkPost $p) => [
+                'id' => $p->id,
+                'poster_name' => $p->user?->name,
+                'seeking_date' => $p->seeking_date->format('Y-m-d'),
+                'seeking_cash' => $p->seeking_cash ? (float) $p->seeking_cash : 0,
+                'seeking_obo' => (bool) $p->seeking_obo,
+                'notes' => $p->notes,
+                'willing_to_follow_time_frame' => $p->willing_to_follow_time_frame,
+                'willing_to_follow_slots' => $p->willing_to_follow_slots ?? [],
+                'willing_to_follow_custom' => $p->willing_to_follow_custom,
+            ])
+            ->values()
+            ->all();
+
+        return response()->json([
+            'date' => $date,
+            'time_frame' => $timeFrame,
+            'lfw_ff_posts' => $posts,
+            'lfw_ff_count' => count($posts),
         ]);
     }
 
@@ -145,6 +218,11 @@ class LookingForWorkController extends Controller
             'seeking_cash' => ['required', 'numeric', 'min:0'],
             'seeking_obo' => ['boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'willing_to_follow' => ['boolean'],
+            'willing_to_follow_time_frame' => ['nullable', 'string', 'in:before,after,any'],
+            'willing_to_follow_slots' => ['nullable', 'array'],
+            'willing_to_follow_slots.*' => ['string', 'in:before_am,before_pm,before_mid,after_am,after_pm,after_mid'],
+            'willing_to_follow_custom' => ['nullable', 'string', 'max:500'],
         ]);
         $user = $request->user();
 
@@ -155,6 +233,10 @@ class LookingForWorkController extends Controller
             'seeking_cash' => $request->input('seeking_cash'),
             'seeking_obo' => $request->boolean('seeking_obo'),
             'notes' => $request->input('notes'),
+            'willing_to_follow' => $request->boolean('willing_to_follow'),
+            'willing_to_follow_time_frame' => in_array($request->input('willing_to_follow_time_frame'), ['before', 'after', 'any'], true) ? $request->input('willing_to_follow_time_frame') : null,
+            'willing_to_follow_slots' => self::normalizeWillingToFollowSlots($request->input('willing_to_follow_slots')),
+            'willing_to_follow_custom' => $request->filled('willing_to_follow_custom') ? $request->input('willing_to_follow_custom') : null,
         ]);
 
         return response()->json(['ok' => true, 'post' => [
@@ -163,6 +245,10 @@ class LookingForWorkController extends Controller
             'seeking_desk_types' => $post->seeking_desk_types ?? [],
             'seeking_cash' => (float) $post->seeking_cash,
             'seeking_obo' => $post->seeking_obo,
+            'willing_to_follow' => (bool) $post->willing_to_follow,
+            'willing_to_follow_time_frame' => $post->willing_to_follow_time_frame,
+            'willing_to_follow_slots' => $post->willing_to_follow_slots ?? [],
+            'willing_to_follow_custom' => $post->willing_to_follow_custom,
             'status' => $post->status,
         ]]);
     }
@@ -177,6 +263,11 @@ class LookingForWorkController extends Controller
             'seeking_cash' => ['required', 'numeric', 'min:0'],
             'seeking_obo' => ['boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'willing_to_follow' => ['boolean'],
+            'willing_to_follow_time_frame' => ['nullable', 'string', 'in:before,after,any'],
+            'willing_to_follow_slots' => ['nullable', 'array'],
+            'willing_to_follow_slots.*' => ['string', 'in:before_am,before_pm,before_mid,after_am,after_pm,after_mid'],
+            'willing_to_follow_custom' => ['nullable', 'string', 'max:500'],
         ]);
         $user = $request->user();
         $from = Carbon::parse($request->input('date_from'))->startOfDay()->utc();
@@ -198,6 +289,10 @@ class LookingForWorkController extends Controller
         $cash = (float) $request->input('seeking_cash');
         $obo = $request->boolean('seeking_obo');
         $notes = $request->input('notes');
+        $willingToFollow = $request->boolean('willing_to_follow');
+        $willingTimeFrame = in_array($request->input('willing_to_follow_time_frame'), ['before', 'after', 'any'], true) ? $request->input('willing_to_follow_time_frame') : null;
+        $willingSlots = self::normalizeWillingToFollowSlots($request->input('willing_to_follow_slots'));
+        $willingCustom = $request->filled('willing_to_follow_custom') ? $request->input('willing_to_follow_custom') : null;
 
         $created = [];
         foreach ($days as $dateStr) {
@@ -209,6 +304,10 @@ class LookingForWorkController extends Controller
                 'seeking_obo' => $obo,
                 'status' => 'open',
                 'notes' => $notes,
+                'willing_to_follow' => $willingToFollow,
+                'willing_to_follow_time_frame' => $willingTimeFrame,
+                'willing_to_follow_slots' => $willingSlots,
+                'willing_to_follow_custom' => $willingCustom,
             ]);
             $created[] = ['id' => $post->id, 'seeking_date' => $dateStr];
         }
@@ -232,6 +331,11 @@ class LookingForWorkController extends Controller
             'seeking_cash' => ['sometimes', 'numeric', 'min:0'],
             'seeking_obo' => ['boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'willing_to_follow' => ['boolean'],
+            'willing_to_follow_time_frame' => ['nullable', 'string', 'in:before,after,any'],
+            'willing_to_follow_slots' => ['nullable', 'array'],
+            'willing_to_follow_slots.*' => ['string', 'in:before_am,before_pm,before_mid,after_am,after_pm,after_mid'],
+            'willing_to_follow_custom' => ['nullable', 'string', 'max:500'],
         ]);
         if ($request->has('seeking_date')) {
             $post->seeking_date = $request->input('seeking_date');
@@ -247,6 +351,18 @@ class LookingForWorkController extends Controller
         }
         if (array_key_exists('notes', $request->all())) {
             $post->notes = $request->input('notes');
+        }
+        if (array_key_exists('willing_to_follow', $request->all())) {
+            $post->willing_to_follow = $request->boolean('willing_to_follow');
+        }
+        if (array_key_exists('willing_to_follow_time_frame', $request->all())) {
+            $post->willing_to_follow_time_frame = in_array($request->input('willing_to_follow_time_frame'), ['before', 'after', 'any'], true) ? $request->input('willing_to_follow_time_frame') : null;
+        }
+        if (array_key_exists('willing_to_follow_slots', $request->all())) {
+            $post->willing_to_follow_slots = self::normalizeWillingToFollowSlots($request->input('willing_to_follow_slots'));
+        }
+        if (array_key_exists('willing_to_follow_custom', $request->all())) {
+            $post->willing_to_follow_custom = $request->filled('willing_to_follow_custom') ? $request->input('willing_to_follow_custom') : null;
         }
 
         $changes = [];
@@ -269,6 +385,18 @@ class LookingForWorkController extends Controller
                 $changes[] = ['field' => 'seeking_desk_types', 'old' => $old, 'new' => $new];
             }
         }
+        if (array_key_exists('willing_to_follow', $request->all()) && (bool) $post->getOriginal('willing_to_follow') !== (bool) $post->willing_to_follow) {
+            $changes[] = ['field' => 'willing_to_follow', 'old' => $post->getOriginal('willing_to_follow'), 'new' => $post->willing_to_follow];
+        }
+        if (array_key_exists('willing_to_follow_time_frame', $request->all()) && $post->getOriginal('willing_to_follow_time_frame') !== $post->willing_to_follow_time_frame) {
+            $changes[] = ['field' => 'willing_to_follow_time_frame', 'old' => $post->getOriginal('willing_to_follow_time_frame'), 'new' => $post->willing_to_follow_time_frame];
+        }
+        if (array_key_exists('willing_to_follow_slots', $request->all()) && json_encode($post->getOriginal('willing_to_follow_slots')) !== json_encode($post->willing_to_follow_slots)) {
+            $changes[] = ['field' => 'willing_to_follow_slots', 'old' => $post->getOriginal('willing_to_follow_slots'), 'new' => $post->willing_to_follow_slots];
+        }
+        if (array_key_exists('willing_to_follow_custom', $request->all()) && ($post->getOriginal('willing_to_follow_custom') ?? '') !== ($post->willing_to_follow_custom ?? '')) {
+            $changes[] = ['field' => 'willing_to_follow_custom', 'old' => $post->getOriginal('willing_to_follow_custom'), 'new' => $post->willing_to_follow_custom];
+        }
         if (\count($changes) > 0) {
             LookingForWorkPostHistory::create([
                 'looking_for_work_post_id' => $post->id,
@@ -286,6 +414,10 @@ class LookingForWorkController extends Controller
             'seeking_cash' => (float) $post->seeking_cash,
             'seeking_obo' => $post->seeking_obo,
             'notes' => $post->notes,
+            'willing_to_follow' => (bool) $post->willing_to_follow,
+            'willing_to_follow_time_frame' => $post->willing_to_follow_time_frame,
+            'willing_to_follow_slots' => $post->willing_to_follow_slots ?? [],
+            'willing_to_follow_custom' => $post->willing_to_follow_custom,
         ]]);
     }
 

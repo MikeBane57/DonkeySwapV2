@@ -22,12 +22,16 @@ npm-debug.log
 yarn-error.log
 /auth.json
 deploy_key
+donkeyswapv2_deploy
+donkeyswapv2_deploy.pub
 *.pem
 id_rsa
 id_ed25519
 id_ecdsa
+mysql_export.sql
 /.fleet
 /.idea
 /.nova
 /.vscode
 /.zed
+/.cursor

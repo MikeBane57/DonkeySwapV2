@@ -64,8 +64,8 @@ class SwapTransactionService
         $shiftA = $post->shift;
         $shiftB = $offeredShift;
 
-        // Flight follow: offerer must have DSP qualification in the workgroup
-        if ($shiftA->workgroup->regulatory) {
+        // Flight follow: offerer must have DSP qualification when shift is regulatory
+        if ($shiftA->regulatory) {
             $qualified = $offerer->workgroupQualifications()
                 ->where('workgroup_id', $shiftA->workgroup_id)
                 ->where('code', 'DSP')
@@ -109,7 +109,7 @@ class SwapTransactionService
                     $posterShiftsAfter,
                     [],
                     $workgroup->id,
-                    $workgroup->regulatory,
+                    $workgroup->hasRegulatoryDeskTypes(),
                     $maxHours,
                     $restHours,
                     $allowDouble
@@ -133,7 +133,7 @@ class SwapTransactionService
                     $offererShiftsAfter,
                     [],
                     $workgroup->id,
-                    $workgroup->regulatory,
+                    $workgroup->hasRegulatoryDeskTypes(),
                     $maxHours,
                     $restHours,
                     $allowDouble

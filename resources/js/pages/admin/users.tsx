@@ -40,6 +40,7 @@ type UserRow = {
     id: number;
     name: string;
     email: string;
+    employee_id?: string | null;
     phone: string | null;
     preferred_contact_method: string | null;
     role: string;
@@ -84,15 +85,17 @@ export default function AdminUsers() {
     const [form, setForm] = useState<{
         name: string;
         email: string;
+        employee_id: string;
         phone: string;
         preferred_contact_method: string;
         role: string;
         time_display_preference: string;
         workgroups: WorkgroupFormItem[];
-    }>({ name: '', email: '', phone: '', preferred_contact_method: 'email', role: 'worker', time_display_preference: 'central', workgroups: [] });
+    }>({ name: '', email: '', employee_id: '', phone: '', preferred_contact_method: 'email', role: 'worker', time_display_preference: 'central', workgroups: [] });
     const [createForm, setCreateForm] = useState<{
         name: string;
         email: string;
+        employee_id: string;
         password: string;
         password_confirmation: string;
         role: string;
@@ -103,6 +106,7 @@ export default function AdminUsers() {
     }>({
         name: '',
         email: '',
+        employee_id: '',
         password: '',
         password_confirmation: '',
         role: 'worker',
@@ -128,6 +132,7 @@ export default function AdminUsers() {
         setCreateForm({
             name: '',
             email: '',
+            employee_id: '',
             password: '',
             password_confirmation: '',
             role: 'worker',
@@ -169,6 +174,7 @@ export default function AdminUsers() {
         router.post('/app/admin/users', {
             name: createForm.name,
             email: createForm.email,
+            employee_id: createForm.employee_id || null,
             password: createForm.password,
             password_confirmation: createForm.password_confirmation,
             role: createForm.role,
@@ -202,6 +208,7 @@ export default function AdminUsers() {
         setForm({
             name: user.name,
             email: user.email,
+            employee_id: user.employee_id ?? '',
             phone: user.phone ?? '',
             preferred_contact_method: user.preferred_contact_method ?? 'email',
             role: user.role,
@@ -267,6 +274,7 @@ export default function AdminUsers() {
         router.put(`/app/admin/users/${editing.id}`, {
             name: form.name,
             email: form.email,
+            employee_id: form.employee_id || null,
             phone: form.phone || null,
             preferred_contact_method: form.preferred_contact_method,
             role: form.role,
@@ -323,6 +331,7 @@ export default function AdminUsers() {
                             <tr>
                                 <th className="px-4 py-3 font-medium">Name</th>
                                 <th className="px-4 py-3 font-medium">Email</th>
+                                <th className="px-4 py-3 font-medium">EMPID</th>
                                 <th className="px-4 py-3 font-medium">Phone</th>
                                 <th className="px-4 py-3 font-medium">Role</th>
                                 <th className="px-4 py-3 font-medium">Workgroups</th>
@@ -348,6 +357,7 @@ export default function AdminUsers() {
                                     >
                                         <td className="px-4 py-3">{user.name}</td>
                                         <td className="px-4 py-3">{user.email}</td>
+                                        <td className="px-4 py-3">{user.employee_id ?? '—'}</td>
                                         <td className="px-4 py-3">{user.phone ?? '—'}</td>
                                         <td className="px-4 py-3">
                                             <span className="rounded bg-muted px-2 py-0.5 font-medium">
@@ -422,6 +432,16 @@ export default function AdminUsers() {
                                 onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
                                 required
                                 className="mt-1"
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="create-employee-id">Employee ID (optional)</Label>
+                            <Input
+                                id="create-employee-id"
+                                value={createForm.employee_id}
+                                onChange={(e) => setCreateForm((f) => ({ ...f, employee_id: e.target.value }))}
+                                className="mt-1"
+                                placeholder="e.g. 121883"
                             />
                         </div>
                         <div>
@@ -583,6 +603,16 @@ export default function AdminUsers() {
                                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                                 required
                                 className="mt-1"
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="edit-employee-id">Employee ID (optional)</Label>
+                            <Input
+                                id="edit-employee-id"
+                                value={form.employee_id}
+                                onChange={(e) => setForm((f) => ({ ...f, employee_id: e.target.value }))}
+                                className="mt-1"
+                                placeholder="e.g. 121883"
                             />
                         </div>
                         <div>

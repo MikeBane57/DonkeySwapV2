@@ -42,6 +42,11 @@ const sidebarNavItems: NavItem[] = [
         href: '/app/settings/qualifications',
         icon: null,
     },
+    {
+        title: 'Import schedule',
+        href: '/app/settings/import-schedule',
+        icon: null,
+    },
 ];
 
 export default function SettingsLayout({ children }: PropsWithChildren) {

@@ -9,6 +9,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
+import { getCsrfToken } from '@/lib/csrf';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -84,12 +85,6 @@ function formatDate(iso: string | null | undefined): string {
     } catch {
         return iso;
     }
-}
-
-function getCsrfToken(): string {
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    if (!match) return '';
-    return decodeURIComponent(match[1].trim());
 }
 
 function formatDateFull(iso: string | null | undefined): string {
@@ -215,6 +210,17 @@ export default function NotificationsPage() {
                                         >
                                             <p className="text-sm font-medium">{n.message}</p>
                                             <p className="mt-1 text-xs text-muted-foreground">{formatDate(n.created_at)}</p>
+                                            {n.type === 'admin_message' && (n.data?.reconciliation_id ?? n.data?.reconcile_url) && (
+                                                <p className="mt-1.5">
+                                                    <Link
+                                                        href={(n.data?.reconcile_url as string) || '/app/reconcile-schedule'}
+                                                        className="text-sm font-medium text-primary hover:underline"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        Review changes →
+                                                    </Link>
+                                                </p>
+                                            )}
                                         </button>
                                         <div className="flex shrink-0 items-center p-2">
                                             <Button
@@ -309,6 +315,12 @@ export default function NotificationsPage() {
                                                 <>
                                                     <strong>{detailNotification.outcome_summary.other_user_name}</strong>{' '}
                                                     offered {detailNotification.outcome_summary.offered_shift_label}.
+                                                    {detailNotification.type === 'offer_outside_payback' &&
+                                                        detailNotification.message && (
+                                                            <span className="mt-2 block font-medium text-amber-600 dark:text-amber-400">
+                                                                {detailNotification.message}
+                                                            </span>
+                                                        )}
                                                 </>
                                             )}
                                         </p>
@@ -330,6 +342,16 @@ export default function NotificationsPage() {
                                 )}
                             </div>
                             <div className="flex flex-wrap gap-2">
+                                {detailNotification.type === 'admin_message' && (detailNotification.data?.reconciliation_id ?? detailNotification.data?.reconcile_url) ? (
+                                    <Button size="sm" asChild>
+                                        <Link
+                                            href={(detailNotification.data?.reconcile_url as string) || '/app/reconcile-schedule'}
+                                            onClick={() => setDetailNotification(null)}
+                                        >
+                                            Review changes
+                                        </Link>
+                                    </Button>
+                                ) : null}
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -342,7 +364,7 @@ export default function NotificationsPage() {
                                     <Check className="mr-1.5 size-4" />
                                     Dismiss
                                 </Button>
-                                <Button size="sm" asChild>
+                                <Button variant="outline" size="sm" asChild>
                                     <Link href="/app" onClick={() => setDetailNotification(null)}>
                                         Go to Dashboard
                                     </Link>

@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\NotificationsController;
 use App\Http\Controllers\Api\OfferController;
 use App\Http\Controllers\Api\PushSubscriptionController;
+use App\Http\Controllers\Api\ScheduleImportController as ApiScheduleImportController;
 use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\Api\SwapPostController;
 use App\Http\Controllers\Api\LfwDateRangeController;
@@ -67,6 +68,7 @@ Route::prefix('api')->middleware(['auth'])->group(function () {
     Route::get('export/ics', [ExportController::class, 'ics'])->name('api.export.ics');
     Route::get('calendar/events', [CalendarController::class, 'events'])->name('api.calendar.events');
     Route::post('shifts', [ShiftController::class, 'store'])->name('api.shifts.store');
+    Route::patch('shifts/{shift}', [ShiftController::class, 'update'])->name('api.shifts.update');
     Route::delete('shifts/{shift}', [ShiftController::class, 'destroy'])->name('api.shifts.destroy');
     Route::post('shifts/{shift}/postings', [SwapPostController::class, 'store'])->name('api.postings.store');
     Route::get('shifts/{shift}/post-history', [SwapPostController::class, 'history'])->name('api.postings.history');
@@ -85,6 +87,7 @@ Route::prefix('api')->middleware(['auth'])->group(function () {
     Route::delete('lfw-date-ranges/{userLfwDateRange}', [LfwDateRangeController::class, 'destroy'])->name('api.lfw-date-ranges.destroy');
     Route::get('available/eligible-counts', [AvailableController::class, 'eligibleCounts'])->name('api.available.eligible-counts');
     Route::get('available/dates-with-eligible-giveaway', [AvailableController::class, 'datesWithEligibleGiveaway'])->name('api.available.dates-with-eligible-giveaway');
+    Route::get('looking-for-work/posts-for-date', [LookingForWorkController::class, 'postsForDate'])->name('api.looking-for-work.posts-for-date');
     Route::post('looking-for-work/posts', [LookingForWorkController::class, 'store'])->name('api.looking-for-work.posts.store');
     Route::post('looking-for-work/posts/bulk', [LookingForWorkController::class, 'storeBulk'])->name('api.looking-for-work.posts.bulk');
     Route::put('looking-for-work/posts/{looking_for_work_post}', [LookingForWorkController::class, 'update'])->name('api.looking-for-work.posts.update');
@@ -94,6 +97,9 @@ Route::prefix('api')->middleware(['auth'])->group(function () {
     Route::post('looking-for-work/offers/{looking_for_work_offer}/reject', [LookingForWorkController::class, 'rejectOffer'])->name('api.looking-for-work.offers.reject');
     Route::post('looking-for-work/offers/{looking_for_work_offer}/withdraw', [LookingForWorkController::class, 'withdrawOffer'])->name('api.looking-for-work.offers.withdraw');
     Route::put('looking-for-work/offers/{looking_for_work_offer}', [LookingForWorkController::class, 'updateOffer'])->name('api.looking-for-work.offers.update');
+    Route::post('schedule-import/preview', [ApiScheduleImportController::class, 'preview'])->name('api.schedule-import.preview')->middleware('throttle:10,1');
+    Route::post('schedule-import/apply', [ApiScheduleImportController::class, 'apply'])->name('api.schedule-import.apply')->middleware('throttle:10,1');
+    Route::get('schedule-import/history', [ApiScheduleImportController::class, 'history'])->name('api.schedule-import.history');
 });
 
 // Authenticated app routes under /app
@@ -104,6 +110,10 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
     Route::get('notifications', [AppNotificationsController::class, 'index'])->name('notifications');
     Route::redirect('dashboard', '/app');
     Route::redirect('calendar', '/app')->name('calendar');
+
+    Route::get('reconcile-schedule', [\App\Http\Controllers\App\ReconcileScheduleController::class, 'index'])->name('reconcile-schedule.index');
+    Route::get('reconcile-schedule/{reconcile_schedule}', [\App\Http\Controllers\App\ReconcileScheduleController::class, 'show'])->name('reconcile-schedule.show');
+    Route::post('reconcile-schedule/{reconcile_schedule}', [\App\Http\Controllers\App\ReconcileScheduleController::class, 'store'])->name('reconcile-schedule.store');
 
     // Admin panel (admin role required)
     Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
@@ -141,6 +151,16 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::get('app-icon', [AppIconController::class, 'index'])->name('app-icon');
         Route::post('app-icon', [AppIconController::class, 'store'])->name('app-icon.store');
         Route::post('app-icon/set-current', [AppIconController::class, 'setCurrent'])->name('app-icon.set-current');
+        Route::get('import-bulk', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'bulkPage'])->name('import-bulk');
+        Route::get('import-history', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'index'])->name('import-history');
+        Route::get('import-history/{schedule_import_run}', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'show'])->name('import-history.show');
+        Route::get('import-audit', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'audit'])->name('import-audit');
+        Route::get('import-unmapped-codes', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'unmapped'])->name('import-unmapped-codes');
+        Route::post('schedule-import/unmapped-add-to-workgroup', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'unmappedAddToWorkgroup'])->name('schedule-import.unmapped-add-to-workgroup');
+        Route::post('schedule-import/bulk-preview', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'bulkPreview'])->name('schedule-import.bulk-preview')->middleware('throttle:10,1');
+        Route::post('schedule-import/bulk-apply', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'bulkApply'])->name('schedule-import.bulk-apply')->middleware('throttle:10,1');
+        Route::post('schedule-import/master-compare', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'masterCompare'])->name('schedule-import.master-compare')->middleware('throttle:10,1');
+        Route::post('schedule-import/master-apply', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'masterApply'])->name('schedule-import.master-apply')->middleware('throttle:10,1');
     });
 
     require __DIR__.'/settings.php';

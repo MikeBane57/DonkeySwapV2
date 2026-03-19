@@ -17,6 +17,7 @@ class StoreUserRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'employee_id' => ['nullable', 'string', 'max:30', 'unique:users,employee_id'],
             'password' => ['required', 'string', 'confirmed', Password::defaults()],
             'role' => ['required', 'string', 'in:worker,manager,admin'],
             'time_display_preference' => ['required', 'string', 'in:central,central_zulu'],

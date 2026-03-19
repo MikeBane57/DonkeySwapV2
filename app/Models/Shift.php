@@ -16,6 +16,7 @@ class Shift extends Model
         'start_time_utc',
         'end_time_utc',
         'regulatory',
+        'is_training',
     ];
 
     protected function casts(): array
@@ -24,6 +25,7 @@ class Shift extends Model
             'start_time_utc' => 'datetime',
             'end_time_utc' => 'datetime',
             'regulatory' => 'boolean',
+            'is_training' => 'boolean',
         ];
     }
 

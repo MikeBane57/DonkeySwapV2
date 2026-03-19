@@ -13,6 +13,12 @@ class EnsureMikeAdmin extends Command
 
     public function handle(): int
     {
+        if (app()->environment('production')) {
+            $this->warn('This command is disabled in production to avoid creating a default admin account.');
+
+            return self::SUCCESS;
+        }
+
         User::updateOrCreate(
             ['email' => 'mike@example.com'],
             [

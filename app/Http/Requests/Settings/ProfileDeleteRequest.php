@@ -10,6 +10,11 @@ class ProfileDeleteRequest extends FormRequest
 {
     use PasswordValidationRules;
 
+    public function authorize(): bool
+    {
+        return (bool) $this->user();
+    }
+
     /**
      * Get the validation rules that apply to the request.
      *

@@ -19,18 +19,8 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
+import { getCsrfToken } from '@/lib/csrf';
 import type { BreadcrumbItem } from '@/types';
-
-function getCsrfToken(): string {
-    const name = 'XSRF-TOKEN=';
-    const ca = document.cookie.split(';');
-    for (let i = 0; i < ca.length; i++) {
-        let c = ca[i];
-        while (c.startsWith(' ')) c = c.substring(1);
-        if (c.indexOf(name) === 0) return decodeURIComponent(c.substring(name.length, c.length));
-    }
-    return '';
-}
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Admin', href: '/app/admin' },

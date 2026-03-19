@@ -15,7 +15,6 @@ class UpdateWorkgroupRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'regulatory' => ['boolean'],
             'max_hours_per_day' => ['nullable', 'integer', 'min:1', 'max:24'],
             'rest_required_hours' => ['nullable', 'integer', 'min:0', 'max:24'],
             'allow_double' => ['boolean'],
@@ -25,6 +24,7 @@ class UpdateWorkgroupRequest extends FormRequest
             'desk_types' => ['array'],
             'desk_types.*.code' => ['required', 'string', 'max:64'],
             'desk_types.*.label' => ['required', 'string', 'max:100'],
+            'desk_types.*.is_regulatory' => ['boolean'],
             'desk_types.*.workgroup_qualification_code' => ['nullable', 'string', 'max:30'],
             'position_ranges' => ['array'],
             'position_ranges.*.range_spec' => ['required', 'string', 'max:100'],

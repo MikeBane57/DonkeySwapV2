@@ -78,6 +78,7 @@ function TwoFactorSetupStep({
                                 {qrCodeSvg ? (
                                     <div
                                         className="aspect-square w-full rounded-lg bg-white p-2 [&_svg]:size-full"
+                                        // Security: qrCodeSvg must only come from the server (Fortify 2FA). Do not inject user-controlled HTML here.
                                         dangerouslySetInnerHTML={{
                                             __html: qrCodeSvg,
                                         }}

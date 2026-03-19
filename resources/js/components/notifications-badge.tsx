@@ -15,6 +15,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { getCsrfToken } from '@/lib/csrf';
 const POLL_VISIBLE_MS = 5000;
 const POLL_HIDDEN_MS = 30000;
 
@@ -24,12 +25,6 @@ type NotificationRecord = {
     data: Record<string, unknown>;
     created_at: string;
 };
-
-function getCsrfToken(): string {
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    if (!match) return '';
-    return decodeURIComponent(match[1].trim());
-}
 
 function formatTime(iso: string): string {
     try {
@@ -59,6 +54,7 @@ function notificationSummary(n: NotificationRecord): string {
     if (n.type === 'looking_for_work_offer') return (data.message as string) ?? 'Someone offered a shift on your looking-for-work post.';
     if (n.type === 'looking_for_work_accepted') return 'Your offer was accepted. The shift has been transferred to you.';
     if (n.type === 'looking_for_work_not_selected') return 'Another offer was accepted on the post you responded to.';
+    if (n.type === 'offer_outside_payback') return (data.message as string) ?? 'Offered shift is outside your payback date ranges.';
     return (data.message as string) ?? 'New notification';
 }
 
@@ -170,7 +166,7 @@ export function NotificationsBadge() {
                 setOpen(false);
                 return;
             }
-            if (n.type === 'new_offer') {
+            if (n.type === 'new_offer' || n.type === 'offer_outside_payback') {
                 const offerId = n.data?.swap_offer_id as number | undefined;
                 if (offerId != null) {
                     await markRead(n.id);

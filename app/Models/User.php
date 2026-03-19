@@ -23,10 +23,10 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'employee_id',
         'phone',
         'preferred_contact_method',
         'password',
-        'role',
         'dispatch_master_seniority_date',
         'time_display_preference',
     ];

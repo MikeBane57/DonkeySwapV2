@@ -13,7 +13,6 @@ class Workgroup extends Model
 
     protected $fillable = [
         'name',
-        'regulatory',
         'max_hours_per_day',
         'rest_required_hours',
         'allow_double',
@@ -22,9 +21,14 @@ class Workgroup extends Model
     protected function casts(): array
     {
         return [
-            'regulatory' => 'boolean',
             'allow_double' => 'boolean',
         ];
+    }
+
+    /** Whether this workgroup has any desk type marked regulatory (used for compliance/DSP). */
+    public function hasRegulatoryDeskTypes(): bool
+    {
+        return $this->deskTypes()->where('is_regulatory', true)->exists();
     }
 
     public function users(): BelongsToMany

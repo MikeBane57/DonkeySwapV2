@@ -25,7 +25,6 @@ class WorkgroupsController extends Controller
     {
         $wg = Workgroup::create([
             'name' => $request->input('name'),
-            'regulatory' => $request->boolean('regulatory'),
             'max_hours_per_day' => $request->input('max_hours_per_day'),
             'rest_required_hours' => $request->input('rest_required_hours'),
             'allow_double' => $request->boolean('allow_double'),
@@ -42,7 +41,6 @@ class WorkgroupsController extends Controller
     {
         $workgroup->update([
             'name' => $request->input('name'),
-            'regulatory' => $request->boolean('regulatory'),
             'max_hours_per_day' => $request->input('max_hours_per_day'),
             'rest_required_hours' => $request->input('rest_required_hours'),
             'allow_double' => $request->boolean('allow_double'),
@@ -134,7 +132,6 @@ class WorkgroupsController extends Controller
         return $collection->map(fn ($wg) => [
             'id' => $wg->id,
             'name' => $wg->name,
-            'regulatory' => $wg->regulatory,
             'max_hours_per_day' => $wg->max_hours_per_day,
             'rest_required_hours' => $wg->rest_required_hours,
             'allow_double' => $wg->allow_double,
@@ -157,6 +154,7 @@ class WorkgroupsController extends Controller
                 'id' => $dt->id,
                 'code' => $dt->code,
                 'label' => $dt->label,
+                'is_regulatory' => $dt->is_regulatory,
                 'workgroup_qualification_id' => $dt->workgroup_qualification_id,
                 'workgroup_qualification_code' => $dt->qualification?->code,
             ])->values()->all(),

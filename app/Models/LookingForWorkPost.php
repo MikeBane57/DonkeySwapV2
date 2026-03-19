@@ -16,6 +16,10 @@ class LookingForWorkPost extends Model
         'seeking_obo',
         'status',
         'notes',
+        'willing_to_follow',
+        'willing_to_follow_time_frame',
+        'willing_to_follow_slots',
+        'willing_to_follow_custom',
         'view_count',
         'click_count',
     ];
@@ -27,6 +31,8 @@ class LookingForWorkPost extends Model
             'seeking_desk_types' => 'array',
             'seeking_cash' => 'decimal:2',
             'seeking_obo' => 'boolean',
+            'willing_to_follow' => 'boolean',
+            'willing_to_follow_slots' => 'array',
         ];
     }
 

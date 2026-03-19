@@ -11,11 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-function getCsrfToken(): string {
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : '';
-}
+import { getCsrfToken } from '@/lib/csrf';
 
 type AllowedStartTime = { start_time: string; default_duration_minutes: number };
 type PositionOption = { label: string; type?: string; sublocation_type?: string | null; shift_type?: string };

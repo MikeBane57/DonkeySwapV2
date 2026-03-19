@@ -241,7 +241,7 @@ class ComplianceValidator
             $shiftArray,
             $segmentArray,
             $workgroup?->id,
-            $workgroup?->regulatory,
+            $workgroup?->hasRegulatoryDeskTypes(),
             $maxHours,
             $restHours,
             $allowDouble

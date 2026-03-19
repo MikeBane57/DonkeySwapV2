@@ -113,6 +113,7 @@ class NotificationsController extends Controller
             'looking_for_work_offer' => 'Someone offered a shift on your looking-for-work post.',
             'looking_for_work_accepted' => 'Your offer was accepted. The shift has been transferred to you.',
             'looking_for_work_not_selected' => 'Another offer was accepted on the post you responded to.',
+            'offer_outside_payback' => 'The offered shift is outside your requested payback date ranges.',
             default => 'You have a new notification.',
         };
     }

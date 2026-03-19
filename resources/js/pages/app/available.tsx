@@ -25,6 +25,7 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
+import { getCsrfToken } from '@/lib/csrf';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -52,17 +53,6 @@ function getDeskTypeLabel(
     const wg = workgroupId != null ? workgroups.find((w) => w.id === workgroupId) : null;
     const label = wg?.desk_types?.find((d) => d.code === code)?.label;
     return label ?? DESK_TYPE_LABELS[code] ?? code;
-}
-
-function getCsrfToken(): string {
-    const name = 'XSRF-TOKEN=';
-    const ca = document.cookie.split(';');
-    for (let i = 0; i < ca.length; i++) {
-        let c = ca[i];
-        while (c.startsWith(' ')) c = c.substring(1);
-        if (c.indexOf(name) === 0) return decodeURIComponent(c.substring(name.length, c.length));
-    }
-    return '';
 }
 
 function formatCentral(iso: string): string {
@@ -106,6 +96,8 @@ type MyOfferPart = {
     offered_shift_preference_order: number[] | null;
 };
 
+type PaybackDateRange = { start: string; end: string };
+
 type PostPart = {
     id: number;
     type: string;
@@ -115,6 +107,7 @@ type PostPart = {
     notes: string | null;
     preferred_start_times?: string[] | null;
     preferred_desk_type?: string | null;
+    payback_date_ranges?: PaybackDateRange[] | null;
     eligible: boolean | null;
     ineligible_reason: string | null;
     ineligible_reason_detail: string | null;
@@ -157,6 +150,32 @@ function getTimeOffRangeTitleForDate(dateStr: string, ranges: TimeOffRange[]): s
     return null;
 }
 
+function formatPaybackRanges(ranges: PaybackDateRange[] | null | undefined): string {
+    if (!ranges?.length) return '';
+    return ranges
+        .map((r) => {
+            try {
+                const start = new Date(r.start + 'T12:00:00');
+                const end = new Date(r.end + 'T12:00:00');
+                if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return '';
+                const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                return start.getTime() === end.getTime() ? fmt(start) : `${fmt(start)}–${fmt(end)}`;
+            } catch {
+                return '';
+            }
+        })
+        .filter(Boolean)
+        .join(', ');
+}
+
+function isDateInPaybackRanges(dateStr: string, ranges: PaybackDateRange[]): boolean {
+    if (!ranges.length) return false;
+    for (const r of ranges) {
+        if (dateStr >= r.start && dateStr <= r.end) return true;
+    }
+    return false;
+}
+
 function getMyShiftDates(myShifts: MyShift[]): Set<string> {
     const set = new Set<string>();
     for (const s of myShifts) {
@@ -185,6 +204,29 @@ function getDaysOffBeforeAfter(dateStr: string, shiftDates: Set<string>, maxDays
         else break;
     }
     return { daysOffBefore, daysOffAfter };
+}
+
+function addDays(dateStr: string, days: number): string {
+    const d = new Date(dateStr + 'T12:00:00');
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+}
+
+/** Count consecutive work days (days with a shift) including the given date. */
+function getConsecutiveWorkDaysIncluding(dateStr: string, shiftDates: Set<string>, maxDays = 31): number {
+    if (!dateStr || !shiftDates.has(dateStr)) return 0;
+    let count = 1;
+    for (let i = 1; i <= maxDays; i++) {
+        const beforeStr = addDays(dateStr, -i);
+        if (shiftDates.has(beforeStr)) count++;
+        else break;
+    }
+    for (let i = 1; i <= maxDays; i++) {
+        const afterStr = addDays(dateStr, i);
+        if (shiftDates.has(afterStr)) count++;
+        else break;
+    }
+    return count;
 }
 
 export default function AvailablePage() {
@@ -246,6 +288,7 @@ export default function AvailablePage() {
     const [offerPostId, setOfferPostId] = useState<number | null>(null);
     const [offerShiftIds, setOfferShiftIds] = useState<number[]>([]);
     const [offerResponseNotes, setOfferResponseNotes] = useState('');
+    const [offerCounterCash, setOfferCounterCash] = useState('');
     const [offerOnlyNeedOff, setOfferOnlyNeedOff] = useState(false);
     /** When editing an existing response, we withdraw this offer id first then submit the new one. */
     const [editingOfferId, setEditingOfferId] = useState<number | null>(null);
@@ -346,6 +389,21 @@ export default function AvailablePage() {
         }
         return out;
     }, [myShifts, myShiftSearch, offerPost?.type, offerPost?.shift?.start_time_utc, offerOnlyNeedOff, timeOffRanges]);
+
+    /** Presort: shifts within the poster's payback date ranges first (for respond dialog). */
+    const sortedFilteredMyShifts = useMemo(() => {
+        const ranges = offerPost?.payback_date_ranges;
+        if (!ranges?.length) return filteredMyShifts;
+        return [...filteredMyShifts].sort((a, b) => {
+            const aDate = a.start_time_utc.slice(0, 10);
+            const bDate = b.start_time_utc.slice(0, 10);
+            const aIn = isDateInPaybackRanges(aDate, ranges);
+            const bIn = isDateInPaybackRanges(bDate, ranges);
+            if (aIn && !bIn) return -1;
+            if (!aIn && bIn) return 1;
+            return 0;
+        });
+    }, [filteredMyShifts, offerPost?.payback_date_ranges]);
     const selectedMyShiftsOrdered = useMemo(() => {
         const byId = new Map(myShifts.map((s) => [s.id, s]));
         return offerShiftIds.map((id) => byId.get(id)).filter(Boolean) as MyShift[];
@@ -389,6 +447,8 @@ export default function AvailablePage() {
             }
             const body: Record<string, unknown> = isOfferTrade ? { offered_shift_ids: offerShiftIds } : {};
             if (offerResponseNotes.trim()) body.response_notes = offerResponseNotes.trim();
+            const counterCashNum = offerCounterCash.trim() ? parseFloat(offerCounterCash.trim()) : NaN;
+            if (!Number.isNaN(counterCashNum) && counterCashNum >= 0) body.counter_cash_amount = counterCashNum;
             const res = await fetch(`/api/posts/${offerPostId}/offer`, {
                 method: 'POST',
                 headers: {
@@ -738,6 +798,18 @@ export default function AvailablePage() {
                                                     })}
                                             </div>
                                         )}
+                                        {/* Payback date ranges for trade / time trade */}
+                                        {item.posts.some((p) => (p.type === 'trade' || p.type === 'time_trade') && formatPaybackRanges(p.payback_date_ranges)) && (
+                                            <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                                                {item.posts
+                                                    .filter((p) => (p.type === 'trade' || p.type === 'time_trade') && formatPaybackRanges(p.payback_date_ranges))
+                                                    .map((p) => (
+                                                        <div key={p.id}>
+                                                            <span className="font-medium">Payback preferred:</span> {formatPaybackRanges(p.payback_date_ranges)}
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        )}
                                         {timeOffRanges.length > 0 && (() => {
                                             const title = getTimeOffRangeTitleForDate(item.shift.start_time_utc.slice(0, 10), timeOffRanges);
                                             return title ? (
@@ -798,6 +870,7 @@ export default function AvailablePage() {
                                                             setOfferPostId(p.id);
                                                             setOfferShiftIds([...order]);
                                                             setOfferResponseNotes((p.my_offer as { response_notes?: string | null } | undefined)?.response_notes ?? '');
+                                                            setOfferCounterCash('');
                                                             setEditingOfferId(p.my_offer!.id);
                                                             setMyShiftSearch('');
                                                             setOfferError(null);
@@ -824,6 +897,7 @@ export default function AvailablePage() {
                                                         setOfferPostId(p.id);
                                                         setOfferShiftIds([]);
                                                         setOfferResponseNotes('');
+                                                        setOfferCounterCash('');
                                                         setEditingOfferId(null);
                                                         setMyShiftSearch('');
                                                         setOfferError(null);
@@ -840,6 +914,7 @@ export default function AvailablePage() {
                                                         setOfferPostId(p.id);
                                                         setOfferShiftIds([]);
                                                         setOfferResponseNotes('');
+                                                        setOfferCounterCash('');
                                                         setEditingOfferId(null);
                                                         setMyShiftSearch('');
                                                         setOfferError(null);
@@ -857,6 +932,7 @@ export default function AvailablePage() {
                                                         setOfferPostId(p.id);
                                                         setOfferShiftIds([]);
                                                         setOfferResponseNotes('');
+                                                        setOfferCounterCash('');
                                                         setEditingOfferId(null);
                                                         setOfferError(null);
                                                     }}
@@ -873,6 +949,7 @@ export default function AvailablePage() {
                                                         setOfferPostId(p.id);
                                                         setOfferShiftIds([]);
                                                         setOfferResponseNotes('');
+                                                        setOfferCounterCash('');
                                                         setEditingOfferId(null);
                                                         setOfferError(null);
                                                     }}
@@ -906,7 +983,7 @@ export default function AvailablePage() {
                 </div>
             </div>
 
-            <Dialog open={offerPostId != null} onOpenChange={(open) => { if (!open) { setOfferPostId(null); setEditingOfferId(null); setOfferResponseNotes(''); setOfferOnlyNeedOff(false); } }}>
+            <Dialog open={offerPostId != null} onOpenChange={(open) => { if (!open) { setOfferPostId(null); setEditingOfferId(null); setOfferResponseNotes(''); setOfferCounterCash(''); setOfferOnlyNeedOff(false); } }}>
                 <DialogContent className="max-w-md max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
                     <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
                         <DialogTitle>
@@ -944,6 +1021,12 @@ export default function AvailablePage() {
                                             .filter(Boolean)
                                             .join(' · ')}
                                     </div>
+                                </div>
+                            )}
+                            {formatPaybackRanges(offerPost.payback_date_ranges) && (
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                    <span className="font-medium">Payback preferred:</span> {formatPaybackRanges(offerPost.payback_date_ranges)}
+                                    <span className="block mt-0.5 text-[11px]">Shifts in these dates are shown first below. You can still offer a shift outside these dates.</span>
                                 </div>
                             )}
                         </div>
@@ -999,12 +1082,21 @@ export default function AvailablePage() {
                                               : 'No shifts match your search.'}
                                     </p>
                                 ) : (
-                                    filteredMyShifts.map((s) => {
+                                    sortedFilteredMyShifts.map((s) => {
                                         const dateStr = s.start_time_utc.slice(0, 10);
                                         const { daysOffBefore, daysOffAfter } = dateStr
                                             ? getDaysOffBeforeAfter(dateStr, myShiftDates)
                                             : { daysOffBefore: 0, daysOffAfter: 0 };
+                                        const hasPrevWorkDay = dateStr ? myShiftDates.has(addDays(dateStr, -1)) : false;
+                                        const hasNextWorkDay = dateStr ? myShiftDates.has(addDays(dateStr, 1)) : false;
+                                        const isStartOfWorkWeek = !hasPrevWorkDay && hasNextWorkDay;
+                                        const isEndOfWorkWeek = hasPrevWorkDay && !hasNextWorkDay;
+                                        const connectsDaysOff = daysOffBefore > 0 && daysOffAfter > 0;
+                                        const workWeekDays = dateStr ? getConsecutiveWorkDaysIncluding(dateStr, myShiftDates) : 0;
                                         const inTimeOff = isDateInTimeOffRanges(dateStr, timeOffRanges);
+                                        const inPaybackRange = offerPost?.payback_date_ranges?.length
+                                            ? isDateInPaybackRanges(dateStr, offerPost.payback_date_ranges)
+                                            : false;
                                         const selected = offerShiftIds.includes(s.id);
                                         return (
                                             <Label
@@ -1028,18 +1120,32 @@ export default function AvailablePage() {
                                                         {formatCentral(s.start_time_utc)}
                                                     </p>
                                                     <div className="mt-1 flex flex-wrap gap-1">
+                                                        {inPaybackRange && (
+                                                            <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+                                                                In payback range
+                                                            </span>
+                                                        )}
+                                                        {connectsDaysOff && (
+                                                            <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+                                                                Connects days off
+                                                            </span>
+                                                        )}
                                                         {daysOffBefore > 0 && (
                                                             <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">
+                                                                {isStartOfWorkWeek ? 'Start of work week · ' : ''}
                                                                 {daysOffBefore === 1 ? '1 day off before' : `${daysOffBefore} days off before`}
+                                                                {workWeekDays ? ` · ${workWeekDays} day work week` : ''}
                                                             </span>
                                                         )}
                                                         {daysOffAfter > 0 && (
                                                             <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">
                                                                 {daysOffAfter === 1 ? '1 day off after' : `${daysOffAfter} days off after`}
+                                                                {workWeekDays ? ` · ${workWeekDays} day work week` : ''}
+                                                                {isEndOfWorkWeek ? ' · End of work week' : ''}
                                                             </span>
                                                         )}
                                                         {inTimeOff && (
-                                                            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                                                            <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
                                                                 Need off
                                                             </span>
                                                         )}
@@ -1093,6 +1199,24 @@ export default function AvailablePage() {
                                 ? 'Submit to offer to take this shift. The poster can accept or decline.'
                                 : 'Submit to let the poster know you want to take this flight follow. They can accept or decline.'}
                         </p>
+                    )}
+                    {(offerPost?.type === 'trade' || offerPost?.type === 'time_trade' || (offerPost?.type === 'cash' && offerPost?.allow_counter_offers)) && (
+                        <div className="space-y-1.5">
+                            <Label htmlFor="offer-counter-cash" className="text-sm">Counter offer ($) — optional</Label>
+                            <p className="text-xs text-muted-foreground">
+                                Offer a cash amount (e.g. more than the poster asked). The poster will see this when reviewing.
+                            </p>
+                            <Input
+                                id="offer-counter-cash"
+                                type="number"
+                                min={0}
+                                step={1}
+                                placeholder="0"
+                                value={offerCounterCash}
+                                onChange={(e) => setOfferCounterCash(e.target.value)}
+                                className="h-9 max-w-32"
+                            />
+                        </div>
                     )}
                     <div className="space-y-1.5">
                         <Label htmlFor="offer-response-notes" className="text-sm">Notes for the poster (optional)</Label>

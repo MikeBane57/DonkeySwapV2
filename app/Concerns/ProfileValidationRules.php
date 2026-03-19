@@ -20,6 +20,14 @@ trait ProfileValidationRules
         return [
             'name' => $this->nameRules(),
             'email' => $this->emailRules($userId),
+            'employee_id' => [
+                'required',
+                'string',
+                'max:30',
+                $userId === null
+                    ? Rule::unique(User::class, 'employee_id')
+                    : Rule::unique(User::class, 'employee_id')->ignore($userId),
+            ],
             'phone' => [
                 \Illuminate\Validation\Rule::requiredIf(fn () => in_array($resolvedInput['preferred_contact_method'] ?? null, ['call', 'text'], true)),
                 'nullable',

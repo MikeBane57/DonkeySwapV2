@@ -1,5 +1,6 @@
 import { usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getCsrfToken } from '@/lib/csrf';
 
 /**
  * Converts a base64url VAPID public key to a Uint8Array for PushManager.subscribe().
@@ -13,17 +14,6 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
         output[i] = rawData.charCodeAt(i);
     }
     return output;
-}
-
-function getCsrfToken(): string {
-    const name = 'XSRF-TOKEN=';
-    const ca = document.cookie.split(';');
-    for (let i = 0; i < ca.length; i++) {
-        let c = ca[i];
-        while (c.startsWith(' ')) c = c.substring(1);
-        if (c.indexOf(name) === 0) return decodeURIComponent(c.substring(name.length, c.length));
-    }
-    return '';
 }
 
 /**

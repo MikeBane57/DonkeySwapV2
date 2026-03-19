@@ -14,6 +14,8 @@ const modules = [
     { title: 'Post Manager', href: '/app/admin/posts', description: 'View, filter, sort, activate/deactivate or remove swap posts; see views, clicks, history, offers and responses' },
     { title: 'Message Center', href: '/app/admin/message-center', description: 'Send banner messages (dashboard top, must be acknowledged) or notifications (bell only) to all users, a workgroup, or individuals' },
     { title: 'App icon', href: '/app/admin/app-icon', description: 'Upload or pick the app icon used for the home logo, favicon, and PWA icon' },
+    { title: 'Import Audit', href: '/app/admin/import-history', description: 'Import history and run audit, compare run to board, Bulk CSV (extended schedule from Workzone)' },
+    { title: 'Import Unmapped Codes', href: '/app/admin/import-unmapped-codes', description: 'Desk/time codes seen in CSV imports that are not in workgroup position ranges' },
 ];
 
 export default function AdminIndex() {

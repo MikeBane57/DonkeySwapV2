@@ -76,6 +76,8 @@ class CalendarController extends Controller
                 'notes' => $p->notes,
                 'preferred_start_times' => $p->preferred_start_times,
                 'preferred_desk_type' => $p->preferred_desk_type,
+                'payback_date_ranges' => $p->payback_date_ranges,
+                'allow_counter_offers' => (bool) $p->allow_counter_offers,
             ])->values()->all();
             $hasPost = count($posts) > 0;
             $actionRequiredOfferId = $actionRequiredByShiftId[$shift->id] ?? null;

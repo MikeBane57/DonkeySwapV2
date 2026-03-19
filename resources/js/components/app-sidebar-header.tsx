@@ -1,4 +1,5 @@
-import { usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
+import { AlertCircle } from 'lucide-react';
 import { BadgePermissionBanner } from '@/components/badge-permission-banner';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { NotificationsBadge } from '@/components/notifications-badge';
@@ -19,7 +20,11 @@ export function AppSidebarHeader({
 }: {
     breadcrumbs?: BreadcrumbItemType[];
 }) {
-    const { auth } = usePage().props as { auth?: { user?: { name: string; avatar?: string } } };
+    const page = usePage();
+    const { auth, pending_reconciliation } = page.props as {
+        auth?: { user?: { name: string; avatar?: string } };
+        pending_reconciliation?: boolean;
+    };
     const getInitials = useInitials();
     const user = auth?.user;
 
@@ -27,8 +32,19 @@ export function AppSidebarHeader({
         <>
             <div className="shrink-0 px-4 pt-2">
                 <BadgePermissionBanner />
+                {pending_reconciliation && (
+                    <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <AlertCircle className="size-4 shrink-0" />
+                            <span className="min-w-0 flex-1">Your schedule was updated by an admin bulk push. Review and confirm your shifts.</span>
+                            <Button variant="outline" size="sm" className="shrink-0" asChild>
+                                <Link href="/app/reconcile-schedule">Review changes</Link>
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </div>
-            <header className="flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border/50 px-6 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 md:px-4">
+            <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border/50 bg-background px-6 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 md:px-4">
             <div className="flex flex-1 items-center gap-2">
                 <SidebarTrigger className="-ml-1" />
                 <Breadcrumbs breadcrumbs={breadcrumbs} />

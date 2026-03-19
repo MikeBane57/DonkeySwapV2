@@ -7,12 +7,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SwapOffer extends Model
 {
-    protected $fillable = ['swap_post_id', 'offered_by_user_id', 'offered_shift_id', 'offered_shift_preference_order', 'status', 'response_notes'];
+    protected $fillable = ['swap_post_id', 'offered_by_user_id', 'offered_shift_id', 'offered_shift_preference_order', 'status', 'response_notes', 'counter_cash_amount'];
 
     protected function casts(): array
     {
         return [
             'offered_shift_preference_order' => 'array',
+            'counter_cash_amount' => 'decimal:2',
         ];
     }
 

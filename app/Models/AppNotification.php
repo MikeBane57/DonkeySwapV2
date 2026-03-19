@@ -106,6 +106,9 @@ class AppNotification extends Model
         if ($this->type === 'looking_for_work_offer') {
             return url('/app/looking-for-work');
         }
+        if ($this->type === 'admin_message' && ! empty($this->data['reconciliation_id'] ?? null)) {
+            return url('/app/reconcile-schedule');
+        }
         return url('/app');
     }
 

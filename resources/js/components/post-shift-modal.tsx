@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { getCsrfToken } from '@/lib/csrf';
 import { cn } from '@/lib/utils';
 
 function formatTimeLabel(hhmm: string): string {
@@ -27,6 +28,8 @@ function normalizeHhmm(s: string): string {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+export type PaybackDateRange = { start: string; end: string };
+
 export type ExistingPost = {
     id: number;
     type: string;
@@ -36,6 +39,8 @@ export type ExistingPost = {
     notes?: string | null;
     preferred_start_times?: string[] | null;
     preferred_desk_type?: string | null;
+    payback_date_ranges?: PaybackDateRange[] | null;
+    allow_counter_offers?: boolean;
 };
 
 const DESK_TYPE_LABELS: Record<string, string> = {
@@ -60,6 +65,7 @@ type PostShiftModalProps = {
         end: string;
         workgroup_id?: number | null;
         workgroup_name?: string;
+        is_training?: boolean;
     };
     /** Start times for the shift's workgroup (e.g. ["06:00", "07:00"]). Used for time-trade preferred order. */
     allowedStartTimes?: { start_time: string }[];
@@ -69,13 +75,7 @@ type PostShiftModalProps = {
     /** When true, open with Flight following selected (e.g. from "Find FF" button). */
     preselectFlightFollow?: boolean;
     onSuccess: () => void;
-    onDeleteShift?: (shiftId: number) => void;
 };
-
-function getCsrfToken(): string {
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : '';
-}
 
 export function PostShiftModal({
     open,
@@ -88,6 +88,7 @@ export function PostShiftModal({
     onSuccess,
     onDeleteShift,
 }: PostShiftModalProps) {
+    const isTraining = shift.is_training ?? false;
     const safePosts = existingPosts.filter((p): p is ExistingPost => p != null && typeof p.type === 'string');
     const existingTrade = safePosts.find((p) => p.type === 'trade');
     const existingCash = safePosts.find((p) => p.type === 'cash');
@@ -110,13 +111,19 @@ export function PostShiftModal({
         () => (existingTimeTrade?.preferred_start_times && Array.isArray(existingTimeTrade.preferred_start_times)) ? [...existingTimeTrade.preferred_start_times] : []
     );
     const [preferredDeskType, setPreferredDeskType] = useState<string | ''>(existingTimeTrade?.preferred_desk_type ?? '');
+    const [allowCounterOffers, setAllowCounterOffers] = useState(!!existingCash?.allow_counter_offers);
+    const [paybackDateRanges, setPaybackDateRanges] = useState<PaybackDateRange[]>(() => {
+        const ranges = existingTrade?.payback_date_ranges;
+        if (Array.isArray(ranges) && ranges.length > 0) {
+            return ranges.map((r) => ({ start: r.start ?? '', end: r.end ?? '' })).filter((r) => r.start && r.end);
+        }
+        return [];
+    });
     const [notes, setNotes] = useState(
         existingTrade?.notes ?? existingCash?.notes ?? existingFF?.notes ?? existingTimeTrade?.notes ?? ''
     );
     const [saving, setSaving] = useState(false);
-    const [showConfirmDelete, setShowConfirmDelete] = useState(false);
     const [showConfirmRemovePost, setShowConfirmRemovePost] = useState(false);
-    const [deleting, setDeleting] = useState(false);
     const [removingPost, setRemovingPost] = useState(false);
     const [history, setHistory] = useState<{ changed_at: string; post_type?: string; changes: { field: string; old: unknown; new: unknown }[] }[]>([]);
 
@@ -141,6 +148,21 @@ export function PostShiftModal({
     }, [open, existingTimeTrade?.preferred_start_times, existingTimeTrade?.preferred_desk_type]);
 
     useEffect(() => {
+        if (!open) return;
+        const ranges = existingTrade?.payback_date_ranges;
+        if (Array.isArray(ranges) && ranges.length > 0) {
+            setPaybackDateRanges(ranges.map((r) => ({ start: r.start ?? '', end: r.end ?? '' })).filter((r) => r.start && r.end));
+        } else {
+            setPaybackDateRanges([]);
+        }
+    }, [open, existingTrade?.payback_date_ranges]);
+
+    useEffect(() => {
+        if (!open) return;
+        setAllowCounterOffers(!!existingCash?.allow_counter_offers);
+    }, [open, existingCash?.allow_counter_offers]);
+
+    useEffect(() => {
         if (!open || !shift.shiftId) return;
         fetch(`/api/shifts/${shift.shiftId}/post-history`, {
             headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -150,25 +172,6 @@ export function PostShiftModal({
             .then((data) => setHistory(Array.isArray(data.history) ? data.history : []))
             .catch(() => setHistory([]));
     }, [open, shift.shiftId]);
-
-    const handleDeleteShift = async () => {
-        setDeleting(true);
-        try {
-            const res = await fetch(`/api/shifts/${shift.shiftId}`, {
-                method: 'DELETE',
-                headers: { 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'include',
-            });
-            if (res.ok) {
-                setShowConfirmDelete(false);
-                onOpenChange(false);
-                onSuccess();
-                onDeleteShift?.(shift.shiftId);
-            }
-        } finally {
-            setDeleting(false);
-        }
-    };
 
     const handleRemovePost = async () => {
         if (safePosts.length === 0) return;
@@ -230,12 +233,14 @@ export function PostShiftModal({
         e.preventDefault();
         if (!postAsTrade && !postAsCash && !postAsFF && !postAsTimeTrade) return;
         setSaving(true);
-        const postings: { type: string; cash_amount?: number; flight_follow_minutes?: number; notes?: string; preferred_start_times?: string[]; preferred_desk_type?: string }[] = [];
+        const postings: { type: string; cash_amount?: number; flight_follow_minutes?: number; notes?: string; preferred_start_times?: string[]; preferred_desk_type?: string; payback_date_ranges?: PaybackDateRange[]; allow_counter_offers?: boolean }[] = [];
+        const validPaybackRanges = paybackDateRanges.filter((r) => r.start && r.end);
         if (postAsTrade) {
             postings.push({
                 type: 'trade',
                 cash_amount: tradeCash ? parseFloat(tradeCash) : undefined,
                 notes: notes || undefined,
+                payback_date_ranges: validPaybackRanges.length > 0 ? validPaybackRanges : undefined,
             });
         }
         if (postAsTimeTrade) {
@@ -252,6 +257,7 @@ export function PostShiftModal({
                 type: 'cash',
                 cash_amount: cashAmount ? parseFloat(cashAmount) : undefined,
                 notes: notes || undefined,
+                allow_counter_offers: allowCounterOffers,
             });
         }
         if (postAsFF) {
@@ -370,20 +376,31 @@ export function PostShiftModal({
 
                         <div className="space-y-3">
                             <Label>Posting types</Label>
+                            {isTraining && (
+                                <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                                    <Info className="size-4 shrink-0 mt-0.5" />
+                                    <p>Training shift – no posting allowed.</p>
+                                </div>
+                            )}
                             <div className="space-y-3">
                                 <div
                                     onClick={(e) => {
+                                        if (isTraining) return;
                                         if ((e.target as HTMLElement).closest('[data-slot="checkbox"], input[type="checkbox"]')) return;
                                         handleTradeChange(!postAsTrade);
                                     }}
-                                className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-colors ${
-                                    postAsTrade ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-                                }`}
+                                className={cn(
+                                    'flex items-start gap-3 rounded-xl border-2 p-3 transition-colors',
+                                    !isTraining && 'cursor-pointer',
+                                    postAsTrade ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50',
+                                    isTraining && 'opacity-60'
+                                )}
                             >
                                 <input
                                     type="checkbox"
                                     checked={postAsTrade}
-                                    onChange={(e) => handleTradeChange(e.target.checked)}
+                                    onChange={(e) => !isTraining && handleTradeChange(e.target.checked)}
+                                    disabled={isTraining}
                                     className={cn(
                                         'size-4 shrink-0 rounded-[4px] border border-input shadow-xs',
                                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
@@ -398,39 +415,104 @@ export function PostShiftModal({
                                     </Label>
                                     <p className="text-xs text-muted-foreground">Swap with another team member</p>
                                     {postAsTrade && (
-                                        <div className="mt-2">
-                                            <Label className="text-xs">Cash (optional)</Label>
-                                            <div className="relative mt-0.5">
-                                                <DollarSign className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                                <Input
-                                                    type="number"
-                                                    min={0}
-                                                    step={0.01}
-                                                    value={tradeCash}
-                                                    onChange={(e) => setTradeCash(e.target.value)}
-                                                    placeholder="0"
-                                                    className="h-8 pl-8"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                />
+                                        <>
+                                            <div className="mt-2">
+                                                <Label className="text-xs">Cash (optional)</Label>
+                                                <div className="relative mt-0.5">
+                                                    <DollarSign className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                                    <Input
+                                                        type="number"
+                                                        min={0}
+                                                        step={0.01}
+                                                        value={tradeCash}
+                                                        onChange={(e) => setTradeCash(e.target.value)}
+                                                        placeholder="0"
+                                                        className="h-8 pl-8"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                </div>
                                             </div>
-                                        </div>
+                                            <div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/20 p-2.5" onClick={(e) => e.stopPropagation()}>
+                                                <Label className="text-xs font-medium">Payback date ranges (optional)</Label>
+                                                <p className="text-[11px] text-muted-foreground">
+                                                    When do you want to receive a shift back? Shown on your post; responders see shifts in these dates first.
+                                                </p>
+                                                <div className="space-y-3">
+                                                    {paybackDateRanges.map((range, idx) => (
+                                                        <div key={idx} className="flex items-center gap-1.5 flex-nowrap max-w-full">
+                                                            <Input
+                                                                type="date"
+                                                                value={range.start}
+                                                                onChange={(e) => {
+                                                                    const v = e.target.value;
+                                                                    setPaybackDateRanges((prev) => {
+                                                                        const next = [...prev];
+                                                                        next[idx] = { ...next[idx], start: v };
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                                className="h-8 w-28 shrink-0 text-sm"
+                                                            />
+                                                            <span className="text-[11px] text-muted-foreground shrink-0">to</span>
+                                                            <Input
+                                                                type="date"
+                                                                value={range.end}
+                                                                onChange={(e) => {
+                                                                    const v = e.target.value;
+                                                                    setPaybackDateRanges((prev) => {
+                                                                        const next = [...prev];
+                                                                        next[idx] = { ...next[idx], end: v };
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                                className="h-8 w-28 shrink-0 text-sm"
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                                                                onClick={() => setPaybackDateRanges((prev) => prev.filter((_, i) => i !== idx))}
+                                                                aria-label="Remove range"
+                                                            >
+                                                                <X className="size-3.5" />
+                                                            </Button>
+                                                        </div>
+                                                    ))}
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="h-7 text-xs"
+                                                        onClick={() => setPaybackDateRanges((prev) => [...prev, { start: '', end: '' }])}
+                                                    >
+                                                        Add date range
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                                 </div>
 
                                 <div
                                     onClick={(e) => {
+                                        if (isTraining) return;
                                         if ((e.target as HTMLElement).closest('[data-slot="checkbox"], input[type="checkbox"]')) return;
                                         handleCashChange(!postAsCash);
                                     }}
-                                className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-colors ${
-                                    postAsCash ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-                                }`}
+                                className={cn(
+                                    'flex items-start gap-3 rounded-xl border-2 p-3 transition-colors',
+                                    !isTraining && 'cursor-pointer',
+                                    postAsCash ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50',
+                                    isTraining && 'opacity-60'
+                                )}
                             >
                                 <input
                                     type="checkbox"
                                     checked={postAsCash}
-                                    onChange={(e) => handleCashChange(e.target.checked)}
+                                    onChange={(e) => !isTraining && handleCashChange(e.target.checked)}
+                                    disabled={isTraining}
                                     className={cn(
                                         'size-4 shrink-0 rounded-[4px] border border-input shadow-xs',
                                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
@@ -460,6 +542,22 @@ export function PostShiftModal({
                                                     onClick={(e) => e.stopPropagation()}
                                                 />
                                             </div>
+                                            <div
+                                                className="mt-2 flex cursor-pointer items-center gap-2 text-sm select-none"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setAllowCounterOffers((v) => !v);
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={allowCounterOffers}
+                                                    onChange={(e) => setAllowCounterOffers(e.target.checked)}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="size-4 rounded border border-input"
+                                                />
+                                                <span>Allow counter offers</span>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -470,17 +568,22 @@ export function PostShiftModal({
                                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Time trade & flight following</p>
                                 <div
                                     onClick={(e) => {
+                                        if (isTraining) return;
                                         if ((e.target as HTMLElement).closest('[data-slot="checkbox"], input[type="checkbox"]')) return;
                                         handleTimeTradeChange(!postAsTimeTrade);
                                     }}
-                                    className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-colors ${
-                                        postAsTimeTrade ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-                                    }`}
+                                    className={cn(
+                                        'flex items-start gap-3 rounded-xl border-2 p-3 transition-colors',
+                                        !isTraining && 'cursor-pointer',
+                                        postAsTimeTrade ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50',
+                                        isTraining && 'opacity-60'
+                                    )}
                                 >
                                     <input
                                         type="checkbox"
                                         checked={postAsTimeTrade}
-                                        onChange={(e) => handleTimeTradeChange(e.target.checked)}
+                                        onChange={(e) => !isTraining && handleTimeTradeChange(e.target.checked)}
+                                        disabled={isTraining}
                                         className={cn(
                                             'size-4 shrink-0 rounded-[4px] border border-input shadow-xs',
                                             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
@@ -619,17 +722,22 @@ export function PostShiftModal({
 
                                 <div
                                     onClick={(e) => {
+                                        if (isTraining) return;
                                         if ((e.target as HTMLElement).closest('[data-slot="checkbox"], input[type="checkbox"]')) return;
                                         handleFFChange(!postAsFF);
                                     }}
-                                    className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-colors ${
-                                        postAsFF ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-                                    }`}
+                                    className={cn(
+                                        'flex items-start gap-3 rounded-xl border-2 p-3 transition-colors',
+                                        !isTraining && 'cursor-pointer',
+                                        postAsFF ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50',
+                                        isTraining && 'opacity-60'
+                                    )}
                                 >
                                 <input
                                     type="checkbox"
                                     checked={postAsFF}
-                                    onChange={(e) => handleFFChange(e.target.checked)}
+                                    onChange={(e) => !isTraining && handleFFChange(e.target.checked)}
+                                    disabled={isTraining}
                                     className={cn(
                                         'size-4 shrink-0 rounded-[4px] border border-input shadow-xs',
                                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
@@ -765,21 +873,9 @@ export function PostShiftModal({
                             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={saving || (!postAsTrade && !postAsCash && !postAsFF && !postAsTimeTrade)}>
+                            <Button type="submit" disabled={saving || isTraining || (!postAsTrade && !postAsCash && !postAsFF && !postAsTimeTrade)}>
                                 <Send className="mr-2 h-4 w-4" />
                                 {hasExisting ? 'Update' : 'Post'}
-                            </Button>
-                        </div>
-                        <div className="order-1 w-full border-t border-border pt-3 sm:order-3 sm:mt-0 sm:border-t-0 sm:pt-0">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="flex h-auto flex-col items-start gap-0.5 py-2 text-left text-muted-foreground hover:bg-muted/50 hover:text-destructive"
-                                onClick={() => setShowConfirmDelete(true)}
-                            >
-                                <span className="font-medium">Remove shift from schedule</span>
-                                <span className="text-[10px] font-normal">Permanently delete this shift (and its postings) from your calendar</span>
                             </Button>
                         </div>
                     </DialogFooter>
@@ -811,29 +907,6 @@ export function PostShiftModal({
             </DialogContent>
         </Dialog>
 
-        <Dialog open={showConfirmDelete} onOpenChange={setShowConfirmDelete}>
-            <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
-                <DialogHeader>
-                    <DialogTitle>Remove shift from schedule?</DialogTitle>
-                </DialogHeader>
-                <p className="text-sm text-muted-foreground">
-                    This will permanently remove this shift from your calendar. Any postings for this shift will also be removed. This cannot be undone.
-                </p>
-                <DialogFooter className="gap-2 pt-4">
-                    <Button type="button" variant="outline" onClick={() => setShowConfirmDelete(false)}>
-                        Cancel
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="destructive"
-                        disabled={deleting}
-                        onClick={handleDeleteShift}
-                    >
-                        {deleting ? 'Removing…' : 'Remove shift'}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
     </>
     );
 }

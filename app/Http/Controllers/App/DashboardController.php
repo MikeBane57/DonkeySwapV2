@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminBannerMessage;
 use App\Models\LookingForWorkOffer;
 use App\Models\LookingForWorkPost;
+use App\Models\ScheduleImportRun;
+use App\Models\ScheduleReconciliation;
 use App\Models\Shift;
 use App\Models\SwapOffer;
 use App\Models\SwapPost;
@@ -35,6 +37,17 @@ class DashboardController extends Controller
             ->where('end_time_utc', '>', $now)
             ->first();
 
+        // Today's shift (starts later today, UTC; used when no current shift so we always show something for today)
+        $todayStart = $now->copy()->startOfDay();
+        $todayEnd = $now->copy()->endOfDay();
+        $todayShift = Shift::with('workgroup')
+            ->where('user_id', $user->id)
+            ->where('start_time_utc', '>', $now)
+            ->where('start_time_utc', '>=', $todayStart)
+            ->where('start_time_utc', '<=', $todayEnd)
+            ->orderBy('start_time_utc')
+            ->first();
+
         // Next shift (first upcoming)
         $nextShift = Shift::with('workgroup')
             ->where('user_id', $user->id)
@@ -42,12 +55,12 @@ class DashboardController extends Controller
             ->orderBy('start_time_utc')
             ->first();
 
-        // Upcoming shifts (next several)
+        // Upcoming shifts (next 14 days, for next-shift display)
         $upcomingShifts = Shift::with('workgroup')
             ->where('user_id', $user->id)
             ->where('start_time_utc', '>', $now)
+            ->where('start_time_utc', '<', $end)
             ->orderBy('start_time_utc')
-            ->limit(5)
             ->get()
             ->map(fn ($s) => $this->mapShift($s));
 
@@ -71,6 +84,8 @@ class DashboardController extends Controller
                     'notes' => $p->notes,
                     'preferred_start_times' => $p->preferred_start_times,
                     'preferred_desk_type' => $p->preferred_desk_type,
+                    'payback_date_ranges' => $p->payback_date_ranges,
+                    'allow_counter_offers' => (bool) $p->allow_counter_offers,
                     'shift_id' => $p->shift_id,
                     'position_name' => $p->shift?->position_name,
                     'desk_type' => $p->shift?->desk_type,
@@ -79,6 +94,7 @@ class DashboardController extends Controller
                     'start_time_utc' => $p->shift?->start_time_utc?->toIso8601String(),
                     'end_time_utc' => $p->shift?->end_time_utc?->toIso8601String(),
                     'within_24h' => $within24h,
+                    'is_training' => (bool) $p->shift?->is_training,
                 ];
             })
             ->values()
@@ -103,17 +119,33 @@ class DashboardController extends Controller
         $shiftsById = $offerIdsForShifts ? Shift::whereIn('id', $offerIdsForShifts)->get()->keyBy('id') : collect();
 
         $actionRequired = $offers->map(function ($offer) use ($shiftsById) {
+            $post = $offer->swapPost;
+            $paybackRanges = $post?->payback_date_ranges;
             $offeredShifts = [];
             $order = $offer->offered_shift_preference_order;
             $ids = is_array($order) && count($order) > 0 ? $order : ($offer->offered_shift_id ? [$offer->offered_shift_id] : []);
             foreach ($ids as $sid) {
                 $shift = $shiftsById->get($sid);
                 if ($shift) {
+                    $offerDate = $shift->start_time_utc?->format('Y-m-d');
+                    $inPaybackRange = null;
+                    if ($offerDate && is_array($paybackRanges) && count($paybackRanges) > 0) {
+                        $inPaybackRange = false;
+                        foreach ($paybackRanges as $r) {
+                            $start = $r['start'] ?? '';
+                            $end = $r['end'] ?? '';
+                            if ($offerDate >= $start && $offerDate <= $end) {
+                                $inPaybackRange = true;
+                                break;
+                            }
+                        }
+                    }
                     $offeredShifts[] = [
                         'id' => $shift->id,
                         'position_name' => $shift->position_name,
                         'start_time_utc' => $shift->start_time_utc?->toIso8601String(),
                         'end_time_utc' => $shift->end_time_utc?->toIso8601String(),
+                        'in_payback_range' => $inPaybackRange,
                     ];
                 }
             }
@@ -148,6 +180,10 @@ class DashboardController extends Controller
                 'offered_shift_summary' => $offeredShiftSummary,
                 'offered_shifts' => $offeredShifts,
                 'cash_amount' => $offer->swapPost?->cash_amount !== null ? (float) $offer->swapPost->cash_amount : null,
+                'counter_cash_amount' => $offer->counter_cash_amount !== null ? (float) $offer->counter_cash_amount : null,
+                'payback_date_ranges' => $post?->payback_date_ranges,
+                'allow_counter_offers' => (bool) ($post?->allow_counter_offers ?? false),
+                'offer_created_at' => $offer->created_at?->toIso8601String(),
             ];
         })->values()->all();
 
@@ -201,6 +237,10 @@ class DashboardController extends Controller
                 'seeking_obo' => (bool) $p->seeking_obo,
                 'seeking_desk_types' => $p->seeking_desk_types ?? [],
                 'notes' => $p->notes,
+                'willing_to_follow' => (bool) $p->willing_to_follow,
+                'willing_to_follow_time_frame' => $p->willing_to_follow_time_frame,
+                'willing_to_follow_slots' => $p->willing_to_follow_slots ?? [],
+                'willing_to_follow_custom' => $p->willing_to_follow_custom,
                 'pending_offer_count' => (int) $p->pendingOffers()->count(),
             ])
             ->values()
@@ -238,6 +278,7 @@ class DashboardController extends Controller
                     'position_name' => $shift->position_name,
                     'desk_type' => $shift->desk_type,
                     'regulatory' => $shift->regulatory,
+                    'is_training' => (bool) $shift->is_training,
                     'posts' => $openPostsByShift->get($shift->id, collect())->map(fn ($p) => [
                         'id' => $p->id,
                         'type' => $p->type,
@@ -246,35 +287,15 @@ class DashboardController extends Controller
                         'flight_follow_at' => $p->flight_follow_at,
                         'notes' => $p->notes,
                         'preferred_start_times' => $p->preferred_start_times,
+                        'preferred_desk_type' => $p->preferred_desk_type,
+                        'payback_date_ranges' => $p->payback_date_ranges,
+                        'allow_counter_offers' => (bool) $p->allow_counter_offers,
                     ])->values()->all(),
                     'workgroup_id' => $shift->workgroup_id,
                     'workgroup_name' => $shift->workgroup?->name,
                 ],
             ];
         });
-
-        // Current month stats (UTC calendar month)
-        $monthStart = $now->copy()->startOfMonth();
-        $monthEnd = $now->copy()->endOfMonth();
-        $daysInMonth = (int) $monthStart->format('t');
-        $shiftsThisMonth = Shift::where('user_id', $user->id)
-            ->where('end_time_utc', '>=', $monthStart)
-            ->where('start_time_utc', '<=', $monthEnd)
-            ->get();
-        $uniqueDaysWithShift = collect($shiftsThisMonth->flatMap(function ($s) {
-            $start = Carbon::parse($s->start_time_utc);
-            $end = Carbon::parse($s->end_time_utc);
-            $out = [];
-            for ($d = $start->copy()->startOfDay(); $d->lte($end); $d->addDay()) {
-                $out[] = $d->format('Y-m-d');
-            }
-
-            return $out;
-        }))->unique()->count();
-        $daysOffThisMonth = $daysInMonth - $uniqueDaysWithShift;
-        if ($daysOffThisMonth < 0) {
-            $daysOffThisMonth = 0;
-        }
 
         $timeOffRanges = UserTimeOffRange::where('user_id', $user->id)
             ->orderBy('start_date')
@@ -355,19 +376,24 @@ class DashboardController extends Controller
             ->values()
             ->all();
 
+        // Last workzone sync: most recent import or completed reconcile for this user
+        $lastImportAt = ScheduleImportRun::where('target_user_id', $user->id)->max('created_at');
+        $lastReconcileAt = ScheduleReconciliation::where('user_id', $user->id)->whereNotNull('completed_at')->max('completed_at');
+        $lastWorkzoneSyncAt = null;
+        if ($lastImportAt || $lastReconcileAt) {
+            $t1 = $lastImportAt ? Carbon::parse($lastImportAt) : null;
+            $t2 = $lastReconcileAt ? Carbon::parse($lastReconcileAt) : null;
+            $lastWorkzoneSyncAt = ($t1 && $t2) ? ($t1->gt($t2) ? $t1 : $t2) : ($t1 ?? $t2);
+        }
+
         return Inertia::render('app/dashboard', [
             'currentShift' => $currentShift ? $this->mapShift($currentShift) : null,
+            'todayShift' => $todayShift ? $this->mapShift($todayShift) : null,
             'nextShift' => $nextShift ? $this->mapShift($nextShift) : null,
             'upcomingShifts' => $upcomingShifts,
             'activePosts' => $activePosts,
             'actionRequired' => $actionRequired,
             'initialEvents' => $initialEvents,
-            'monthStats' => [
-                'month_label' => $monthStart->format('F Y'),
-                'shifts_count' => $shiftsThisMonth->count(),
-                'days_off_count' => $daysOffThisMonth,
-                'action_required_count' => count($actionRequired),
-            ],
             'activeLookingForWorkPosts' => $activeLookingForWorkPosts,
             'lfwDateRanges' => $lfwDateRanges,
             'timeOffRanges' => $timeOffRanges,
@@ -375,6 +401,7 @@ class DashboardController extends Controller
             'userIsDispatch' => $userIsDispatch,
             'defaultWorkgroupId' => $defaultWorkgroupId,
             'bannerMessages' => $bannerMessages,
+            'lastWorkzoneSyncAt' => $lastWorkzoneSyncAt ? $lastWorkzoneSyncAt->toIso8601String() : null,
         ]);
     }
 
@@ -388,6 +415,7 @@ class DashboardController extends Controller
             'end_time_utc' => $s->end_time_utc->toIso8601String(),
             'workgroup_id' => $s->workgroup_id,
             'workgroup_name' => $s->workgroup?->name,
+            'is_training' => (bool) $s->is_training,
         ];
     }
 }

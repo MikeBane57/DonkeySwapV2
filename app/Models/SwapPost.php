@@ -25,6 +25,8 @@ class SwapPost extends Model
         'notes',
         'preferred_start_times',
         'preferred_desk_type',
+        'payback_date_ranges',
+        'allow_counter_offers',
         'status',
         'view_count',
         'click_count',
@@ -35,6 +37,8 @@ class SwapPost extends Model
         return [
             'cash_amount' => 'decimal:2',
             'preferred_start_times' => 'array',
+            'payback_date_ranges' => 'array',
+            'allow_counter_offers' => 'boolean',
         ];
     }
 
