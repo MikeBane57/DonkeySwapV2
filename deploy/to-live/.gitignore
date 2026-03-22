@@ -1,0 +1,5 @@
+# Only the merge payload is committed here for GitHub Actions (FTP + import).
+# See deploy/SQLITE-TO-MYSQL.md
+*
+!mysql_merge.sql
+!.gitignore

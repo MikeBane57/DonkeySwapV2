@@ -1,0 +1,91 @@
+# Uploads deploy/to-live/mysql_merge.sql to the server via FTP, then runs db:import-merge over SSH.
+#
+# MANUAL ONLY — does not run on push. You choose when to run it (Actions → Run workflow).
+#
+# Flow: commit + push mysql_merge.sql → GitHub → Actions → "Push DB merge to live" → Run workflow
+# After you verify live: git rm deploy/to-live/mysql_merge.sql && git commit && git push
+# (This workflow also deletes mysql_merge.sql on the server after import so it is not left on disk.)
+#
+# Local prep:
+#   php scripts/sqlite-to-mysql.php --merge --for-github
+#   git add deploy/to-live/mysql_merge.sql && git commit && git push
+#
+# Uses the same FTP + SSH secrets as the main deploy. See SECRETS-CHECKLIST.md
+
+name: Push DB merge to live
+
+on:
+  workflow_dispatch:
+
+jobs:
+  push-and-import:
+    name: FTP mysql_merge.sql + run import on server
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Verify secrets
+        run: |
+          missing=""
+          [ -z "${{ secrets.FTP_SERVER }}" ] && missing="$missing FTP_SERVER"
+          [ -z "${{ secrets.FTP_USERNAME }}" ] && missing="$missing FTP_USERNAME"
+          [ -z "${{ secrets.FTP_PASSWORD }}" ] && missing="$missing FTP_PASSWORD"
+          [ -z "${{ secrets.FTP_REMOTE_DIR }}" ] && missing="$missing FTP_REMOTE_DIR"
+          [ -z "${{ secrets.SSH_HOST }}" ] && missing="$missing SSH_HOST"
+          [ -z "${{ secrets.SSH_USER }}" ] && missing="$missing SSH_USER"
+          [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ] && missing="$missing SSH_PRIVATE_KEY"
+          [ -z "${{ secrets.SERVER_APP_PATH }}" ] && missing="$missing SERVER_APP_PATH"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing secrets:$missing — same as main deploy (SECRETS-CHECKLIST.md)"
+            exit 1
+          fi
+          echo "All required secrets are set."
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check merge file exists
+        run: |
+          if [ ! -f deploy/to-live/mysql_merge.sql ]; then
+            echo "::error::deploy/to-live/mysql_merge.sql not in this branch."
+            echo "Run locally: php scripts/sqlite-to-mysql.php --merge --for-github"
+            echo "Then: git add deploy/to-live/mysql_merge.sql && git commit && git push"
+            exit 1
+          fi
+          echo "Found deploy/to-live/mysql_merge.sql ($(wc -c < deploy/to-live/mysql_merge.sql) bytes)"
+
+      # Single-file upload only (do not use folder-sync FTP action on app root — it could delete other files).
+      - name: Upload mysql_merge.sql via FTP
+        env:
+          FTP_USER: ${{ secrets.FTP_USERNAME }}
+          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
+          FTP_DIR: ${{ secrets.FTP_REMOTE_DIR }}
+        run: |
+          set -e
+          REMOTE="${FTP_DIR%/}/mysql_merge.sql"
+          curl --ftp-pasv --silent --show-error --fail \
+            -u "${FTP_USER}:${FTP_PASS}" \
+            -T deploy/to-live/mysql_merge.sql \
+            "ftp://${FTP_HOST}/${REMOTE#/}"
+
+      - name: Run db:import-merge on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            cd ${{ secrets.SERVER_APP_PATH }}
+            if [ ! -f mysql_merge.sql ]; then
+              echo "::error::mysql_merge.sql missing on server after FTP. Check FTP_REMOTE_DIR matches app root (same as main deploy)."
+              exit 1
+            fi
+            if ! /opt/cpanel/ea-php84/root/usr/bin/php artisan db:import-merge; then
+              echo "::error::Import failed — mysql_merge.sql left on server for debugging."
+              exit 1
+            fi
+            rm -f mysql_merge.sql
+            echo "Removed mysql_merge.sql from server after successful import."

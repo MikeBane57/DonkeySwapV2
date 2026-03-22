@@ -29,9 +29,15 @@ id_rsa
 id_ed25519
 id_ecdsa
 mysql_export.sql
+mysql_merge.sql
+# Commit this path when pushing DB merge via GitHub Actions (see deploy/SQLITE-TO-MYSQL.md)
+!deploy/to-live/mysql_merge.sql
 /.fleet
 /.idea
 /.nova
 /.vscode
 /.zed
-/.cursor
+# Cursor: commit shared project rules; ignore other local agent/chat state
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**

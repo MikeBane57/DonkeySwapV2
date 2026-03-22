@@ -2,9 +2,11 @@
 <?php
 
 /**
- * One-time script: export SQLite database to MySQL-compatible SQL.
+ * Export SQLite database to MySQL-compatible SQL.
  * Run from project root: php scripts/sqlite-to-mysql.php
- * Creates mysql_export.sql in the project root (UTF-8, no BOM, phpMyAdmin-safe).
+ *   - Default: creates mysql_export.sql (DROP + CREATE + INSERT) — full replace.
+ *   - With --merge: creates mysql_merge.sql (INSERT ... ON DUPLICATE KEY UPDATE) — push data without dropping live tables.
+ *   - With --merge --for-github: also writes deploy/to-live/mysql_merge.sql (commit + push → GitHub Action FTPs and imports).
  * Requires .env with DB_CONNECTION=sqlite and database/database.sqlite present.
  */
 $projectRoot = dirname(__DIR__);
@@ -24,6 +26,13 @@ if (! is_file($path)) {
     exit(1);
 }
 
+$merge = in_array('--merge', $argv ?? [], true) || in_array('--push', $argv ?? [], true);
+$forGithub = in_array('--for-github', $argv ?? [], true) || in_array('--for-commit', $argv ?? [], true);
+if ($forGithub && ! $merge) {
+    fwrite(STDERR, "Error: --for-github requires --merge (or --push).\n");
+    exit(1);
+}
+
 $pdo = new PDO('sqlite:'.$path, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 
 // Tables to export
@@ -39,6 +48,7 @@ $out[] = 'SET NAMES utf8mb4;';
 $out[] = '';
 
 $quoteId = fn ($id) => '"'.str_replace('"', '""', $id).'"';
+$escape = fn ($v) => $v === null ? 'NULL' : "'".str_replace(['\\', "'"], ['\\\\', "\\'"], (string) $v)."'";
 
 foreach ($tables as $table) {
     $info = $pdo->query('PRAGMA table_info('.$quoteId($table).')')->fetchAll(PDO::FETCH_ASSOC);
@@ -99,25 +109,37 @@ foreach ($tables as $table) {
         }
     }
 
-    $out[] = "DROP TABLE IF EXISTS `{$table}`;";
-    $out[] = "CREATE TABLE `{$table}` (\n  ".implode(",\n  ", $cols)."\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-    $out[] = '';
+    if (! $merge) {
+        $out[] = "DROP TABLE IF EXISTS `{$table}`;";
+        $out[] = "CREATE TABLE `{$table}` (\n  ".implode(",\n  ", $cols)."\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+        $out[] = '';
+    }
 
     $rows = $pdo->query('SELECT * FROM '.$quoteId($table))->fetchAll(PDO::FETCH_ASSOC);
     if (count($rows) > 0) {
         $columns = array_keys($rows[0]);
         $colList = implode(', ', array_map(fn ($c) => '`'.$c.'`', $columns));
-        foreach ($rows as $row) {
-            $values = [];
-            foreach ($columns as $col) {
-                $v = $row[$col];
-                if ($v === null) {
-                    $values[] = 'NULL';
-                } else {
-                    $values[] = "'".str_replace(['\\', "'"], ['\\\\', "\\'"], (string) $v)."'";
-                }
+
+        if ($merge && ! empty($pkColumns)) {
+            // INSERT ... ON DUPLICATE KEY UPDATE: update all columns except PK(s)
+            $updateCols = array_diff($columns, array_keys($pkColumns));
+            $updateClause = implode(', ', array_map(fn ($c) => '`'.$c.'`=VALUES(`'.$c.'`)', $updateCols));
+            if ($updateClause === '') {
+                // Composite PK with no other columns: use a no-op so syntax is valid
+                $firstPk = array_key_first($pkColumns);
+                $updateClause = '`'.$firstPk.'`=VALUES(`'.$firstPk.'`)';
             }
-            $out[] = "INSERT INTO `{$table}` ({$colList}) VALUES (".implode(', ', $values).');';
+            foreach ($rows as $row) {
+                $values = array_map(fn ($col) => $escape($row[$col]), $columns);
+                $out[] = "INSERT INTO `{$table}` ({$colList}) VALUES (".implode(', ', $values).') ON DUPLICATE KEY UPDATE '.$updateClause.';';
+            }
+        } elseif ($merge && empty($pkColumns)) {
+            fwrite(STDERR, "Warning: Table `{$table}` has no primary key; skipping in merge mode.\n");
+        } else {
+            foreach ($rows as $row) {
+                $values = array_map(fn ($col) => $escape($row[$col]), $columns);
+                $out[] = "INSERT INTO `{$table}` ({$colList}) VALUES (".implode(', ', $values).');';
+            }
         }
         $out[] = '';
     }
@@ -126,7 +148,20 @@ foreach ($tables as $table) {
 $out[] = 'SET FOREIGN_KEY_CHECKS = 1;';
 
 $sql = implode("\n", $out);
-$outPath = $projectRoot.DIRECTORY_SEPARATOR.'mysql_export.sql';
+$outPath = $projectRoot.DIRECTORY_SEPARATOR.($merge ? 'mysql_merge.sql' : 'mysql_export.sql');
 // Write UTF-8 without BOM so phpMyAdmin and MySQL are happy
 file_put_contents($outPath, $sql, LOCK_EX);
-fwrite(STDERR, 'Written: '.$outPath."\n");
+fwrite(STDERR, 'Written: '.$outPath.($merge ? ' (merge mode — import this to update live without dropping tables)' : '')."\n");
+
+if ($merge && $forGithub) {
+    $toLiveDir = $projectRoot.DIRECTORY_SEPARATOR.'deploy'.DIRECTORY_SEPARATOR.'to-live';
+    if (! is_dir($toLiveDir)) {
+        mkdir($toLiveDir, 0755, true);
+    }
+    $deployPath = $toLiveDir.DIRECTORY_SEPARATOR.'mysql_merge.sql';
+    file_put_contents($deployPath, $sql, LOCK_EX);
+    fwrite(STDERR, 'Written (for GitHub Actions): '.$deployPath."\n");
+    fwrite(STDERR, "Next: git add deploy/to-live/mysql_merge.sql && git commit && git push;\n");
+    fwrite(STDERR, "then GitHub Actions → \"Push DB merge to live\" → Run workflow (manual only).\n");
+    fwrite(STDERR, "After you verify live: git rm deploy/to-live/mysql_merge.sql && git commit && git push.\n");
+}
