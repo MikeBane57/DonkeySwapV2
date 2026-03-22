@@ -37,6 +37,7 @@ class ImportDbMerge extends Command
         foreach ([
             'database/migrations/2026_03_24_000001_add_meta_to_schedule_import_run_items_if_missing.php',
             'database/migrations/2026_03_25_000001_ensure_schedule_import_run_items_meta.php',
+            'database/migrations/2026_03_26_000001_widen_schedule_unmapped_codes_code.php',
         ] as $relative) {
             $full = base_path($relative);
             if (is_file($full)) {
