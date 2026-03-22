@@ -8,6 +8,7 @@ use App\Models\AdminNotificationBatch;
 use App\Models\AppNotification;
 use App\Models\User;
 use App\Models\Workgroup;
+use App\Notifications\WebPushSwapNotification;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -166,12 +167,41 @@ class MessageCenterController extends Controller
         return redirect()->back()->with('success', 'Banner message deleted.');
     }
 
+    public function bulkDestroyBanners(Request $request): RedirectResponse
+    {
+        $ids = $request->validate([
+            'ids' => ['required', 'array', 'max:100'],
+            'ids.*' => ['integer', 'exists:admin_banner_messages,id'],
+        ])['ids'];
+
+        AdminBannerMessage::whereIn('id', $ids)->delete();
+
+        $n = count($ids);
+
+        return redirect()->back()->with('success', "Deleted {$n} banner message(s).");
+    }
+
     public function destroyNotificationBatch(AdminNotificationBatch $batch): RedirectResponse
     {
         $batch->notifications()->delete();
         $batch->delete();
 
         return redirect()->back()->with('success', 'Notification batch deleted.');
+    }
+
+    public function bulkDestroyNotificationBatches(Request $request): RedirectResponse
+    {
+        $ids = $request->validate([
+            'ids' => ['required', 'array', 'max:100'],
+            'ids.*' => ['integer', 'exists:admin_notification_batches,id'],
+        ])['ids'];
+
+        AppNotification::whereIn('admin_notification_batch_id', $ids)->delete();
+        AdminNotificationBatch::whereIn('id', $ids)->delete();
+
+        $n = count($ids);
+
+        return redirect()->back()->with('success', "Deleted {$n} notification batch(es).");
     }
 
     /**
@@ -218,7 +248,7 @@ class MessageCenterController extends Controller
         }
 
         try {
-            $user->notify(new \App\Notifications\WebPushSwapNotification(
+            $user->notify(new WebPushSwapNotification(
                 title: config('app.name', 'Donkey Swap'),
                 body: 'Badge cleared.',
                 url: url('/app'),
@@ -252,7 +282,7 @@ class MessageCenterController extends Controller
             ->count();
 
         try {
-            $user->notify(new \App\Notifications\WebPushSwapNotification(
+            $user->notify(new WebPushSwapNotification(
                 title: $title,
                 body: $body,
                 url: $notification->getPushUrl(),

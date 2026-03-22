@@ -10,6 +10,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import { logClientError } from '@/lib/client-logger';
 import { getCsrfToken } from '@/lib/csrf';
 import type { BreadcrumbItem } from '@/types';
 
@@ -207,6 +208,10 @@ export default function ImportHistory({
             if (data.last_bulk_compare) {
                 setLastBulkCompare(data.last_bulk_compare);
             }
+        } catch (e) {
+            logClientError('importHistory.masterCompare', e);
+            setMasterError('Network or unexpected error. Try again.');
+            setMasterDiff(null);
         } finally {
             setMasterCompareLoading(false);
         }
@@ -233,6 +238,9 @@ export default function ImportHistory({
             }
             setMasterApplyResult(data.results ?? []);
             setMasterDiff(null);
+        } catch (e) {
+            logClientError('importHistory.masterApply', e);
+            setMasterError('Network or unexpected error. Try again.');
         } finally {
             setMasterApplyLoading(false);
         }

@@ -225,6 +225,10 @@ type ActionRequiredItem = {
     seeking_date?: string;
     seeking_cash?: number | null;
     seeking_obo?: boolean;
+    /** Desk types the poster asked for (LFW) */
+    seeking_desk_types?: string[] | null;
+    /** Poster’s notes on the LFW or swap post */
+    post_notes?: string | null;
     offered_by_name?: string;
     offered_by_contact?: string | null;
     offered_by_contact_method?: string | null;
@@ -3109,16 +3113,60 @@ export default function AppDashboard() {
                     <div className="min-h-0 flex-1 overflow-y-auto">
                     {reviewLfwOfferGroup && reviewLfwOfferGroup.length > 0 ? (
                         <div className="space-y-4 py-2">
-                            <p className="text-sm text-muted-foreground">
-                                {reviewLfwOfferGroup[0].seeking_date && `Date you wanted to work: ${reviewLfwOfferGroup[0].seeking_date}. `}
-                                Choose one offer to accept or decline each.
-                            </p>
+                            <div className="space-y-1 text-sm text-muted-foreground">
+                                <p>
+                                    {reviewLfwOfferGroup[0].seeking_date && `Date you wanted to work: ${reviewLfwOfferGroup[0].seeking_date}. `}
+                                    {reviewLfwOfferGroup[0].seeking_obo
+                                        ? 'You asked for or best offer (OBO). '
+                                        : reviewLfwOfferGroup[0].seeking_cash != null && reviewLfwOfferGroup[0].seeking_cash > 0
+                                          ? `You asked for $${Number(reviewLfwOfferGroup[0].seeking_cash).toFixed(0)} cash. `
+                                          : ''}
+                                    Choose one offer to accept or decline each.
+                                </p>
+                                {(() => {
+                                    const desks = reviewLfwOfferGroup[0].seeking_desk_types?.filter(Boolean) ?? [];
+                                    return desks.length > 0 ? (
+                                        <p>
+                                            <span className="font-medium text-foreground">Desk types: </span>
+                                            {desks.join(', ')}
+                                        </p>
+                                    ) : null;
+                                })()}
+                                {reviewLfwOfferGroup[0].post_notes && (
+                                    <div className="rounded border border-border/70 bg-muted/30 p-2 text-sm">
+                                        <span className="font-medium text-foreground">Your post notes: </span>
+                                        <p className="mt-0.5 whitespace-pre-wrap">{reviewLfwOfferGroup[0].post_notes}</p>
+                                    </div>
+                                )}
+                            </div>
                             <ul className="space-y-3">
-                                {reviewLfwOfferGroup.map((item) => (
+                                {[...reviewLfwOfferGroup]
+                                    .sort((a, b) => (a.offer_created_at ?? '').localeCompare(b.offer_created_at ?? ''))
+                                    .map((item) => (
                                     <li key={item.id} className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
                                         <p className="font-medium">{item.offered_by_name ?? 'Someone'}</p>
                                         {item.offered_shift_summary && (
                                             <p className="mt-0.5 text-muted-foreground">Offered: {item.offered_shift_summary}</p>
+                                        )}
+                                        {item.counter_cash_amount != null && Number(item.counter_cash_amount) > 0 && (
+                                            <p className="mt-1 text-sm font-medium text-green-700 dark:text-green-300">
+                                                {item.seeking_obo ? 'Cash offer (OBO): ' : 'Counter offer: '}
+                                                ${Number(item.counter_cash_amount).toFixed(0)}
+                                                {item.seeking_obo ? (
+                                                    <span className="ml-1 text-xs font-normal text-muted-foreground">(their bid)</span>
+                                                ) : (
+                                                    item.cash_amount != null &&
+                                                    Number(item.counter_cash_amount) > Number(item.cash_amount) && (
+                                                        <span className="ml-1 text-xs font-normal text-muted-foreground">(more than your ask)</span>
+                                                    )
+                                                )}
+                                            </p>
+                                        )}
+                                        {item.offered_by_contact && (
+                                            <p className="mt-1 text-xs">
+                                                <span className="font-medium text-foreground">Contact: </span>
+                                                <span className="text-muted-foreground">{item.offered_by_contact}</span>
+                                            </p>
                                         )}
                                         {item.response_notes && (
                                             <p className="mt-1 text-xs text-muted-foreground">Notes: {item.response_notes}</p>
@@ -3181,6 +3229,12 @@ export default function AppDashboard() {
                                 {reviewSwapOfferGroup[0].start_time_utc && `${formatCentral(reviewSwapOfferGroup[0].start_time_utc)}. `}
                                 Select one shift to accept. Each shift shows who offered it.
                             </p>
+                            {reviewSwapOfferGroup[0].post_notes && (
+                                <div className="rounded border border-border/70 bg-muted/30 p-2 text-sm text-muted-foreground">
+                                    <span className="font-medium text-foreground">Your post notes: </span>
+                                    <p className="mt-0.5 whitespace-pre-wrap">{reviewSwapOfferGroup[0].post_notes}</p>
+                                </div>
+                            )}
                             {paybackRangesStr && (
                                 <p className="text-sm text-muted-foreground">
                                     <span className="font-medium">Your payback preferred:</span> {paybackRangesStr}
@@ -3391,14 +3445,36 @@ export default function AppDashboard() {
                                 {isLfw && reviewOfferItem.seeking_date && (
                                     <p className="mt-1 text-muted-foreground">Date you wanted to work: {reviewOfferItem.seeking_date}</p>
                                 )}
+                                {isLfw && (reviewOfferItem.seeking_desk_types?.filter(Boolean).length ?? 0) > 0 && (
+                                    <p className="mt-1 text-muted-foreground">
+                                        <span className="font-medium text-foreground">Desk types: </span>
+                                        {reviewOfferItem.seeking_desk_types!.filter(Boolean).join(', ')}
+                                    </p>
+                                )}
+                                {reviewOfferItem.post_notes && (
+                                    <div className="mt-2 rounded border border-border/70 bg-muted/30 p-2 text-sm">
+                                        <span className="font-medium text-foreground">Your post notes: </span>
+                                        <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{reviewOfferItem.post_notes}</p>
+                                    </div>
+                                )}
                                 {(isLfw && reviewOfferItem.offered_shift_summary) || (isTrade && offeredShifts.length === 0 && reviewOfferItem.offered_shift_summary) ? (
                                     <p className="mt-1 text-muted-foreground">Offered: {reviewOfferItem.offered_shift_summary}</p>
                                 ) : null}
                                 {reviewOfferItem.counter_cash_amount != null && Number(reviewOfferItem.counter_cash_amount) > 0 && (
                                     <p className="mt-1.5 text-sm font-medium text-green-700 dark:text-green-300">
-                                        Counter offer: ${Number(reviewOfferItem.counter_cash_amount).toFixed(0)}
-                                        {reviewOfferItem.cash_amount != null && Number(reviewOfferItem.counter_cash_amount) > Number(reviewOfferItem.cash_amount) && (
-                                            <span className="ml-1 text-muted-foreground font-normal">(more than your ask)</span>
+                                        {isLfw && reviewOfferItem.seeking_obo ? (
+                                            <>
+                                                Cash offer (OBO): ${Number(reviewOfferItem.counter_cash_amount).toFixed(0)}
+                                                <span className="ml-1 font-normal text-muted-foreground">(their bid)</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                Counter offer: ${Number(reviewOfferItem.counter_cash_amount).toFixed(0)}
+                                                {reviewOfferItem.cash_amount != null &&
+                                                    Number(reviewOfferItem.counter_cash_amount) > Number(reviewOfferItem.cash_amount) && (
+                                                        <span className="ml-1 font-normal text-muted-foreground">(more than your ask)</span>
+                                                    )}
+                                            </>
                                         )}
                                     </p>
                                 )}

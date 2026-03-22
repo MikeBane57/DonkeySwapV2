@@ -15,9 +15,12 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { isLikelyTransientNetworkError, logClientError } from '@/lib/client-logger';
 import { getCsrfToken } from '@/lib/csrf';
 const POLL_VISIBLE_MS = 5000;
 const POLL_HIDDEN_MS = 30000;
+const FETCH_MS = 15000;
+const POLL_BACKOFF_MAX_MS = 120000;
 
 type NotificationRecord = {
     id: number;
@@ -36,7 +39,8 @@ function formatTime(iso: string): string {
             return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
         }
         return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-    } catch {
+    } catch (e) {
+        logClientError('notifications.formatTime', e);
         return '';
     }
 }
@@ -58,6 +62,10 @@ function notificationSummary(n: NotificationRecord): string {
     return (data.message as string) ?? 'New notification';
 }
 
+function basePollMs(): number {
+    return document.visibilityState === 'visible' ? POLL_VISIBLE_MS : POLL_HIDDEN_MS;
+}
+
 export function NotificationsBadge() {
     const [unreadCount, setUnreadCount] = useState(0);
     const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
@@ -65,47 +73,55 @@ export function NotificationsBadge() {
     const [messagePopup, setMessagePopup] = useState<{ title: string; body: string } | null>(null);
     const [markingId, setMarkingId] = useState<number | null>(null);
     const [markingAll, setMarkingAll] = useState(false);
+    const [pollIntervalMs, setPollIntervalMs] = useState(POLL_VISIBLE_MS);
 
     const fetchUnread = useCallback(async () => {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), FETCH_MS);
         try {
             const res = await fetch('/api/notifications/unread', {
+                signal: controller.signal,
                 headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'include',
             });
+            window.clearTimeout(timeoutId);
             if (res.ok) {
                 const data = await res.json();
                 setUnreadCount(data.unread_count ?? 0);
                 setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+                setPollIntervalMs(basePollMs());
+            } else {
+                setPollIntervalMs((m) => Math.min(Math.max(m, POLL_VISIBLE_MS) * 2, POLL_BACKOFF_MAX_MS));
             }
-        } catch {
-            // ignore
+        } catch (e) {
+            window.clearTimeout(timeoutId);
+            setPollIntervalMs((m) => Math.min(Math.max(m, POLL_VISIBLE_MS) * 2, POLL_BACKOFF_MAX_MS));
+            if (!isLikelyTransientNetworkError(e)) {
+                logClientError('notifications.fetchUnread', e);
+            }
         }
     }, []);
 
     useEffect(() => {
-        const run = () => { void fetchUnread(); };
-        const t = setTimeout(run, 0);
-        let intervalId: ReturnType<typeof setInterval>;
-        const schedulePoll = () => {
-            clearInterval(intervalId);
-            const ms = document.visibilityState === 'visible' ? POLL_VISIBLE_MS : POLL_HIDDEN_MS;
-            intervalId = setInterval(run, ms);
+        const run = () => {
+            void fetchUnread();
         };
+        const t = setTimeout(run, 0);
+        const intervalId = setInterval(run, pollIntervalMs);
         const handleVisibilityChange = () => {
+            setPollIntervalMs(basePollMs());
             if (document.visibilityState === 'visible') run();
-            schedulePoll();
         };
         const handleNotificationsUpdated = () => run();
         window.addEventListener('notifications-updated', handleNotificationsUpdated);
         document.addEventListener('visibilitychange', handleVisibilityChange);
-        schedulePoll();
         return () => {
             clearTimeout(t);
             clearInterval(intervalId);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('notifications-updated', handleNotificationsUpdated);
         };
-    }, [fetchUnread]);
+    }, [fetchUnread, pollIntervalMs]);
 
     useEffect(() => {
         if (open) void fetchUnread();
@@ -128,6 +144,8 @@ export function NotificationsBadge() {
                 setNotifications((prev) => prev.filter((n) => n.id !== id));
                 window.dispatchEvent(new Event('notifications-updated'));
             }
+        } catch (e) {
+            logClientError('notifications.markRead', e);
         } finally {
             setMarkingId(null);
         }
@@ -150,6 +168,8 @@ export function NotificationsBadge() {
                 setNotifications([]);
                 window.dispatchEvent(new Event('notifications-updated'));
             }
+        } catch (e) {
+            logClientError('notifications.markAllRead', e);
         } finally {
             setMarkingAll(false);
         }

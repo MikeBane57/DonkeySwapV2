@@ -13,6 +13,7 @@ use App\Models\SwapOffer;
 use App\Models\SwapPost;
 use App\Models\UserLfwDateRange;
 use App\Models\UserTimeOffRange;
+use App\Models\WorkgroupPositionRange;
 use Carbon\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -184,6 +185,7 @@ class DashboardController extends Controller
                 'payback_date_ranges' => $post?->payback_date_ranges,
                 'allow_counter_offers' => (bool) ($post?->allow_counter_offers ?? false),
                 'offer_created_at' => $offer->created_at?->toIso8601String(),
+                'post_notes' => $post?->notes !== null && trim((string) $post->notes) !== '' ? trim((string) $post->notes) : null,
             ];
         })->values()->all();
 
@@ -201,6 +203,17 @@ class DashboardController extends Controller
                 ? $shift->position_name.' · '.($shift->start_time_utc ? $shift->start_time_utc->format('M j, g:i A') : '')
                 : null;
             $offerer = $offer->offeredBy;
+            $contactMethod = $offerer?->preferred_contact_method ?? 'email';
+            $contactLabel = null;
+            if ($offerer) {
+                if (($contactMethod === 'call' || $contactMethod === 'text') && ! empty(trim((string) $offerer->phone))) {
+                    $contactLabel = ucfirst($contactMethod).': '.trim($offerer->phone);
+                } else {
+                    $contactLabel = 'Email: '.($offerer->email ?? '');
+                }
+            }
+
+            $offeredCash = $offer->offered_cash !== null ? (float) $offer->offered_cash : null;
 
             return [
                 'id' => $offer->id,
@@ -209,15 +222,19 @@ class DashboardController extends Controller
                 'seeking_date' => $post->seeking_date->format('Y-m-d'),
                 'seeking_cash' => $post->seeking_cash !== null ? (float) $post->seeking_cash : null,
                 'seeking_obo' => (bool) $post->seeking_obo,
+                'seeking_desk_types' => $post->seeking_desk_types ?? [],
                 'position_name' => null,
                 'start_time_utc' => null,
                 'offered_by_name' => $offerer?->name,
-                'offered_by_contact' => null,
-                'offered_by_contact_method' => null,
+                'offered_by_contact' => $contactLabel,
+                'offered_by_contact_method' => $contactMethod,
                 'response_notes' => $offer->response_notes ? trim($offer->response_notes) : null,
                 'offered_shift_summary' => $offeredShiftSummary,
                 'offered_shifts' => $shift ? [['id' => $shift->id, 'position_name' => $shift->position_name, 'start_time_utc' => $shift->start_time_utc?->toIso8601String(), 'end_time_utc' => $shift->end_time_utc?->toIso8601String()]] : [],
                 'cash_amount' => $post->seeking_cash !== null ? (float) $post->seeking_cash : null,
+                'counter_cash_amount' => $offeredCash !== null && $offeredCash > 0 ? $offeredCash : null,
+                'offer_created_at' => $offer->created_at?->toIso8601String(),
+                'post_notes' => $post->notes !== null && trim((string) $post->notes) !== '' ? trim((string) $post->notes) : null,
             ];
         })->values()->all();
 
@@ -324,14 +341,14 @@ class DashboardController extends Controller
             ->orderBy('workgroups.name')
             ->get()
             ->map(function ($wg) {
-                $positions = \App\Models\WorkgroupPositionRange::expandRangesToPositions($wg->positionRanges);
+                $positions = WorkgroupPositionRange::expandRangesToPositions($wg->positionRanges);
 
                 return [
                     'id' => $wg->id,
                     'name' => $wg->name,
                     'allowed_start_times' => $wg->allowedStartTimes
                         ->sortBy(function ($t) {
-                            $raw = $t->start_time instanceof \Carbon\Carbon
+                            $raw = $t->start_time instanceof Carbon
                                 ? $t->start_time->format('H:i')
                                 : substr((string) ($t->getRawOriginal('start_time') ?? ''), 0, 5);
                             $parts = explode(':', $raw);
@@ -340,7 +357,7 @@ class DashboardController extends Controller
                         })
                         ->values()
                         ->map(fn ($t) => [
-                            'start_time' => $t->start_time instanceof \Carbon\Carbon
+                            'start_time' => $t->start_time instanceof Carbon
                                 ? $t->start_time->format('H:i')
                                 : substr((string) ($t->getRawOriginal('start_time') ?? ''), 0, 5),
                             'default_duration_minutes' => (int) $t->default_duration_minutes,

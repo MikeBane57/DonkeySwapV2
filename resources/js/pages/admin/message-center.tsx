@@ -126,6 +126,10 @@ export default function AdminMessageCenter() {
     const [sending, setSending] = useState(false);
     const [deletingBannerId, setDeletingBannerId] = useState<number | null>(null);
     const [deletingBatchId, setDeletingBatchId] = useState<number | null>(null);
+    const [selectedBannerIds, setSelectedBannerIds] = useState<number[]>([]);
+    const [selectedBatchIds, setSelectedBatchIds] = useState<number[]>([]);
+    const [bulkDeletingBanners, setBulkDeletingBanners] = useState(false);
+    const [bulkDeletingBatches, setBulkDeletingBatches] = useState(false);
     const [expandedBannerId, setExpandedBannerId] = useState<number | null>(null);
     const [expandedBatchId, setExpandedBatchId] = useState<number | null>(null);
     const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
@@ -259,6 +263,68 @@ export default function AdminMessageCenter() {
             preserveScroll: true,
             onFinish: () => setDeletingBatchId(null),
         });
+    };
+
+    const allBannersSelected = banners.length > 0 && selectedBannerIds.length === banners.length;
+    const allBatchesSelected = notificationBatches.length > 0 && selectedBatchIds.length === notificationBatches.length;
+
+    const toggleBannerSelect = (id: number) => {
+        setSelectedBannerIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    };
+    const toggleBatchSelect = (id: number) => {
+        setSelectedBatchIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    };
+    const toggleSelectAllBanners = () => {
+        if (allBannersSelected) setSelectedBannerIds([]);
+        else setSelectedBannerIds(banners.map((b) => b.id));
+    };
+    const toggleSelectAllBatches = () => {
+        if (allBatchesSelected) setSelectedBatchIds([]);
+        else setSelectedBatchIds(notificationBatches.map((b) => b.id));
+    };
+
+    const bulkDeleteBanners = () => {
+        if (selectedBannerIds.length === 0) return;
+        if (
+            !confirm(
+                `Delete ${selectedBannerIds.length} banner message(s)? Recipients will no longer see them.`,
+            )
+        )
+            return;
+        setBulkDeletingBanners(true);
+        router.post(
+            '/app/admin/message-center/banners/bulk-destroy',
+            { ids: selectedBannerIds },
+            {
+                preserveScroll: true,
+                onFinish: () => {
+                    setBulkDeletingBanners(false);
+                    setSelectedBannerIds([]);
+                },
+            },
+        );
+    };
+
+    const bulkDeleteBatches = () => {
+        if (selectedBatchIds.length === 0) return;
+        if (
+            !confirm(
+                `Delete ${selectedBatchIds.length} notification batch(es)? Notifications will be removed for all recipients.`,
+            )
+        )
+            return;
+        setBulkDeletingBatches(true);
+        router.post(
+            '/app/admin/message-center/notification-batches/bulk-destroy',
+            { ids: selectedBatchIds },
+            {
+                preserveScroll: true,
+                onFinish: () => {
+                    setBulkDeletingBatches(false);
+                    setSelectedBatchIds([]);
+                },
+            },
+        );
     };
 
     return (
@@ -606,6 +672,23 @@ export default function AdminMessageCenter() {
                     <p className="text-sm text-muted-foreground mb-3">
                         Expand a row to see who has acknowledged the banner and who has not. You can delete a banner to remove it for everyone.
                     </p>
+                    {banners.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-3 mb-3">
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                <Checkbox checked={allBannersSelected} onCheckedChange={toggleSelectAllBanners} />
+                                Select all
+                            </label>
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                disabled={selectedBannerIds.length === 0 || bulkDeletingBanners}
+                                onClick={bulkDeleteBanners}
+                            >
+                                {bulkDeletingBanners ? 'Deleting…' : `Delete selected (${selectedBannerIds.length})`}
+                            </Button>
+                        </div>
+                    )}
                     {banners.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No banner messages sent yet.</p>
                     ) : (
@@ -618,6 +701,12 @@ export default function AdminMessageCenter() {
                                     <Collapsible open={expandedBannerId === b.id} onOpenChange={(open) => setExpandedBannerId(open ? b.id : null)}>
                                         <div className="p-3 flex items-start justify-between gap-2">
                                             <div className="min-w-0 flex items-center gap-2 flex-wrap">
+                                                <Checkbox
+                                                    checked={selectedBannerIds.includes(b.id)}
+                                                    onCheckedChange={() => toggleBannerSelect(b.id)}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    aria-label={`Select banner ${b.title}`}
+                                                />
                                                 <CollapsibleTrigger asChild>
                                                     <button type="button" className="p-0.5 rounded hover:bg-muted/50 -m-0.5">
                                                         {expandedBannerId === b.id ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
@@ -682,6 +771,23 @@ export default function AdminMessageCenter() {
                     <p className="text-sm text-muted-foreground mb-3">
                         Batches sent to the notification bell. Expand to see who has read and who has not. Deleting removes the notifications for all recipients.
                     </p>
+                    {notificationBatches.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-3 mb-3">
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                <Checkbox checked={allBatchesSelected} onCheckedChange={toggleSelectAllBatches} />
+                                Select all
+                            </label>
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                disabled={selectedBatchIds.length === 0 || bulkDeletingBatches}
+                                onClick={bulkDeleteBatches}
+                            >
+                                {bulkDeletingBatches ? 'Deleting…' : `Delete selected (${selectedBatchIds.length})`}
+                            </Button>
+                        </div>
+                    )}
                     {notificationBatches.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No notification batches sent yet.</p>
                     ) : (
@@ -694,6 +800,12 @@ export default function AdminMessageCenter() {
                                     <Collapsible open={expandedBatchId === nb.id} onOpenChange={(open) => setExpandedBatchId(open ? nb.id : null)}>
                                         <div className="p-3 flex items-start justify-between gap-2">
                                             <div className="min-w-0 flex items-center gap-2 flex-wrap">
+                                                <Checkbox
+                                                    checked={selectedBatchIds.includes(nb.id)}
+                                                    onCheckedChange={() => toggleBatchSelect(nb.id)}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    aria-label={`Select notification batch ${nb.title}`}
+                                                />
                                                 <CollapsibleTrigger asChild>
                                                     <button type="button" className="p-0.5 rounded hover:bg-muted/50 -m-0.5">
                                                         {expandedBatchId === nb.id ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}

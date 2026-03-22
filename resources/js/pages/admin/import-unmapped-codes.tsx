@@ -1,6 +1,7 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -61,16 +62,34 @@ export default function ImportUnmappedCodes({
     codes: Code[];
     workgroups: WorkgroupOption[];
 }) {
+    const page = usePage().props as unknown as { flash?: { success?: string; error?: string } };
+    const flash = page.flash;
+
     const [addModal, setAddModal] = useState<{ code: Code } | null>(null);
     const [addWorkgroupId, setAddWorkgroupId] = useState<number | ''>('');
     const [addDeskTypeId, setAddDeskTypeId] = useState<number | ''>('');
     const [addSubmitting, setAddSubmitting] = useState(false);
     const [addError, setAddError] = useState<string | null>(null);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [removingId, setRemovingId] = useState<number | null>(null);
+    const [bulkRemoving, setBulkRemoving] = useState(false);
+    const [clearingAll, setClearingAll] = useState(false);
 
     const selectedWorkgroup = addWorkgroupId
         ? workgroups.find((w) => w.id === addWorkgroupId)
         : null;
     const deskTypeOptions = selectedWorkgroup?.desk_types ?? [];
+
+    const allSelected = codes.length > 0 && selectedIds.length === codes.length;
+
+    const toggleSelect = (id: number) => {
+        setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    };
+
+    const toggleSelectAll = () => {
+        if (allSelected) setSelectedIds([]);
+        else setSelectedIds(codes.map((c) => c.id));
+    };
 
     const openAddModal = (code: Code) => {
         setAddModal({ code });
@@ -120,37 +139,125 @@ export default function ImportUnmappedCodes({
         }
     };
 
+    const removeOne = (id: number) => {
+        if (!confirm('Remove this code from the unmapped list? (It may reappear on a future import if still unmatched.)')) return;
+        setRemovingId(id);
+        router.delete(`/app/admin/schedule-import/unmapped-codes/${id}`, {
+            preserveScroll: true,
+            onFinish: () => setRemovingId(null),
+        });
+    };
+
+    const removeSelected = () => {
+        if (selectedIds.length === 0) return;
+        if (
+            !confirm(
+                `Remove ${selectedIds.length} code(s) from the unmapped list? (They may reappear on a future import if still unmatched.)`,
+            )
+        )
+            return;
+        setBulkRemoving(true);
+        router.post(
+            '/app/admin/schedule-import/unmapped-codes/bulk-destroy',
+            { ids: selectedIds },
+            {
+                preserveScroll: true,
+                onFinish: () => {
+                    setBulkRemoving(false);
+                    setSelectedIds([]);
+                },
+            },
+        );
+    };
+
+    const clearAll = () => {
+        if (!confirm('Clear every unmapped code from this list? This cannot be undone.')) return;
+        setClearingAll(true);
+        router.post(
+            '/app/admin/schedule-import/unmapped-codes/clear-all',
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => {
+                    setClearingAll(false);
+                    setSelectedIds([]);
+                },
+            },
+        );
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Import Unmapped Codes" />
             <div className="p-4 space-y-4">
                 <h1 className="text-2xl font-semibold">Import Unmapped Codes</h1>
                 <p className="text-muted-foreground text-sm">
-                    Desk or time codes that appeared in schedule CSV imports but were not found in any workgroup position range. For desk codes you can add them to a workgroup below; otherwise add matching position ranges in Workgroup Manager.
+                    Desk or time codes that appeared in schedule CSV imports but were not found in any workgroup position range. For desk codes you can add them to a workgroup below; otherwise add matching position ranges in Workgroup Manager. You can also remove codes from this list if you have resolved them elsewhere or want to dismiss the reminder.
                 </p>
+
+                {flash?.success && (
+                    <div className="rounded-lg border border-green-500/50 bg-green-50 px-4 py-2 text-sm text-green-800 dark:bg-green-950/50 dark:text-green-200">
+                        {flash.success}
+                    </div>
+                )}
+                {flash?.error && (
+                    <div className="rounded-lg border border-red-500/50 bg-red-50 px-4 py-2 text-sm text-red-800 dark:bg-red-950/50 dark:text-red-200">
+                        {flash.error}
+                    </div>
+                )}
+
+                {codes.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-3">
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                            <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} />
+                            Select all
+                        </label>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={selectedIds.length === 0 || bulkRemoving}
+                            onClick={removeSelected}
+                        >
+                            {bulkRemoving ? 'Removing…' : `Remove selected (${selectedIds.length})`}
+                        </Button>
+                        <Button type="button" variant="destructive" size="sm" disabled={clearingAll} onClick={clearAll}>
+                            {clearingAll ? 'Clearing…' : 'Clear all'}
+                        </Button>
+                    </div>
+                )}
+
                 <div className="overflow-x-auto rounded-lg border border-border">
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b bg-muted/50">
+                                <th className="p-2 w-10" aria-label="Select" />
                                 <th className="p-2 text-left">Type</th>
                                 <th className="p-2 text-left">Code</th>
                                 <th className="p-2 text-right">Seen</th>
                                 <th className="p-2 text-left">First seen</th>
                                 <th className="p-2 text-left">Last seen</th>
                                 <th className="p-2 text-left min-w-[200px]">User / Shift</th>
-                                <th className="p-2 text-right w-40">Actions</th>
+                                <th className="p-2 text-right w-52">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {codes.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                                    <td colSpan={8} className="p-4 text-center text-muted-foreground">
                                         No unmapped codes.
                                     </td>
                                 </tr>
                             ) : (
                                 codes.map((c) => (
                                     <tr key={c.id} className="border-b border-border/70">
+                                        <td className="p-2 align-middle">
+                                            <Checkbox
+                                                checked={selectedIds.includes(c.id)}
+                                                onCheckedChange={() => toggleSelect(c.id)}
+                                                aria-label={`Select ${c.code_type} ${c.code}`}
+                                            />
+                                        </td>
                                         <td className="p-2">{c.code_type}</td>
                                         <td className="p-2 font-mono">{c.code}</td>
                                         <td className="p-2 text-right">{c.seen_count}</td>
@@ -168,19 +275,29 @@ export default function ImportUnmappedCodes({
                                             )}
                                         </td>
                                         <td className="p-2 text-right">
-                                            {c.code_type === 'desk' ? (
+                                            <div className="flex flex-wrap justify-end gap-1">
+                                                {c.code_type === 'desk' && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="h-7 text-xs"
+                                                        onClick={() => openAddModal(c)}
+                                                    >
+                                                        Add to workgroup
+                                                    </Button>
+                                                )}
                                                 <Button
                                                     type="button"
-                                                    variant="outline"
+                                                    variant="ghost"
                                                     size="sm"
-                                                    className="h-7 text-xs"
-                                                    onClick={() => openAddModal(c)}
+                                                    className="h-7 text-xs text-muted-foreground"
+                                                    onClick={() => removeOne(c.id)}
+                                                    disabled={removingId === c.id}
                                                 >
-                                                    Add to workgroup
+                                                    {removingId === c.id ? '…' : 'Remove'}
                                                 </Button>
-                                            ) : (
-                                                '—'
-                                            )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

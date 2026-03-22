@@ -3,13 +3,22 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\BulkApplyBatch;
 use App\Models\ScheduleImportRun;
 use App\Models\ScheduleUnmappedCode;
+use App\Models\Setting;
+use App\Models\Shift;
 use App\Models\User;
+use App\Models\Workgroup;
+use App\Models\WorkgroupDeskType;
+use App\Models\WorkgroupPositionRange;
 use App\Services\ScheduleImport\ArisExpandedScheduleCsvParser;
 use App\Services\ScheduleImport\ScheduleImportService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -53,11 +62,11 @@ class ScheduleImportController extends Controller
                 $meta = $run->meta ?? [];
                 $dateRange = $meta['date_range'] ?? null;
                 if (is_array($dateRange) && count($dateRange) >= 2 && ! empty($dateRange[0]) && ! empty($dateRange[1])) {
-                    $startUtc = \Carbon\Carbon::parse($dateRange[0].' 00:00:00', 'America/Chicago')->utc();
-                    $endUtc = \Carbon\Carbon::parse($dateRange[1].' 23:59:59', 'America/Chicago')->utc();
+                    $startUtc = Carbon::parse($dateRange[0].' 00:00:00', 'America/Chicago')->utc();
+                    $endUtc = Carbon::parse($dateRange[1].' 23:59:59', 'America/Chicago')->utc();
                     $items = $run->items()->whereIn('action', ['create', 'update'])->get();
                     $importStartTimes = $items->map(fn ($i) => $i->start_time_utc?->toIso8601String())->filter()->unique()->all();
-                    $currentShifts = \App\Models\Shift::where('user_id', $run->target_user_id)
+                    $currentShifts = Shift::where('user_id', $run->target_user_id)
                         ->where('start_time_utc', '>=', $startUtc)
                         ->where('start_time_utc', '<=', $endUtc)
                         ->get();
@@ -90,7 +99,7 @@ class ScheduleImportController extends Controller
             }
         }
 
-        $reconciliationBatches = \App\Models\BulkApplyBatch::with(['reconciliations' => fn ($q) => $q->with(['user:id,name,employee_id', 'items' => fn ($q2) => $q2->whereNotNull('user_action')])])
+        $reconciliationBatches = BulkApplyBatch::with(['reconciliations' => fn ($q) => $q->with(['user:id,name,employee_id', 'items' => fn ($q2) => $q2->whereNotNull('user_action')])])
             ->orderByDesc('created_at')
             ->limit(20)
             ->get()
@@ -115,7 +124,7 @@ class ScheduleImportController extends Controller
             ->all();
 
         $lastBulkCompare = null;
-        $raw = \App\Models\Setting::get('bulk_compare_latest');
+        $raw = Setting::get('bulk_compare_latest');
         if (is_string($raw) && $raw !== '') {
             $decoded = json_decode($raw, true);
             if (is_array($decoded)) {
@@ -123,30 +132,12 @@ class ScheduleImportController extends Controller
             }
         }
 
-        // If no compare result yet but we have a stored latest master CSV, run compare so bulk compare is shown by default.
-        if ($lastBulkCompare === null) {
-            $service = new ScheduleImportService;
-            $stored = $service->getStoredLatestMasterCsvContent();
-            if ($stored !== null) {
-                [, $rows] = $stored;
-                $compare = $service->compareMasterCsv($rows);
-                $disk = \Illuminate\Support\Facades\Storage::disk('local');
-                $lastModifiedMs = $disk->exists(ScheduleImportService::LATEST_MASTER_CSV_PATH)
-                    ? (int) ($disk->lastModified(ScheduleImportService::LATEST_MASTER_CSV_PATH) * 1000)
-                    : (int) (now()->timestamp * 1000);
-                $lastRun = [
-                    'file_last_modified_ms' => $lastModifiedMs,
-                    'run_at_iso' => now()->toIso8601String(),
-                    'users' => $compare['users'],
-                    'unmatched_employees' => $compare['unmatched_employees'] ?? [],
-                ];
-                \App\Models\Setting::set('bulk_compare_latest', json_encode($lastRun));
-                $lastBulkCompare = $lastRun;
-            }
-        }
+        // Do not run compareMasterCsv() here: it can exceed PHP/Bluehost limits and cause timeouts
+        // (ERR_TIMED_OUT / connection reset). Bulk compare is populated when an admin uploads the
+        // master CSV or via ScheduleImportService flows that call set('bulk_compare_latest', …).
 
         $latestMasterCsvMeta = null;
-        $metaRaw = \App\Models\Setting::get('latest_master_csv_meta');
+        $metaRaw = Setting::get('latest_master_csv_meta');
         if (is_string($metaRaw) && $metaRaw !== '') {
             $metaDecoded = json_decode($metaRaw, true);
             if (is_array($metaDecoded)) {
@@ -210,7 +201,7 @@ class ScheduleImportController extends Controller
     /**
      * Redirect to combined Import History page (which includes compare/audit section).
      */
-    public function audit(Request $request): \Illuminate\Http\RedirectResponse
+    public function audit(Request $request): RedirectResponse
     {
         $runId = $request->input('run_id');
         $url = $runId && $runId > 0
@@ -233,7 +224,7 @@ class ScheduleImportController extends Controller
             'examples' => $c->examples,
         ]);
 
-        $workgroups = \App\Models\Workgroup::with(['deskTypes:id,workgroup_id,code,label,is_regulatory'])
+        $workgroups = Workgroup::with(['deskTypes:id,workgroup_id,code,label,is_regulatory'])
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn ($wg) => [
@@ -266,16 +257,16 @@ class ScheduleImportController extends Controller
             return response()->json(['message' => 'Only desk codes can be added to a workgroup.'], 422);
         }
 
-        $workgroup = \App\Models\Workgroup::findOrFail($request->input('workgroup_id'));
+        $workgroup = Workgroup::findOrFail($request->input('workgroup_id'));
 
         $deskTypeId = $request->input('desk_type_id');
         if ($deskTypeId) {
-            $deskType = \App\Models\WorkgroupDeskType::where('id', $deskTypeId)->where('workgroup_id', $workgroup->id)->first();
+            $deskType = WorkgroupDeskType::where('id', $deskTypeId)->where('workgroup_id', $workgroup->id)->first();
             if (! $deskType) {
                 return response()->json(['message' => 'Desk type not found in this workgroup.'], 422);
             }
         } else {
-            $deskType = \App\Models\WorkgroupDeskType::create([
+            $deskType = WorkgroupDeskType::create([
                 'workgroup_id' => $workgroup->id,
                 'code' => $unmapped->code,
                 'label' => $unmapped->code,
@@ -284,8 +275,8 @@ class ScheduleImportController extends Controller
             ]);
         }
 
-        $maxSort = \App\Models\WorkgroupPositionRange::where('workgroup_id', $workgroup->id)->max('sort_order') ?? 0;
-        \App\Models\WorkgroupPositionRange::create([
+        $maxSort = WorkgroupPositionRange::where('workgroup_id', $workgroup->id)->max('sort_order') ?? 0;
+        WorkgroupPositionRange::create([
             'workgroup_id' => $workgroup->id,
             'workgroup_desk_type_id' => $deskType->id,
             'range_spec' => $unmapped->code,
@@ -296,6 +287,34 @@ class ScheduleImportController extends Controller
         $unmapped->delete();
 
         return response()->json(['message' => "Desk code \"{$unmapped->code}\" added to workgroup \"{$workgroup->name}\"."]);
+    }
+
+    public function destroyUnmapped(ScheduleUnmappedCode $schedule_unmapped_code): RedirectResponse
+    {
+        $schedule_unmapped_code->delete();
+
+        return redirect()->back()->with('success', 'Removed this code from the unmapped list.');
+    }
+
+    public function bulkDestroyUnmapped(Request $request): RedirectResponse
+    {
+        $ids = $request->validate([
+            'ids' => ['required', 'array', 'max:500'],
+            'ids.*' => ['integer', 'exists:schedule_unmapped_codes,id'],
+        ])['ids'];
+
+        ScheduleUnmappedCode::whereIn('id', $ids)->delete();
+
+        $n = count($ids);
+
+        return redirect()->back()->with('success', "Removed {$n} code(s) from the unmapped list.");
+    }
+
+    public function clearAllUnmapped(): RedirectResponse
+    {
+        $n = ScheduleUnmappedCode::query()->delete();
+
+        return redirect()->back()->with('success', "Cleared all {$n} unmapped code(s).");
     }
 
     public function bulkPreview(Request $request): JsonResponse
@@ -370,13 +389,15 @@ class ScheduleImportController extends Controller
             $u = $users->get($empId);
             if (! $u) {
                 $results[] = ['employee_id' => $empId, 'user_id' => null, 'run_id' => null, 'error' => 'No user with this Employee ID'];
+
                 continue;
             }
             $arr = array_values($userRows->all());
             try {
-                $result = \Illuminate\Support\Facades\DB::transaction(fn () => $service->applyForUser($arr, $u, 'admin', $actor));
+                $result = DB::transaction(fn () => $service->applyForUser($arr, $u, 'admin', $actor));
             } catch (\Throwable $e) {
                 $results[] = ['employee_id' => $empId, 'user_id' => $u->id, 'run_id' => null, 'error' => $e->getMessage()];
+
                 continue;
             }
             $results[] = [
@@ -428,9 +449,10 @@ class ScheduleImportController extends Controller
                 'users' => $compare['users'],
                 'unmatched_employees' => $compare['unmatched_employees'] ?? [],
             ];
-            \App\Models\Setting::set('bulk_compare_latest', json_encode($lastRun));
+            Setting::set('bulk_compare_latest', json_encode($lastRun));
             $payload['last_bulk_compare'] = $lastRun;
         }
+
         return response()->json($payload);
     }
 
@@ -485,8 +507,10 @@ class ScheduleImportController extends Controller
             $mime = $upload->getMimeType();
             if (in_array($mime, ['text/csv', 'text/plain', 'application/csv'], true)) {
                 $raw = $upload->get();
+
                 return is_string($raw) && $raw !== '' ? $raw : null;
             }
+
             return null;
         }
         $content = $request->input('csv_content');
@@ -505,6 +529,7 @@ class ScheduleImportController extends Controller
         }
         if (is_numeric($v)) {
             $ms = (int) $v;
+
             return $ms > 0 ? $ms : null;
         }
 

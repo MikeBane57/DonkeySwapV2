@@ -4,23 +4,27 @@ use App\Http\Controllers\Admin\AppIconController;
 use App\Http\Controllers\Admin\MessageCenterController;
 use App\Http\Controllers\Admin\PostManagerController;
 use App\Http\Controllers\Admin\RedLinesController;
+use App\Http\Controllers\Admin\ScheduleImportController;
 use App\Http\Controllers\Admin\ShiftsController;
 use App\Http\Controllers\Admin\UserManagerController;
 use App\Http\Controllers\Admin\WorkgroupsController;
+use App\Http\Controllers\Api\BannerMessageController;
 use App\Http\Controllers\Api\CalendarController;
 use App\Http\Controllers\Api\ExportController;
+use App\Http\Controllers\Api\HiddenPostController;
+use App\Http\Controllers\Api\LfwDateRangeController;
 use App\Http\Controllers\Api\NotificationsController;
 use App\Http\Controllers\Api\OfferController;
 use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\ScheduleImportController as ApiScheduleImportController;
 use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\Api\SwapPostController;
-use App\Http\Controllers\Api\LfwDateRangeController;
 use App\Http\Controllers\Api\TimeOffRangeController;
 use App\Http\Controllers\App\AvailableController;
 use App\Http\Controllers\App\DashboardController;
 use App\Http\Controllers\App\LookingForWorkController;
 use App\Http\Controllers\App\NotificationsController as AppNotificationsController;
+use App\Http\Controllers\App\ReconcileScheduleController;
 use App\Http\Controllers\LandingController;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Route;
@@ -59,7 +63,7 @@ Route::get('/welcome', fn () => redirect('/'))->name('welcome');
 
 // API routes (session auth, for polling & export)
 Route::prefix('api')->middleware(['auth'])->group(function () {
-    Route::post('banner-messages/{bannerMessage}/acknowledge', [\App\Http\Controllers\Api\BannerMessageController::class, 'acknowledge'])->name('api.banner.acknowledge');
+    Route::post('banner-messages/{bannerMessage}/acknowledge', [BannerMessageController::class, 'acknowledge'])->name('api.banner.acknowledge');
     Route::get('notifications/unread', [NotificationsController::class, 'unread'])->name('api.notifications.unread');
     Route::patch('notifications/{notification}/read', [NotificationsController::class, 'markRead'])->name('api.notifications.mark-read');
     Route::post('notifications/read-all', [NotificationsController::class, 'markAllRead'])->name('api.notifications.mark-all-read');
@@ -75,8 +79,8 @@ Route::prefix('api')->middleware(['auth'])->group(function () {
     Route::post('postings/bulk', [SwapPostController::class, 'storeBulk'])->name('api.postings.bulk');
     Route::delete('posts/{post}', [SwapPostController::class, 'destroy'])->name('api.postings.destroy');
     Route::post('posts/{post}/offer', [SwapPostController::class, 'offer'])->name('api.postings.offer');
-    Route::post('posts/{post}/hide', [\App\Http\Controllers\Api\HiddenPostController::class, 'hide'])->name('api.posts.hide');
-    Route::post('posts/unhide-all', [\App\Http\Controllers\Api\HiddenPostController::class, 'unhideAll'])->name('api.posts.unhide-all');
+    Route::post('posts/{post}/hide', [HiddenPostController::class, 'hide'])->name('api.posts.hide');
+    Route::post('posts/unhide-all', [HiddenPostController::class, 'unhideAll'])->name('api.posts.unhide-all');
     Route::post('offers/{offer}/accept', [OfferController::class, 'accept'])->name('api.offers.accept');
     Route::post('offers/{offer}/reject', [OfferController::class, 'reject'])->name('api.offers.reject');
     Route::post('offers/{offer}/withdraw', [OfferController::class, 'withdraw'])->name('api.offers.withdraw');
@@ -111,9 +115,9 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
     Route::redirect('dashboard', '/app');
     Route::redirect('calendar', '/app')->name('calendar');
 
-    Route::get('reconcile-schedule', [\App\Http\Controllers\App\ReconcileScheduleController::class, 'index'])->name('reconcile-schedule.index');
-    Route::get('reconcile-schedule/{reconcile_schedule}', [\App\Http\Controllers\App\ReconcileScheduleController::class, 'show'])->name('reconcile-schedule.show');
-    Route::post('reconcile-schedule/{reconcile_schedule}', [\App\Http\Controllers\App\ReconcileScheduleController::class, 'store'])->name('reconcile-schedule.store');
+    Route::get('reconcile-schedule', [ReconcileScheduleController::class, 'index'])->name('reconcile-schedule.index');
+    Route::get('reconcile-schedule/{reconcile_schedule}', [ReconcileScheduleController::class, 'show'])->name('reconcile-schedule.show');
+    Route::post('reconcile-schedule/{reconcile_schedule}', [ReconcileScheduleController::class, 'store'])->name('reconcile-schedule.store');
 
     // Admin panel (admin role required)
     Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
@@ -143,7 +147,9 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::get('message-center', [MessageCenterController::class, 'index'])->name('message-center');
         Route::post('message-center', [MessageCenterController::class, 'store'])->name('message-center.store');
         Route::delete('message-center/banners/{banner}', [MessageCenterController::class, 'destroyBanner'])->name('message-center.banners.destroy');
+        Route::post('message-center/banners/bulk-destroy', [MessageCenterController::class, 'bulkDestroyBanners'])->name('message-center.banners.bulk-destroy');
         Route::delete('message-center/notification-batches/{batch}', [MessageCenterController::class, 'destroyNotificationBatch'])->name('message-center.notification-batches.destroy');
+        Route::post('message-center/notification-batches/bulk-destroy', [MessageCenterController::class, 'bulkDestroyNotificationBatches'])->name('message-center.notification-batches.bulk-destroy');
         Route::get('message-center/users/{user}/notifications', [MessageCenterController::class, 'userNotifications'])->name('message-center.user-notifications');
         Route::post('message-center/users/{user}/notifications/clear-badge', [MessageCenterController::class, 'clearBadgeForUser'])->name('message-center.user-clear-badge');
         Route::post('message-center/notifications/{notification}/push', [MessageCenterController::class, 'pushNotification'])->name('message-center.notifications.push');
@@ -151,16 +157,19 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::get('app-icon', [AppIconController::class, 'index'])->name('app-icon');
         Route::post('app-icon', [AppIconController::class, 'store'])->name('app-icon.store');
         Route::post('app-icon/set-current', [AppIconController::class, 'setCurrent'])->name('app-icon.set-current');
-        Route::get('import-bulk', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'bulkPage'])->name('import-bulk');
-        Route::get('import-history', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'index'])->name('import-history');
-        Route::get('import-history/{schedule_import_run}', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'show'])->name('import-history.show');
-        Route::get('import-audit', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'audit'])->name('import-audit');
-        Route::get('import-unmapped-codes', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'unmapped'])->name('import-unmapped-codes');
-        Route::post('schedule-import/unmapped-add-to-workgroup', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'unmappedAddToWorkgroup'])->name('schedule-import.unmapped-add-to-workgroup');
-        Route::post('schedule-import/bulk-preview', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'bulkPreview'])->name('schedule-import.bulk-preview')->middleware('throttle:10,1');
-        Route::post('schedule-import/bulk-apply', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'bulkApply'])->name('schedule-import.bulk-apply')->middleware('throttle:10,1');
-        Route::post('schedule-import/master-compare', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'masterCompare'])->name('schedule-import.master-compare')->middleware('throttle:10,1');
-        Route::post('schedule-import/master-apply', [\App\Http\Controllers\Admin\ScheduleImportController::class, 'masterApply'])->name('schedule-import.master-apply')->middleware('throttle:10,1');
+        Route::get('import-bulk', [ScheduleImportController::class, 'bulkPage'])->name('import-bulk');
+        Route::get('import-history', [ScheduleImportController::class, 'index'])->name('import-history');
+        Route::get('import-history/{schedule_import_run}', [ScheduleImportController::class, 'show'])->name('import-history.show');
+        Route::get('import-audit', [ScheduleImportController::class, 'audit'])->name('import-audit');
+        Route::get('import-unmapped-codes', [ScheduleImportController::class, 'unmapped'])->name('import-unmapped-codes');
+        Route::delete('schedule-import/unmapped-codes/{schedule_unmapped_code}', [ScheduleImportController::class, 'destroyUnmapped'])->name('schedule-import.unmapped.destroy');
+        Route::post('schedule-import/unmapped-codes/bulk-destroy', [ScheduleImportController::class, 'bulkDestroyUnmapped'])->name('schedule-import.unmapped.bulk-destroy');
+        Route::post('schedule-import/unmapped-codes/clear-all', [ScheduleImportController::class, 'clearAllUnmapped'])->name('schedule-import.unmapped.clear-all');
+        Route::post('schedule-import/unmapped-add-to-workgroup', [ScheduleImportController::class, 'unmappedAddToWorkgroup'])->name('schedule-import.unmapped-add-to-workgroup');
+        Route::post('schedule-import/bulk-preview', [ScheduleImportController::class, 'bulkPreview'])->name('schedule-import.bulk-preview')->middleware('throttle:10,1');
+        Route::post('schedule-import/bulk-apply', [ScheduleImportController::class, 'bulkApply'])->name('schedule-import.bulk-apply')->middleware('throttle:10,1');
+        Route::post('schedule-import/master-compare', [ScheduleImportController::class, 'masterCompare'])->name('schedule-import.master-compare')->middleware('throttle:10,1');
+        Route::post('schedule-import/master-apply', [ScheduleImportController::class, 'masterApply'])->name('schedule-import.master-apply')->middleware('throttle:10,1');
     });
 
     require __DIR__.'/settings.php';

@@ -1,5 +1,6 @@
 import { usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { isLikelyTransientNetworkError, logClientError } from '@/lib/client-logger';
 import { getCsrfToken } from '@/lib/csrf';
 
 /**
@@ -75,24 +76,35 @@ export function usePushSubscription() {
                 attempted.current = false;
                 return;
             }
-            const res = await fetch('/api/push-subscription', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-XSRF-TOKEN': getCsrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                credentials: 'include',
-                body: JSON.stringify(body),
-            });
+            const controller = new AbortController();
+            const pushTimeout = window.setTimeout(() => controller.abort(), 25000);
+            let res: Response;
+            try {
+                res = await fetch('/api/push-subscription', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-XSRF-TOKEN': getCsrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(body),
+                    signal: controller.signal,
+                });
+            } finally {
+                window.clearTimeout(pushTimeout);
+            }
             if (!res.ok) {
                 setStatus('error');
                 attempted.current = false;
                 return;
             }
             setStatus('subscribed');
-        } catch {
+        } catch (e) {
+            if (!isLikelyTransientNetworkError(e)) {
+                logClientError('push.subscribe', e);
+            }
             setStatus('error');
             attempted.current = false;
         }

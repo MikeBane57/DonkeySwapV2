@@ -30,7 +30,10 @@
             }
         </style>
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        <title inertia>{{ config('app.name', 'Donkey Swap') }}</title>
+
+        {{-- Used by Vite app bundle for <Head> suffix; avoids "Laravel" when VITE_APP_NAME is unset in CI. --}}
+        <script>window.__APP_NAME__ = @json(config('app.name'));</script>
 
         {{-- VAPID public key for push (fallback if Inertia shared prop is missing e.g. due to caching) --}}
         <script>window.__VAPID_PUBLIC_KEY__ = @json(config('webpush.vapid.public_key'));</script>

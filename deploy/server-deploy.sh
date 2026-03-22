@@ -20,7 +20,7 @@ composer install --no-dev --optimize-autoloader --no-interaction
 
 # No Node.js on this server: build frontend locally (npm ci && npm run build) and upload public/build to server's public/ folder.
 
-echo "==> Laravel migrate (optional, comment out if you run it separately)..."
+echo "==> Running migrations..."
 php artisan migrate --force
 
 echo "==> Cache config and routes..."

@@ -169,7 +169,13 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    /*
+     * When SESSION_SECURE_COOKIE is unset, default to true in production (HTTPS-only cookie)
+     * and false in local so http://localhost works. Override with SESSION_SECURE_COOKIE=true|false.
+     */
+    'secure' => env('SESSION_SECURE_COOKIE') !== null && env('SESSION_SECURE_COOKIE') !== ''
+        ? filter_var(env('SESSION_SECURE_COOKIE'), FILTER_VALIDATE_BOOLEAN)
+        : env('APP_ENV', 'production') === 'production',
 
     /*
     |--------------------------------------------------------------------------
