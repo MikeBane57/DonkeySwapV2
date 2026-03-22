@@ -32,9 +32,17 @@ class ImportDbMerge extends Command
             return self::FAILURE;
         }
 
-        // Ensure live schema matches code (e.g. new columns) before applying merge SQL.
-        $this->info('Running pending migrations...');
-        $this->call('migrate', ['--force' => true]);
+        // Apply only merge-related migrations (avoid full `migrate` on hosts with schema drift).
+        $this->info('Running merge-prep migrations (schedule_import_run_items.meta only)...');
+        foreach ([
+            'database/migrations/2026_03_24_000001_add_meta_to_schedule_import_run_items_if_missing.php',
+            'database/migrations/2026_03_25_000001_ensure_schedule_import_run_items_meta.php',
+        ] as $relative) {
+            $full = base_path($relative);
+            if (is_file($full)) {
+                $this->call('migrate', ['--force' => true, '--path' => $relative]);
+            }
+        }
 
         $sql = File::get($path);
         $statements = array_filter(
