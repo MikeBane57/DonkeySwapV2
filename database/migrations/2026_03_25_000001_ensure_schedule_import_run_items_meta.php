@@ -6,6 +6,9 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Safety net if a prior migration was marked run without adding `meta` (e.g. host quirk).
+     */
     public function up(): void
     {
         if (! Schema::hasTable('schedule_import_run_items')) {
@@ -15,7 +18,6 @@ return new class extends Migration
             return;
         }
         Schema::table('schedule_import_run_items', function (Blueprint $table) {
-            // No ->after(): some hosts error on column positioning for ALTER.
             $table->json('meta')->nullable();
         });
     }

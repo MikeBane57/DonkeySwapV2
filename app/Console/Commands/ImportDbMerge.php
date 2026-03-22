@@ -32,6 +32,10 @@ class ImportDbMerge extends Command
             return self::FAILURE;
         }
 
+        // Ensure live schema matches code (e.g. new columns) before applying merge SQL.
+        $this->info('Running pending migrations...');
+        $this->call('migrate', ['--force' => true]);
+
         $sql = File::get($path);
         $statements = array_filter(
             array_map('trim', explode(";\n", $sql)),
