@@ -76,6 +76,9 @@ jobs:
       - name: Verify deploy secrets are set
         run: |
           missing=""
+          [ -z "${{ secrets.FTP_SERVER }}" ] && missing="$missing FTP_SERVER"
+          [ -z "${{ secrets.FTP_USERNAME }}" ] && missing="$missing FTP_USERNAME"
+          [ -z "${{ secrets.FTP_PASSWORD }}" ] && missing="$missing FTP_PASSWORD"
           [ -z "${{ secrets.FTP_REMOTE_DIR }}" ] && missing="$missing FTP_REMOTE_DIR"
           [ -z "${{ secrets.SSH_HOST }}" ] && missing="$missing SSH_HOST"
           [ -z "${{ secrets.SSH_USER }}" ] && missing="$missing SSH_USER"
@@ -117,29 +120,17 @@ jobs:
           VITE_APP_VERSION: 2.1.${{ github.run_number }}
         run: npm ci && npm run build
 
-      # FTP passive data connections often time out from GitHub-hosted runners.
-      # appleboy/scp-action uses drone-scp (tar + remote untar); remote tar often fails on shared hosting.
-      # Plain OpenSSH scp -r only needs sftp/scp on the server (no rsync, no remote untar).
-      - name: Start SSH agent (for scp)
-        uses: webfactory/ssh-agent@v0.9.0
+      - name: Upload public/build via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Upload public/build via scp (SSH)
-        env:
-          SSH_PORT: ${{ secrets.SSH_PORT }}
-        run: |
-          set -euo pipefail
-          PORT="${SSH_PORT:-22}"
-          REMOTE_PARENT="${{ secrets.FTP_REMOTE_DIR }}/public"
-          DEST="${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${REMOTE_PARENT}/"
-          echo "==> scp -r public/build -> FTP_REMOTE_DIR/public/build on server"
-          ssh -p "${PORT}" -o StrictHostKeyChecking=accept-new \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "rm -rf ${REMOTE_PARENT}/build"
-          scp -r -P "${PORT}" -o StrictHostKeyChecking=accept-new \
-            "public/build" \
-            "${DEST}"
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./public/build/
+          server-dir: ${{ secrets.FTP_REMOTE_DIR }}/public/build/
+          protocol: ftp
+          port: 21
+          timeout: 60000
 
       # Server: pull code, install deps, migrate, then optimize (config + events + routes + views).
       # set -e: any failing command fails the deploy so migrations/caches are not silently skipped.
