@@ -1,6 +1,8 @@
 #!/usr/bin/env php
 <?php
 
+use Illuminate\Contracts\Console\Kernel;
+
 /**
  * Export SQLite database to MySQL-compatible SQL.
  * Run from project root: php scripts/sqlite-to-mysql.php
@@ -12,7 +14,7 @@
 $projectRoot = dirname(__DIR__);
 require $projectRoot.'/vendor/autoload.php';
 $app = require_once $projectRoot.'/bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$app->make(Kernel::class)->bootstrap();
 
 $connection = config('database.default');
 if ($connection !== 'sqlite') {

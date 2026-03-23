@@ -45,10 +45,12 @@ export default function AdminAppIcon() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="App icon – Admin" />
-            <div className="p-4 space-y-6">
+            <div className="space-y-6 p-4">
                 <h1 className="text-2xl font-semibold">App icon</h1>
                 <p className="text-muted-foreground">
-                    This icon is used for the in-app home logo, browser tab, and PWA/home screen. Upload a new image or pick one already uploaded.
+                    This icon is used for the in-app home logo, browser tab, and
+                    PWA/home screen. Upload a new image or pick one already
+                    uploaded.
                 </p>
 
                 {flash?.success && (
@@ -64,9 +66,14 @@ export default function AdminAppIcon() {
 
                 <section className="space-y-3">
                     <h2 className="font-medium">Upload new icon</h2>
-                    <form onSubmit={handleUpload} className="flex flex-wrap items-end gap-4">
+                    <form
+                        onSubmit={handleUpload}
+                        className="flex flex-wrap items-end gap-4"
+                    >
                         <div className="space-y-2">
-                            <Label htmlFor="icon">Image (PNG, JPG, GIF, WebP; max 2MB)</Label>
+                            <Label htmlFor="icon">
+                                Image (PNG, JPG, GIF, WebP; max 2MB)
+                            </Label>
                             <Input
                                 id="icon"
                                 type="file"
@@ -77,7 +84,9 @@ export default function AdminAppIcon() {
                                 }}
                             />
                             {errors.icon && (
-                                <p className="text-sm text-destructive">{errors.icon}</p>
+                                <p className="text-sm text-destructive">
+                                    {errors.icon}
+                                </p>
                             )}
                         </div>
                         <Button type="submit" disabled={!uploadForm.data.icon}>
@@ -108,12 +117,17 @@ export default function AdminAppIcon() {
                                             className="h-full w-full object-contain"
                                         />
                                     </div>
-                                    <p className="mt-2 truncate w-full text-center text-xs text-muted-foreground" title={icon.filename}>
+                                    <p
+                                        className="mt-2 w-full truncate text-center text-xs text-muted-foreground"
+                                        title={icon.filename}
+                                    >
                                         {icon.filename}
                                     </p>
                                     <Button
                                         type="button"
-                                        variant={isCurrent ? 'secondary' : 'outline'}
+                                        variant={
+                                            isCurrent ? 'secondary' : 'outline'
+                                        }
                                         size="sm"
                                         className="mt-2 w-full"
                                         onClick={() => setCurrent(icon.url)}

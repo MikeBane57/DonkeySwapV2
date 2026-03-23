@@ -6,14 +6,14 @@ use App\Models\AdminNotificationBatch;
 use App\Models\AppNotification;
 use App\Models\BulkApplyBatch;
 use App\Models\ScheduleImportRun;
+use App\Models\ScheduleImportRunItem;
 use App\Models\ScheduleReconciliation;
 use App\Models\ScheduleReconciliationItem;
-use App\Models\ScheduleImportRunItem;
 use App\Models\ScheduleUnmappedCode;
+use App\Models\Setting;
 use App\Models\Shift;
 use App\Models\User;
 use App\Models\WorkgroupDeskType;
-use App\Models\Setting;
 use App\Models\WorkgroupPositionRange;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -52,8 +52,8 @@ class ScheduleImportService
      * (parse() can ignore the timezone in some PHP/Carbon configs and cause wrong dates).
      *
      * @param  string  $timeCode  Hour or HHMM in Central (e.g. "6", "0600", "14:00")
-     * @param  string  $dateYmd   Date from CSV (YYYY-MM-DD)
-     * @return array{start_utc: \Carbon\Carbon, end_utc: \Carbon\Carbon}|null
+     * @param  string  $dateYmd  Date from CSV (YYYY-MM-DD)
+     * @return array{start_utc: Carbon, end_utc: Carbon}|null
      */
     public function timeCodeToStartEnd(string $timeCode, string $dateYmd): ?array
     {
@@ -260,6 +260,7 @@ class ScheduleImportService
             $resolved = $this->resolveDeskCode($deskCode, $user, $context);
             if ($resolved['workgroup_id'] === 0) {
                 $errors[] = "No workgroup for user; cannot place desk {$deskCode}.";
+
                 continue;
             }
             $times = $this->timeCodeToStartEnd($timeCode, $dateStr);
@@ -339,6 +340,7 @@ class ScheduleImportService
             $existingShift = $existing->first(fn (Shift $s) => $s->start_time_utc->toIso8601String() === $startKey);
             if (! $existingShift) {
                 $toAdd[] = $row;
+
                 continue;
             }
             $matchedShiftIds[] = $existingShift->id;
@@ -402,9 +404,9 @@ class ScheduleImportService
      * becomes one shift.
      *
      * @param  array<int, array<string, mixed>>  $rows  Parsed rows for this user only
-     * @param  \App\Models\User|null  $actor  User running the import (for admin); defaults to $user
+     * @param  User|null  $actor  User running the import (for admin); defaults to $user
      * @param  int|null  $bulkApplyBatchId  Optional batch ID when applying from Bulk CSV
-     * @return array{run: \App\Models\ScheduleImportRun, created: int, updated: int, skipped: int, conflict: int, missing_shift_ids: array<int, int>}
+     * @return array{run: ScheduleImportRun, created: int, updated: int, skipped: int, conflict: int, missing_shift_ids: array<int, int>}
      */
     public function applyForUser(array $rows, User $user, string $mode = 'user', ?User $actor = null, ?int $bulkApplyBatchId = null): array
     {
@@ -492,6 +494,7 @@ class ScheduleImportService
                     $item['matched_shift_id'] = $existing->id;
                     ScheduleImportRunItem::create($item);
                     $conflict++;
+
                     continue;
                 }
                 $before = [
@@ -778,9 +781,10 @@ class ScheduleImportService
      * optionally notify users.
      *
      * @param  array<int, array<string, mixed>>  $rows  Parsed rows from master CSV
+     * @param  array<int>|null  $onlyUserIds  If non-null and non-empty, only apply for these user IDs (must appear in the CSV).
      * @return array{results: array<int, array{user_id: int, name: string, employee_id: string, created: int, updated: int, removed: int, notified: bool, reconciliation_id?: int, error?: string}>}
      */
-    public function applyMasterCsv(array $rows, User $actor, bool $messageUsers = false): array
+    public function applyMasterCsv(array $rows, User $actor, bool $messageUsers = false, ?array $onlyUserIds = null): array
     {
         $rows = $this->filterLeaveRows($rows);
         $tz = new \DateTimeZone(self::TIMEZONE);
@@ -792,10 +796,17 @@ class ScheduleImportService
 
         $results = [];
         $notificationsByUser = [];
+        $onlySet = null;
+        if ($onlyUserIds !== null && count($onlyUserIds) > 0) {
+            $onlySet = array_fill_keys(array_map('intval', $onlyUserIds), true);
+        }
 
         foreach ($byEmployee as $empId => $userRows) {
             $user = $users->get($empId);
             if (! $user) {
+                continue;
+            }
+            if ($onlySet !== null && ! isset($onlySet[$user->id])) {
                 continue;
             }
             $userRows = array_values($userRows->filter(fn ($r) => empty($r['_past']) && ($r['shift_date'] ?? '') >= $monthStart)->all());
@@ -816,6 +827,7 @@ class ScheduleImportService
                     'notified' => false,
                     'error' => $e->getMessage(),
                 ];
+
                 continue;
             }
             $run = $runResult['run'];

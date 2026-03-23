@@ -14,14 +14,23 @@ import {
     Plus,
     ArrowLeftRight,
 } from 'lucide-react';
-import { Briefcase, CalendarOff, Trash2, MessageSquare, Check, Pencil, ChevronRight } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState  } from 'react';
-import type {ReactNode} from 'react';
+import {
+    Briefcase,
+    CalendarOff,
+    Trash2,
+    MessageSquare,
+    Check,
+    Pencil,
+    ChevronRight,
+} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { AddShiftModal } from '@/components/add-shift-modal';
 import { BulkPostModal } from '@/components/bulk-post-modal';
 import { PostLfwModal } from '@/components/post-lfw-modal';
-import { PostShiftModal  } from '@/components/post-shift-modal';
-import type {ExistingPost} from '@/components/post-shift-modal';
+import { PostShiftModal } from '@/components/post-shift-modal';
+import type { ExistingPost } from '@/components/post-shift-modal';
+import { ScheduleCalendarShiftEventContent } from '@/components/schedule-calendar-shift-event-content';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -38,9 +47,17 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
 import { getCsrfToken } from '@/lib/csrf';
+import {
+    formatStartTimeOnly,
+    normalizeShiftEventEndIso,
+} from '@/lib/schedule-calendar-shift-display';
 import { dashboard, importSchedule } from '@/routes';
 import type { BreadcrumbItem } from '@/types';
 
@@ -60,12 +77,18 @@ const DESK_TYPE_LABELS: Record<string, string> = {
 };
 
 function getDeskTypeLabel(
-    workgroups: { id: number; desk_types?: { code: string; label: string }[] }[],
+    workgroups: {
+        id: number;
+        desk_types?: { code: string; label: string }[];
+    }[],
     workgroupId: number | null | undefined,
-    code: string | null | undefined
+    code: string | null | undefined,
 ): string {
     if (!code) return '';
-    const wg = workgroupId != null ? workgroups.find((w) => w.id === workgroupId) : null;
+    const wg =
+        workgroupId != null
+            ? workgroups.find((w) => w.id === workgroupId)
+            : null;
     const label = wg?.desk_types?.find((d) => d.code === code)?.label;
     return label ?? DESK_TYPE_LABELS[code] ?? code;
 }
@@ -75,8 +98,14 @@ function daysUntilShift(startTimeUtc: string): number {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const shift = new Date(startTimeUtc);
-    const shiftDay = new Date(shift.getFullYear(), shift.getMonth(), shift.getDate());
-    return Math.round((shiftDay.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+    const shiftDay = new Date(
+        shift.getFullYear(),
+        shift.getMonth(),
+        shift.getDate(),
+    );
+    return Math.round(
+        (shiftDay.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
+    );
 }
 
 type ShiftSummary = {
@@ -130,14 +159,17 @@ function groupActivePosts(activePosts: ActivePost[]): ActivePostGroup[] {
     }
     const result: ActivePostGroup[] = [];
     for (const [, shiftPosts] of byShift) {
-        const tradeCash = shiftPosts.filter((p) => p.type === 'trade' || p.type === 'cash');
+        const tradeCash = shiftPosts.filter(
+            (p) => p.type === 'trade' || p.type === 'cash',
+        );
         const timeTrade = shiftPosts.filter((p) => p.type === 'time_trade');
         const ff = shiftPosts.filter((p) => p.type === 'flight_follow');
         const first = shiftPosts[0];
         const start = first?.start_time_utc ?? '';
         const end = first?.end_time_utc ?? '';
         const within_24h = first?.within_24h ?? false;
-        const isTraining = (first as { is_training?: boolean })?.is_training ?? false;
+        const isTraining =
+            (first as { is_training?: boolean })?.is_training ?? false;
         if (tradeCash.length > 0) {
             result.push({
                 shiftId: first!.shift_id,
@@ -255,7 +287,17 @@ type CalendarEvent = {
         desk_type?: string | null;
         regulatory?: boolean;
         is_training?: boolean;
-        posts?: { id: number; type: string; cash_amount?: number | null; flight_follow_minutes?: number | null; flight_follow_at?: string | null; notes?: string | null; preferred_start_times?: string[] | null; preferred_desk_type?: string | null; payback_date_ranges?: { start: string; end: string }[] | null }[];
+        posts?: {
+            id: number;
+            type: string;
+            cash_amount?: number | null;
+            flight_follow_minutes?: number | null;
+            flight_follow_at?: string | null;
+            notes?: string | null;
+            preferred_start_times?: string[] | null;
+            preferred_desk_type?: string | null;
+            payback_date_ranges?: { start: string; end: string }[] | null;
+        }[];
         workgroup_id?: number | null;
         workgroup_name?: string;
         /** True when this is a shift the user would receive from a pending offer (not yet committed). */
@@ -305,16 +347,33 @@ type LfwDateRangePuck = {
     dateTo: string;
 };
 
-const DASHBOARD_RELOAD_ONLY = ['activePosts', 'activeLookingForWorkPosts', 'actionRequired', 'currentShift', 'todayShift', 'nextShift', 'upcomingShifts', 'timeOffRanges', 'lfwDateRanges', 'initialEvents', 'lastWorkzoneSyncAt'] as const;
+const DASHBOARD_RELOAD_ONLY = [
+    'activePosts',
+    'activeLookingForWorkPosts',
+    'actionRequired',
+    'currentShift',
+    'todayShift',
+    'nextShift',
+    'upcomingShifts',
+    'timeOffRanges',
+    'lfwDateRanges',
+    'initialEvents',
+    'lastWorkzoneSyncAt',
+] as const;
 
 function postTypeLabel(type: string | undefined): string {
     if (!type) return 'post';
     switch (type) {
-        case 'cash': return 'cash giveaway';
-        case 'trade': return 'trade';
-        case 'time_trade': return 'time trade';
-        case 'flight_follow': return 'flight following';
-        default: return type.replace('_', ' ');
+        case 'cash':
+            return 'cash giveaway';
+        case 'trade':
+            return 'trade';
+        case 'time_trade':
+            return 'time trade';
+        case 'flight_follow':
+            return 'flight following';
+        default:
+            return type.replace('_', ' ');
     }
 }
 
@@ -322,7 +381,8 @@ function formatRangeShort(startDate: string, endDate: string): string {
     try {
         const s = new Date(startDate + 'T12:00:00');
         const e = new Date(endDate + 'T12:00:00');
-        const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const fmt = (d: Date) =>
+            d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         return `${fmt(s)} – ${fmt(e)}`;
     } catch {
         return `${startDate} – ${endDate}`;
@@ -356,16 +416,28 @@ function formatShortDate(iso: string): string {
     }
 }
 
-function formatPaybackRanges(ranges: { start: string; end: string }[] | null | undefined): string {
+function formatPaybackRanges(
+    ranges: { start: string; end: string }[] | null | undefined,
+): string {
     if (!ranges?.length) return '';
     return ranges
         .map((r) => {
             try {
                 const start = new Date(r.start + 'T12:00:00');
                 const end = new Date(r.end + 'T12:00:00');
-                if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return '';
-                const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                return start.getTime() === end.getTime() ? fmt(start) : `${fmt(start)}–${fmt(end)}`;
+                if (
+                    Number.isNaN(start.getTime()) ||
+                    Number.isNaN(end.getTime())
+                )
+                    return '';
+                const fmt = (d: Date) =>
+                    d.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                    });
+                return start.getTime() === end.getTime()
+                    ? fmt(start)
+                    : `${fmt(start)}–${fmt(end)}`;
             } catch {
                 return '';
             }
@@ -387,29 +459,6 @@ function formatTime(iso: string) {
     }
 }
 
-function formatStartTimeOnly(iso: string): string {
-    try {
-        return new Date(iso).toLocaleTimeString('en-US', {
-            timeZone: 'America/Chicago',
-            hour: 'numeric',
-            minute: '2-digit',
-        });
-    } catch {
-        return '';
-    }
-}
-
-/** Full 24h clock for calendar (e.g. 1400, 0600, 1430). */
-function formatStartTime24Full(iso: string): string {
-    try {
-        const d = new Date(iso);
-        const s = d.toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour12: false, hour: '2-digit', minute: '2-digit' });
-        return s.replace(':', '');
-    } catch {
-        return '';
-    }
-}
-
 /** Render time string (e.g. "6:00 AM") with AM/PM as subscript for calendar view. */
 function timeWithSubscript(formatted: string): ReactNode {
     const m = formatted.match(/^(.+?)\s+(AM|PM)$/i);
@@ -417,12 +466,17 @@ function timeWithSubscript(formatted: string): ReactNode {
     return (
         <>
             {m[1]}{' '}
-            <sub className="text-[0.65em] align-baseline opacity-90">{m[2]}</sub>
+            <sub className="align-baseline text-[0.65em] opacity-90">
+                {m[2]}
+            </sub>
         </>
     );
 }
 
-function isDateInTimeOffRanges(dateStr: string, ranges: TimeOffRange[]): boolean {
+function isDateInTimeOffRanges(
+    dateStr: string,
+    ranges: TimeOffRange[],
+): boolean {
     if (!ranges.length) return false;
     for (const r of ranges) {
         if (dateStr >= r.start_date && dateStr <= r.end_date) return true;
@@ -430,15 +484,23 @@ function isDateInTimeOffRanges(dateStr: string, ranges: TimeOffRange[]): boolean
     return false;
 }
 
-function getTimeOffRangeTitleForDate(dateStr: string, ranges: TimeOffRange[]): string | null {
+function getTimeOffRangeTitleForDate(
+    dateStr: string,
+    ranges: TimeOffRange[],
+): string | null {
     for (const r of ranges) {
-        if (dateStr >= r.start_date && dateStr <= r.end_date) return r.title ?? 'Need off';
+        if (dateStr >= r.start_date && dateStr <= r.end_date)
+            return r.title ?? 'Need off';
     }
     return null;
 }
 
 /** Count consecutive days with no shift before and after the given date. */
-function getDaysOffBeforeAfter(dateStr: string, shiftDates: Set<string>, maxDays = 31): { daysOffBefore: number; daysOffAfter: number } {
+function getDaysOffBeforeAfter(
+    dateStr: string,
+    shiftDates: Set<string>,
+    maxDays = 31,
+): { daysOffBefore: number; daysOffAfter: number } {
     let daysOffBefore = 0;
     let daysOffAfter = 0;
     for (let i = 1; i <= maxDays; i++) {
@@ -459,7 +521,11 @@ function getDaysOffBeforeAfter(dateStr: string, shiftDates: Set<string>, maxDays
 }
 
 /** Count consecutive work days (days with a shift) including the given date. */
-function getConsecutiveWorkDaysIncluding(dateStr: string, shiftDates: Set<string>, maxDays = 31): number {
+function getConsecutiveWorkDaysIncluding(
+    dateStr: string,
+    shiftDates: Set<string>,
+    maxDays = 31,
+): number {
     if (!dateStr || !shiftDates.has(dateStr)) return 0;
     let count = 1;
     for (let i = 1; i <= maxDays; i++) {
@@ -480,10 +546,20 @@ function getConsecutiveWorkDaysIncluding(dateStr: string, shiftDates: Set<string
 }
 
 /** Convert time-off ranges to one all-day bar per range. Title shown once, centered on the event. */
-function timeOffToCalendarEvents(ranges: TimeOffRange[]): Array<{ id: string; start: string; end: string; title: string; allDay: boolean; backgroundColor: string; extendedProps?: { isTimeOff: true } }> {
+function timeOffToCalendarEvents(
+    ranges: TimeOffRange[],
+): Array<{
+    id: string;
+    start: string;
+    end: string;
+    title: string;
+    allDay: boolean;
+    backgroundColor: string;
+    extendedProps?: { isTimeOff: true };
+}> {
     return ranges.map((r) => {
         const end = new Date(r.end_date + 'T12:00:00');
-        const title = (r.title?.trim() || r.notes?.trim() || 'Need off');
+        const title = r.title?.trim() || r.notes?.trim() || 'Need off';
         const endExclusive = new Date(end);
         endExclusive.setDate(endExclusive.getDate() + 1);
         return {
@@ -500,64 +576,54 @@ function timeOffToCalendarEvents(ranges: TimeOffRange[]): Array<{ id: string; st
 
 /** Clamp overnight shifts to end of start day (in local time) so they only appear on the day the shift starts. */
 function normalizeEventEnd(ev: CalendarEvent): CalendarEvent {
-    const start = new Date(ev.start);
-    const end = new Date(ev.end);
-    const startDateStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
-    const endDateStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
-    if (startDateStr !== endDateStr) {
-        const endOfStartDay = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 23, 59, 59, 999);
-        return { ...ev, end: endOfStartDay.toISOString() };
-    }
-    return ev;
+    return { ...ev, end: normalizeShiftEventEndIso(ev.start, ev.end) };
 }
 
-function eventContent(info: { event: { id: string; extendedProps?: CalendarEvent['extendedProps'] & { isTimeOff?: boolean }; title: string; start: string; end: string } }) {
+function eventContent(info: {
+    event: {
+        id: string;
+        extendedProps?: CalendarEvent['extendedProps'] & {
+            isTimeOff?: boolean;
+        };
+        title: string;
+        start: string | Date;
+        end: string | Date | null;
+    };
+}) {
     const ev = info.event;
     const p = ev.extendedProps;
     if (ev.id?.startsWith('timeoff-') || p?.isTimeOff) {
         const label = ev.title || 'Need off';
         return (
-            <div className="flex min-w-0 items-center justify-center truncate rounded-lg px-2 py-0.5 text-xs bg-slate-200/80 text-slate-700 dark:bg-slate-600/30 dark:text-slate-300">
+            <div className="flex min-w-0 items-center justify-center truncate rounded-lg bg-slate-200/80 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-600/30 dark:text-slate-300">
                 <span className="truncate font-medium">{label}</span>
             </div>
         );
     }
-    const desk = p?.position_name ?? ((ev.title || '').replace(/\s*\[Post\]\s*$/, '').trim() || 'Shift');
-    const time24Full = formatStartTime24Full(ev.start);
-    const isPast = new Date(ev.end) < new Date();
-    const badges = [];
-    if (p?.regulatory) badges.push(<span key="r" className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" title="Regulatory" />);
-    const posts = p?.posts ?? [];
-    if (posts.some((x) => x.type === 'trade')) badges.push(<Handshake key="t" className="size-3 shrink-0 text-blue-600 dark:text-blue-400" title="Trade" />);
-    if (posts.some((x) => x.type === 'time_trade')) badges.push(<Repeat key="tt" strokeWidth={2.5} className="size-3 shrink-0 text-blue-600 dark:text-blue-400" title="Time trade" />);
-    if (posts.some((x) => x.type === 'cash')) badges.push(<DollarSign key="c" className="size-3 shrink-0 text-green-600 dark:text-green-400" title="Giveaway" />);
-    if (posts.some((x) => x.type === 'flight_follow')) badges.push(<Plane key="f" className="size-3 shrink-0 text-purple-600 dark:text-purple-400" title="Flight Follow" />);
-    const isPendingIncoming = p?.pending_incoming;
-    const isNewShift = p?.is_new_shift;
-    if (p?.action_required) badges.push(<span key="action" className="shrink-0 rounded bg-amber-500/90 px-1 text-[10px] font-medium text-white dark:bg-amber-600 dark:text-amber-100" title="Action required — respond to offer">Action</span>);
-    if (isNewShift) badges.push(<span key="new" className="shrink-0 rounded bg-green-600 px-1 text-[10px] font-medium text-white dark:bg-green-500 dark:text-green-950" title="New shift — your response was accepted. Please check workzone to ensure the change has been made properly.">New</span>);
+    const desk =
+        p?.position_name ??
+        ((ev.title || '').replace(/\s*\[Post\]\s*$/, '').trim() || 'Shift');
+    const startIso =
+        ev.start instanceof Date
+            ? ev.start.toISOString()
+            : String(ev.start ?? '');
+    const endIso =
+        ev.end == null
+            ? startIso
+            : ev.end instanceof Date
+              ? ev.end.toISOString()
+              : String(ev.end);
     return (
-        <div
-            className={`flex w-full min-w-0 overflow-hidden rounded-lg px-2 py-0.5 text-xs ${
-                isPendingIncoming
-                    ? 'border border-dashed border-amber-500/60 bg-amber-50 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100'
-                    : isPast
-                    ? 'bg-muted text-muted-foreground opacity-70'
-                    : 'bg-blue-100 text-blue-900 dark:bg-blue-950/50 dark:text-blue-100'
-            } min-h-[3.5rem] flex-col items-center gap-0.5 py-1.5 sm:min-h-0 sm:flex-row sm:items-center sm:py-0.5`}
-            title={`${desk} ${formatStartTimeOnly(ev.start)}`}
-        >
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5 truncate text-center sm:text-left">
-                {/* Position on first line */}
-                <span className="truncate font-medium">{desk}</span>
-                {/* Start time in full 24h (1400, 0600, etc.) on second line */}
-                {time24Full ? <span className="text-[10px] opacity-90">{time24Full}</span> : null}
-            </div>
-            <div className="flex shrink-0 items-center justify-center gap-0.5 sm:ml-auto sm:justify-end">
-                {isPendingIncoming && <span className="rounded bg-amber-200/80 px-1 text-[10px] font-medium text-amber-900 dark:bg-amber-800/50 dark:text-amber-100" title="Pending — waiting for response">Pending</span>}
-                {badges.length > 0 && <span className="flex flex-wrap items-center justify-center gap-0.5 sm:justify-end">{badges}</span>}
-            </div>
-        </div>
+        <ScheduleCalendarShiftEventContent
+            positionLabel={desk}
+            startIso={startIso}
+            endIso={endIso}
+            regulatory={p?.regulatory}
+            posts={p?.posts ?? []}
+            pendingIncoming={p?.pending_incoming}
+            isNewShift={p?.is_new_shift}
+            actionRequired={p?.action_required}
+        />
     );
 }
 
@@ -573,7 +639,15 @@ export default function AppDashboard() {
         initialEvents?: CalendarEvent[];
         timeOffRanges?: TimeOffRange[];
         lfwDateRanges?: LfwDateRangePuck[];
-        userWorkgroups?: { id: number; name: string; allowed_start_times?: { start_time: string; default_duration_minutes: number }[]; desk_types?: { code: string; label: string }[] }[];
+        userWorkgroups?: {
+            id: number;
+            name: string;
+            allowed_start_times?: {
+                start_time: string;
+                default_duration_minutes: number;
+            }[];
+            desk_types?: { code: string; label: string }[];
+        }[];
         userIsDispatch?: boolean;
         defaultWorkgroupId?: number | null;
         bannerMessages?: BannerMessage[];
@@ -586,9 +660,14 @@ export default function AppDashboard() {
     const upcomingShifts = props.upcomingShifts ?? [];
     const activePosts = props.activePosts ?? [];
     const activeLookingForWorkPosts = props.activeLookingForWorkPosts ?? [];
-    const actionRequired = useMemo(() => props.actionRequired ?? [], [props.actionRequired]);
+    const actionRequired = useMemo(
+        () => props.actionRequired ?? [],
+        [props.actionRequired],
+    );
     const auth = props.auth;
-    const [events, setEvents] = useState<CalendarEvent[]>(props.initialEvents ?? []);
+    const [events, setEvents] = useState<CalendarEvent[]>(
+        props.initialEvents ?? [],
+    );
 
     // When server sends fresh initialEvents (e.g. after accepting a swap), sync to calendar so shifts reflect correctly
     useEffect(() => {
@@ -596,31 +675,51 @@ export default function AppDashboard() {
             setEvents(props.initialEvents);
         }
     }, [props.initialEvents]);
-    const [bannerMessages, setBannerMessages] = useState<BannerMessage[]>(props.bannerMessages ?? []);
+    const [bannerMessages, setBannerMessages] = useState<BannerMessage[]>(
+        props.bannerMessages ?? [],
+    );
     useEffect(() => {
         if (Array.isArray(props.bannerMessages)) {
             setBannerMessages(props.bannerMessages);
         }
     }, [props.bannerMessages]);
-    const [timeOffRanges, setTimeOffRanges] = useState<TimeOffRange[]>(props.timeOffRanges ?? []);
+    const [timeOffRanges, setTimeOffRanges] = useState<TimeOffRange[]>(
+        props.timeOffRanges ?? [],
+    );
     const [selectedRangeId, setSelectedRangeId] = useState<number | null>(null);
     const [newRangeTitle, setNewRangeTitle] = useState('');
     const [newRangeStart, setNewRangeStart] = useState('');
     const [newRangeEnd, setNewRangeEnd] = useState('');
     const [addingRange, setAddingRange] = useState(false);
-    const [bulkPostShiftIds, setBulkPostShiftIds] = useState<number[] | null>(null);
-    const [eventsInSelectedRange, setEventsInSelectedRange] = useState<CalendarEvent[]>([]);
-    const [deletingPostShiftId, setDeletingPostShiftId] = useState<number | null>(null);
-    const [activePostTypeFilter, setActivePostTypeFilter] = useState<string>('');
+    const [bulkPostShiftIds, setBulkPostShiftIds] = useState<number[] | null>(
+        null,
+    );
+    const [eventsInSelectedRange, setEventsInSelectedRange] = useState<
+        CalendarEvent[]
+    >([]);
+    const [deletingPostShiftId, setDeletingPostShiftId] = useState<
+        number | null
+    >(null);
+    const [activePostTypeFilter, setActivePostTypeFilter] =
+        useState<string>('');
     const [activePostSearch, setActivePostSearch] = useState('');
     const userWorkgroups = props.userWorkgroups ?? [];
     const userIsDispatch = props.userIsDispatch ?? false;
     const defaultWorkgroupId = props.defaultWorkgroupId ?? null;
     const [showAddShiftModal, setShowAddShiftModal] = useState(false);
     const [modalDate, setModalDate] = useState<string | null>(null);
-    const [eligiblePostCounts, setEligiblePostCounts] = useState<{ flight_follow: number; time_trade: number; trade: number; cash: number } | null>(null);
-    const [datesWithEligibleGiveaway, setDatesWithEligibleGiveaway] = useState<string[]>([]);
-    const [datesWithEligibleFF, setDatesWithEligibleFF] = useState<string[]>([]);
+    const [eligiblePostCounts, setEligiblePostCounts] = useState<{
+        flight_follow: number;
+        time_trade: number;
+        trade: number;
+        cash: number;
+    } | null>(null);
+    const [datesWithEligibleGiveaway, setDatesWithEligibleGiveaway] = useState<
+        string[]
+    >([]);
+    const [datesWithEligibleFF, setDatesWithEligibleFF] = useState<string[]>(
+        [],
+    );
     const [postModalShift, setPostModalShift] = useState<{
         shiftId: number;
         position_name: string;
@@ -655,14 +754,21 @@ export default function AppDashboard() {
     const [editShiftRegulatory, setEditShiftRegulatory] = useState(false);
     const [editShiftSaving, setEditShiftSaving] = useState(false);
     /** Remove shift confirm from the day popup */
-    const [removeShiftConfirm, setRemoveShiftConfirm] = useState<{ shiftId: number; positionName: string } | null>(null);
+    const [removeShiftConfirm, setRemoveShiftConfirm] = useState<{
+        shiftId: number;
+        positionName: string;
+    } | null>(null);
     const [removeShiftDeleting, setRemoveShiftDeleting] = useState(false);
     const [datePopupPostsOpen, setDatePopupPostsOpen] = useState(false);
     /** Find FF modal: show LFW flight-follow posts for next shift date, or offer to post FF / LFW. */
     const [findFFModal, setFindFFModal] = useState<{
         date: string;
         lfwCount: number;
-        lfwPosts: { id: number; poster_name: string | null; seeking_date: string }[];
+        lfwPosts: {
+            id: number;
+            poster_name: string | null;
+            seeking_date: string;
+        }[];
         forShift?: ShiftSummary | null;
     } | null>(null);
     const [findFFLoading, setFindFFLoading] = useState(false);
@@ -670,32 +776,60 @@ export default function AppDashboard() {
     const [lfwModalOpen, setLfwModalOpen] = useState(false);
     const [lfwModalDate, setLfwModalDate] = useState('');
     const [lfwModalWilling, setLfwModalWilling] = useState(false);
-    const [lfwModalTimeFrame, setLfwModalTimeFrame] = useState<'before' | 'after' | 'any' | null>(null);
+    const [lfwModalTimeFrame, setLfwModalTimeFrame] = useState<
+        'before' | 'after' | 'any' | null
+    >(null);
     /** FF modal: find people willing to follow before/after shift, or post LFW. */
     const [ffModalOpen, setFfModalOpen] = useState(false);
-    const [ffModalStep, setFfModalStep] = useState<'before_after' | 'results'>('before_after');
-    const [ffModalTimeFrame, setFfModalTimeFrame] = useState<'before' | 'after' | null>(null);
+    const [ffModalStep, setFfModalStep] = useState<'before_after' | 'results'>(
+        'before_after',
+    );
+    const [ffModalTimeFrame, setFfModalTimeFrame] = useState<
+        'before' | 'after' | null
+    >(null);
     const [ffModalDate, setFfModalDate] = useState('');
-    const [ffModalPosts, setFfModalPosts] = useState<{ id: number; poster_name: string | null; seeking_date: string }[]>([]);
+    const [ffModalPosts, setFfModalPosts] = useState<
+        { id: number; poster_name: string | null; seeking_date: string }[]
+    >([]);
     const [ffModalLoading, setFfModalLoading] = useState(false);
-    const [reviewOfferItem, setReviewOfferItem] = useState<ActionRequiredItem | null>(null);
+    const [reviewOfferItem, setReviewOfferItem] =
+        useState<ActionRequiredItem | null>(null);
     /** When multiple LFW offers for same post, show all in one modal. */
-    const [reviewLfwOfferGroup, setReviewLfwOfferGroup] = useState<ActionRequiredItem[] | null>(null);
+    const [reviewLfwOfferGroup, setReviewLfwOfferGroup] = useState<
+        ActionRequiredItem[] | null
+    >(null);
     /** When multiple swap offers for same post (giveaway, trade, etc.), show all in one modal. */
-    const [reviewSwapOfferGroup, setReviewSwapOfferGroup] = useState<ActionRequiredItem[] | null>(null);
+    const [reviewSwapOfferGroup, setReviewSwapOfferGroup] = useState<
+        ActionRequiredItem[] | null
+    >(null);
     /** For trade/time_trade: which of the offered shifts the poster selected to accept (single-offer view). */
-    const [reviewSelectedShiftId, setReviewSelectedShiftId] = useState<number | null>(null);
+    const [reviewSelectedShiftId, setReviewSelectedShiftId] = useState<
+        number | null
+    >(null);
     /** For multi-offer view: which (offer, shift) the poster selected to accept. */
-    const [reviewSelectedCombinedShift, setReviewSelectedCombinedShift] = useState<{ offerId: number; shiftId: number } | null>(null);
+    const [reviewSelectedCombinedShift, setReviewSelectedCombinedShift] =
+        useState<{ offerId: number; shiftId: number } | null>(null);
     /** Multi-offer: only show shifts within poster's payback range. */
     const [reviewOnlyPaybackRange, setReviewOnlyPaybackRange] = useState(false);
     /** When true, hide offered shifts that fall on days the poster needs off. */
     const [reviewHideNeedOff, setReviewHideNeedOff] = useState(false);
-    const [offerResponding, setOfferResponding] = useState<'accept' | 'reject' | null>(null);
-    const [offerRespondError, setOfferRespondError] = useState<string | null>(null);
-    const calendarRef = useRef<{ getApi: () => { gotoDate: (d: Date) => void } }>(null);
-    const calendarRangeRef = useRef<{ startStr: string; endStr: string }>({ startStr: '', endStr: '' });
-    const calendarCachedRangeRef = useRef<{ startStr: string; endStr: string } | null>(null);
+    const [offerResponding, setOfferResponding] = useState<
+        'accept' | 'reject' | null
+    >(null);
+    const [offerRespondError, setOfferRespondError] = useState<string | null>(
+        null,
+    );
+    const calendarRef = useRef<{
+        getApi: () => { gotoDate: (d: Date) => void };
+    }>(null);
+    const calendarRangeRef = useRef<{ startStr: string; endStr: string }>({
+        startStr: '',
+        endStr: '',
+    });
+    const calendarCachedRangeRef = useRef<{
+        startStr: string;
+        endStr: string;
+    } | null>(null);
     const [calendarEventsLoading, setCalendarEventsLoading] = useState(false);
     const [jumpToMonthOpen, setJumpToMonthOpen] = useState(false);
     const [jumpToMonthAnchor, setJumpToMonthAnchor] = useState({ x: 0, y: 0 });
@@ -704,19 +838,34 @@ export default function AppDashboard() {
         const d = new Date();
         return { month: d.getMonth(), year: d.getFullYear() };
     });
-    const [editLfwPost, setEditLfwPost] = useState<ActiveLookingForWorkPost | null>(null);
-    const [editLfwForm, setEditLfwForm] = useState<{ date: string; cash: string; obo: boolean; deskTypes: string[]; notes: string } | null>(null);
+    const [editLfwPost, setEditLfwPost] =
+        useState<ActiveLookingForWorkPost | null>(null);
+    const [editLfwForm, setEditLfwForm] = useState<{
+        date: string;
+        cash: string;
+        obo: boolean;
+        deskTypes: string[];
+        notes: string;
+    } | null>(null);
     const [editLfwSaving, setEditLfwSaving] = useState(false);
-    const [deletingLfwPostId, setDeletingLfwPostId] = useState<number | null>(null);
-    const [dashboardLeftTab, setDashboardLeftTab] = useState<'overview' | 'time_off' | 'active_posts'>('overview');
+    const [deletingLfwPostId, setDeletingLfwPostId] = useState<number | null>(
+        null,
+    );
+    const [dashboardLeftTab, setDashboardLeftTab] = useState<
+        'overview' | 'time_off' | 'active_posts'
+    >('overview');
     const [bulkLfwFrom, setBulkLfwFrom] = useState('');
     const [bulkLfwTo, setBulkLfwTo] = useState('');
     /** Date range pucks in Time off tab: title + range; expand to show off-dates and post actions. Persisted in DB. */
-    const [rangePucks, setRangePucks] = useState<LfwDateRangePuck[]>(props.lfwDateRanges ?? []);
+    const [rangePucks, setRangePucks] = useState<LfwDateRangePuck[]>(
+        props.lfwDateRanges ?? [],
+    );
     const [expandedPuckId, setExpandedPuckId] = useState<number | null>(null);
     const [bulkLfwRangeTitle, setBulkLfwRangeTitle] = useState('LFW');
     const [postingLfwDate, setPostingLfwDate] = useState<string | null>(null);
-    const [postingLfwAllPuckId, setPostingLfwAllPuckId] = useState<number | null>(null);
+    const [postingLfwAllPuckId, setPostingLfwAllPuckId] = useState<
+        number | null
+    >(null);
     const [addingLfwPuck, setAddingLfwPuck] = useState(false);
 
     useEffect(() => {
@@ -730,7 +879,10 @@ export default function AppDashboard() {
         if (start) params.set('start', start);
         if (end) params.set('end', end);
         const res = await fetch(`/api/calendar/events?${params.toString()}`, {
-            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
             credentials: 'include',
         });
         if (res.ok) {
@@ -745,8 +897,20 @@ export default function AppDashboard() {
             if (r.startStr && r.endStr) {
                 const start = new Date(r.startStr);
                 const end = new Date(r.endStr);
-                const fetchStart = new Date(start.getFullYear(), start.getMonth() - 1, 1).toISOString();
-                const fetchEnd = new Date(end.getFullYear(), end.getMonth() + 2, 0, 23, 59, 59, 999).toISOString();
+                const fetchStart = new Date(
+                    start.getFullYear(),
+                    start.getMonth() - 1,
+                    1,
+                ).toISOString();
+                const fetchEnd = new Date(
+                    end.getFullYear(),
+                    end.getMonth() + 2,
+                    0,
+                    23,
+                    59,
+                    59,
+                    999,
+                ).toISOString();
                 fetchEvents(fetchStart, fetchEnd);
             }
         }, 30000);
@@ -770,58 +934,97 @@ export default function AppDashboard() {
                 const item = actionRequired.find((a) => a.id === offerId);
                 if (item) setReviewOfferItem(item);
             }
-            window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+            window.history.replaceState(
+                {},
+                '',
+                window.location.pathname + window.location.hash,
+            );
         }
     }, [actionRequired]);
 
-    const handleDatesSet = useCallback((arg: { startStr: string; endStr: string }) => {
-        calendarRangeRef.current = { startStr: arg.startStr, endStr: arg.endStr };
-        const cached = calendarCachedRangeRef.current;
-        const visibleInCache = cached && arg.startStr >= cached.startStr && arg.endStr <= cached.endStr;
-        if (visibleInCache) {
-            // Already have events for this range (e.g. prefetched); no fetch, no loading
-        } else {
-            const start = new Date(arg.startStr);
-            const end = new Date(arg.endStr);
-            const fetchStart = new Date(start.getFullYear(), start.getMonth() - 1, 1);
-            const fetchEnd = new Date(end.getFullYear(), end.getMonth() + 2, 0, 23, 59, 59, 999);
-            const fetchStartStr = fetchStart.toISOString();
-            const fetchEndStr = fetchEnd.toISOString();
-            const isFirstRange = calendarCachedRangeRef.current === null;
-            if (!isFirstRange) {
-                setCalendarEventsLoading(true);
-                setEvents([]);
+    const handleDatesSet = useCallback(
+        (arg: { startStr: string; endStr: string }) => {
+            calendarRangeRef.current = {
+                startStr: arg.startStr,
+                endStr: arg.endStr,
+            };
+            const cached = calendarCachedRangeRef.current;
+            const visibleInCache =
+                cached &&
+                arg.startStr >= cached.startStr &&
+                arg.endStr <= cached.endStr;
+            if (visibleInCache) {
+                // Already have events for this range (e.g. prefetched); no fetch, no loading
+            } else {
+                const start = new Date(arg.startStr);
+                const end = new Date(arg.endStr);
+                const fetchStart = new Date(
+                    start.getFullYear(),
+                    start.getMonth() - 1,
+                    1,
+                );
+                const fetchEnd = new Date(
+                    end.getFullYear(),
+                    end.getMonth() + 2,
+                    0,
+                    23,
+                    59,
+                    59,
+                    999,
+                );
+                const fetchStartStr = fetchStart.toISOString();
+                const fetchEndStr = fetchEnd.toISOString();
+                const isFirstRange = calendarCachedRangeRef.current === null;
+                if (!isFirstRange) {
+                    setCalendarEventsLoading(true);
+                    setEvents([]);
+                }
+                fetchEvents(fetchStartStr, fetchEndStr)
+                    .then(() => {
+                        calendarCachedRangeRef.current = {
+                            startStr: fetchStartStr,
+                            endStr: fetchEndStr,
+                        };
+                    })
+                    .finally(() => setCalendarEventsLoading(false));
             }
-            fetchEvents(fetchStartStr, fetchEndStr).then(() => {
-                calendarCachedRangeRef.current = { startStr: fetchStartStr, endStr: fetchEndStr };
-            }).finally(() => setCalendarEventsLoading(false));
-        }
-        const from = arg.startStr.slice(0, 10);
-        const to = arg.endStr.slice(0, 10);
-        const tz = typeof Intl !== 'undefined' && Intl.DateTimeFormat ? Intl.DateTimeFormat().resolvedOptions().timeZone : '';
-        const tzParam = tz ? `&timezone=${encodeURIComponent(tz)}` : '';
-        fetch(`/api/available/dates-with-eligible-giveaway?date_from=${encodeURIComponent(from)}&date_to=${encodeURIComponent(to)}${tzParam}`, {
-            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-            credentials: 'include',
-        })
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-                if (data && Array.isArray(data.dates)) {
-                    setDatesWithEligibleGiveaway(data.dates);
-                } else {
+            const from = arg.startStr.slice(0, 10);
+            const to = arg.endStr.slice(0, 10);
+            const tz =
+                typeof Intl !== 'undefined' && Intl.DateTimeFormat
+                    ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                    : '';
+            const tzParam = tz ? `&timezone=${encodeURIComponent(tz)}` : '';
+            fetch(
+                `/api/available/dates-with-eligible-giveaway?date_from=${encodeURIComponent(from)}&date_to=${encodeURIComponent(to)}${tzParam}`,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'include',
+                },
+            )
+                .then((res) => (res.ok ? res.json() : null))
+                .then((data) => {
+                    if (data && Array.isArray(data.dates)) {
+                        setDatesWithEligibleGiveaway(data.dates);
+                    } else {
+                        setDatesWithEligibleGiveaway([]);
+                    }
+                    if (data && Array.isArray(data.dates_ff)) {
+                        setDatesWithEligibleFF(data.dates_ff);
+                    } else {
+                        setDatesWithEligibleFF([]);
+                    }
+                })
+                .catch(() => {
                     setDatesWithEligibleGiveaway([]);
-                }
-                if (data && Array.isArray(data.dates_ff)) {
-                    setDatesWithEligibleFF(data.dates_ff);
-                } else {
                     setDatesWithEligibleFF([]);
-                }
-            })
-            .catch(() => {
-                setDatesWithEligibleGiveaway([]);
-                setDatesWithEligibleFF([]);
-            });
-    }, [fetchEvents]);
+                });
+        },
+        [fetchEvents],
+    );
 
     const handleDateClick = useCallback((arg: { dateStr: string }) => {
         setModalDate(arg.dateStr);
@@ -834,36 +1037,63 @@ export default function AppDashboard() {
         }
         let cancelled = false;
         setEligiblePostCounts(null);
-        fetch(`/api/available/eligible-counts?date=${encodeURIComponent(modalDate)}`, {
-            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-            credentials: 'include',
-        })
-            .then((res) => res.ok ? res.json() : null)
+        fetch(
+            `/api/available/eligible-counts?date=${encodeURIComponent(modalDate)}`,
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'include',
+            },
+        )
+            .then((res) => (res.ok ? res.json() : null))
             .then((data) => {
-                if (!cancelled && data && typeof data.flight_follow === 'number' && typeof data.time_trade === 'number' && typeof data.trade === 'number' && typeof data.cash === 'number') {
+                if (
+                    !cancelled &&
+                    data &&
+                    typeof data.flight_follow === 'number' &&
+                    typeof data.time_trade === 'number' &&
+                    typeof data.trade === 'number' &&
+                    typeof data.cash === 'number'
+                ) {
                     setEligiblePostCounts(data);
                 }
             })
             .catch(() => {});
-        return () => { cancelled = true; };
+        return () => {
+            cancelled = true;
+        };
     }, [modalDate]);
 
-    const handleEventClick = useCallback((arg: { event: { id: string; extendedProps?: CalendarEvent['extendedProps']; title: string; startStr: string; endStr: string; end?: string } }) => {
-        if (arg.event.id?.startsWith('timeoff-')) return;
-        if (arg.event.id?.startsWith('pending-incoming-')) return; // Tentative shift from pending offer; not editable
-        const ext = arg.event.extendedProps;
-        const offerId = ext?.action_required_offer_id;
-        if (offerId != null) {
-            const item = actionRequired.find((a) => a.id === offerId);
-            if (item) {
-                setReviewOfferItem(item);
-                return;
+    const handleEventClick = useCallback(
+        (arg: {
+            event: {
+                id: string;
+                extendedProps?: CalendarEvent['extendedProps'];
+                title: string;
+                startStr: string;
+                endStr: string;
+                end?: string;
+            };
+        }) => {
+            if (arg.event.id?.startsWith('timeoff-')) return;
+            if (arg.event.id?.startsWith('pending-incoming-')) return; // Tentative shift from pending offer; not editable
+            const ext = arg.event.extendedProps;
+            const offerId = ext?.action_required_offer_id;
+            if (offerId != null) {
+                const item = actionRequired.find((a) => a.id === offerId);
+                if (item) {
+                    setReviewOfferItem(item);
+                    return;
+                }
             }
-        }
-        // Open the day popup for this event's date (day is the primary click target)
-        const dateStr = (arg.event.startStr ?? '').slice(0, 10);
-        if (dateStr) setModalDate(dateStr);
-    }, [actionRequired]);
+            // Open the day popup for this event's date (day is the primary click target)
+            const dateStr = (arg.event.startStr ?? '').slice(0, 10);
+            if (dateStr) setModalDate(dateStr);
+        },
+        [actionRequired],
+    );
 
     const handlePostSuccess = useCallback(() => {
         fetchEvents();
@@ -873,7 +1103,12 @@ export default function AppDashboard() {
     function isoToTimeLocal(iso: string): string {
         try {
             const d = new Date(iso);
-            return d.toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour12: false, hour: '2-digit', minute: '2-digit' });
+            return d.toLocaleTimeString('en-US', {
+                timeZone: 'America/Chicago',
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+            });
         } catch {
             return iso.slice(11, 16) || '';
         }
@@ -884,43 +1119,51 @@ export default function AppDashboard() {
         const m = parseInt(parts[1] ?? '0', 10) || 0;
         return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     }
-    const openEditShiftInDay = useCallback((data: {
-        shiftId: number;
-        position_name: string;
-        desk_type?: string | null;
-        workgroup_id?: number | null;
-        workgroup_name?: string;
-        start: string;
-        end: string;
-        regulatory?: boolean;
-    }) => {
-        setEditShiftInDay({
-            shiftId: data.shiftId,
-            position_name: data.position_name,
-            desk_type: data.desk_type ?? null,
-            workgroup_id: data.workgroup_id ?? null,
-            workgroup_name: data.workgroup_name,
-            start: data.start,
-            end: data.end,
-            regulatory: data.regulatory ?? false,
-        });
-        setEditShiftWorkgroupId(data.workgroup_id != null ? String(data.workgroup_id) : '');
-        setEditShiftPositionName(data.position_name);
-        setEditShiftDeskType(data.desk_type ?? '');
-        setEditShiftDate(data.start.slice(0, 10));
-        setEditShiftTime(isoToTimeLocal(data.start));
-        const startDt = new Date(data.start);
-        const endDt = new Date(data.end);
-        const sameDay = data.start.slice(0, 10) === data.end.slice(0, 10);
-        const durationMs = endDt.getTime() - startDt.getTime();
-        const standardDuration = 8 * 60 * 60 * 1000;
-        setEditShiftNonStandard(!sameDay || Math.abs(durationMs - standardDuration) > 60 * 1000);
-        setEditShiftEndDate(data.end.slice(0, 10));
-        setEditShiftEndTime(isoToTimeLocal(data.end));
-        setEditShiftRegulatory(data.regulatory ?? false);
-    }, []);
+    const openEditShiftInDay = useCallback(
+        (data: {
+            shiftId: number;
+            position_name: string;
+            desk_type?: string | null;
+            workgroup_id?: number | null;
+            workgroup_name?: string;
+            start: string;
+            end: string;
+            regulatory?: boolean;
+        }) => {
+            setEditShiftInDay({
+                shiftId: data.shiftId,
+                position_name: data.position_name,
+                desk_type: data.desk_type ?? null,
+                workgroup_id: data.workgroup_id ?? null,
+                workgroup_name: data.workgroup_name,
+                start: data.start,
+                end: data.end,
+                regulatory: data.regulatory ?? false,
+            });
+            setEditShiftWorkgroupId(
+                data.workgroup_id != null ? String(data.workgroup_id) : '',
+            );
+            setEditShiftPositionName(data.position_name);
+            setEditShiftDeskType(data.desk_type ?? '');
+            setEditShiftDate(data.start.slice(0, 10));
+            setEditShiftTime(isoToTimeLocal(data.start));
+            const startDt = new Date(data.start);
+            const endDt = new Date(data.end);
+            const sameDay = data.start.slice(0, 10) === data.end.slice(0, 10);
+            const durationMs = endDt.getTime() - startDt.getTime();
+            const standardDuration = 8 * 60 * 60 * 1000;
+            setEditShiftNonStandard(
+                !sameDay || Math.abs(durationMs - standardDuration) > 60 * 1000,
+            );
+            setEditShiftEndDate(data.end.slice(0, 10));
+            setEditShiftEndTime(isoToTimeLocal(data.end));
+            setEditShiftRegulatory(data.regulatory ?? false);
+        },
+        [],
+    );
     const saveEditShiftInDay = useCallback(async () => {
-        if (!editShiftInDay || !editShiftDate || !editShiftPositionName.trim()) return;
+        if (!editShiftInDay || !editShiftDate || !editShiftPositionName.trim())
+            return;
         setEditShiftSaving(true);
         try {
             const body: Record<string, unknown> = {
@@ -954,21 +1197,44 @@ export default function AppDashboard() {
                 handlePostSuccess();
             } else {
                 const data = await res.json().catch(() => ({}));
-                window.alert(data.message || (data.errors ? Object.values(data.errors).flat().join(' ') : 'Failed to update shift.'));
+                window.alert(
+                    data.message ||
+                        (data.errors
+                            ? Object.values(data.errors).flat().join(' ')
+                            : 'Failed to update shift.'),
+                );
             }
         } finally {
             setEditShiftSaving(false);
         }
-    }, [editShiftInDay, editShiftDate, editShiftTime, editShiftPositionName, editShiftWorkgroupId, editShiftDeskType, editShiftRegulatory, editShiftNonStandard, editShiftEndDate, editShiftEndTime, handlePostSuccess]);
+    }, [
+        editShiftInDay,
+        editShiftDate,
+        editShiftTime,
+        editShiftPositionName,
+        editShiftWorkgroupId,
+        editShiftDeskType,
+        editShiftRegulatory,
+        editShiftNonStandard,
+        editShiftEndDate,
+        editShiftEndTime,
+        handlePostSuccess,
+    ]);
     const confirmRemoveShiftInDay = useCallback(async () => {
         if (!removeShiftConfirm) return;
         setRemoveShiftDeleting(true);
         try {
-            const res = await fetch(`/api/shifts/${removeShiftConfirm.shiftId}`, {
-                method: 'DELETE',
-                headers: { 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'include',
-            });
+            const res = await fetch(
+                `/api/shifts/${removeShiftConfirm.shiftId}`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        'X-XSRF-TOKEN': getCsrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'include',
+                },
+            );
             if (res.ok) {
                 setRemoveShiftConfirm(null);
                 setModalDate(null);
@@ -995,13 +1261,19 @@ export default function AppDashboard() {
     useEffect(() => {
         if (reviewSwapOfferGroup?.length) {
             setReviewOnlyPaybackRange(false);
-            const byPreferenceThenFirst = [...reviewSwapOfferGroup].sort((a, b) =>
-                (a.offer_created_at ?? '').localeCompare(b.offer_created_at ?? '')
+            const byPreferenceThenFirst = [...reviewSwapOfferGroup].sort(
+                (a, b) =>
+                    (a.offer_created_at ?? '').localeCompare(
+                        b.offer_created_at ?? '',
+                    ),
             );
             const firstOffer = byPreferenceThenFirst[0];
             const firstShift = firstOffer?.offered_shifts?.[0];
             if (firstShift) {
-                setReviewSelectedCombinedShift({ offerId: firstOffer.id, shiftId: firstShift.id });
+                setReviewSelectedCombinedShift({
+                    offerId: firstOffer.id,
+                    shiftId: firstShift.id,
+                });
             } else {
                 setReviewSelectedCombinedShift(null);
             }
@@ -1028,13 +1300,18 @@ export default function AppDashboard() {
         const offered = reviewOfferItem?.offered_shifts ?? [];
         if (!reviewHideNeedOff || timeOffRanges.length === 0) return offered;
         return offered.filter(
-            (s) => !isDateInTimeOffRanges(s.start_time_utc?.slice(0, 10) ?? '', timeOffRanges)
+            (s) =>
+                !isDateInTimeOffRanges(
+                    s.start_time_utc?.slice(0, 10) ?? '',
+                    timeOffRanges,
+                ),
         );
     }, [reviewOfferItem?.offered_shifts, reviewHideNeedOff, timeOffRanges]);
 
     /** Flatten all offers on a post into one list; sort by 1st choice first, then by who responded first (oldest first). */
     const combinedOfferedShifts = useMemo((): CombinedOfferedShift[] => {
-        if (!reviewSwapOfferGroup || reviewSwapOfferGroup.length === 0) return [];
+        if (!reviewSwapOfferGroup || reviewSwapOfferGroup.length === 0)
+            return [];
         const out: CombinedOfferedShift[] = [];
         for (const item of reviewSwapOfferGroup) {
             const name = item.offered_by_name ?? 'Someone';
@@ -1055,7 +1332,8 @@ export default function AppDashboard() {
             });
         }
         return out.sort((a, b) => {
-            if (a.preferenceOrder !== b.preferenceOrder) return a.preferenceOrder - b.preferenceOrder;
+            if (a.preferenceOrder !== b.preferenceOrder)
+                return a.preferenceOrder - b.preferenceOrder;
             return a.offerCreatedAt.localeCompare(b.offerCreatedAt);
         });
     }, [reviewSwapOfferGroup]);
@@ -1064,19 +1342,32 @@ export default function AppDashboard() {
         let list = combinedOfferedShifts;
         if (reviewHideNeedOff && timeOffRanges.length > 0) {
             list = list.filter(
-                (s) => !isDateInTimeOffRanges(s.start_time_utc?.slice(0, 10) ?? '', timeOffRanges)
+                (s) =>
+                    !isDateInTimeOffRanges(
+                        s.start_time_utc?.slice(0, 10) ?? '',
+                        timeOffRanges,
+                    ),
             );
         }
         if (reviewOnlyPaybackRange) {
             list = list.filter((s) => s.in_payback_range === true);
         }
         return list;
-    }, [combinedOfferedShifts, reviewHideNeedOff, timeOffRanges, reviewOnlyPaybackRange]);
+    }, [
+        combinedOfferedShifts,
+        reviewHideNeedOff,
+        timeOffRanges,
+        reviewOnlyPaybackRange,
+    ]);
 
     /** Group action items by post so we show one row per post; multiple offers = one review. */
     const groupedActionRequired = useMemo(() => {
-        const lfw = actionRequired.filter((a) => a.action_type === 'looking_for_work_offer');
-        const swap = actionRequired.filter((a) => a.action_type !== 'looking_for_work_offer');
+        const lfw = actionRequired.filter(
+            (a) => a.action_type === 'looking_for_work_offer',
+        );
+        const swap = actionRequired.filter(
+            (a) => a.action_type !== 'looking_for_work_offer',
+        );
         const lfwByPost = new Map<number, ActionRequiredItem[]>();
         for (const item of lfw) {
             const pid = item.looking_for_work_post_id ?? 0;
@@ -1090,8 +1381,14 @@ export default function AppDashboard() {
             swapByPost.get(pid)!.push(item);
         }
         return [
-            ...Array.from(swapByPost.values()).map((group) => ({ single: group[0], group: group.length > 1 ? group : null })),
-            ...Array.from(lfwByPost.values()).map((group) => ({ single: group[0], group: group.length > 1 ? group : null })),
+            ...Array.from(swapByPost.values()).map((group) => ({
+                single: group[0],
+                group: group.length > 1 ? group : null,
+            })),
+            ...Array.from(lfwByPost.values()).map((group) => ({
+                single: group[0],
+                group: group.length > 1 ? group : null,
+            })),
         ];
     }, [actionRequired]);
 
@@ -1107,103 +1404,158 @@ export default function AppDashboard() {
     }, [events]);
 
     useEffect(() => {
-        if (reviewHideNeedOff && visibleOfferedShifts.length > 0 && reviewSelectedShiftId != null) {
-            const isVisible = visibleOfferedShifts.some((s) => s.id === reviewSelectedShiftId);
+        if (
+            reviewHideNeedOff &&
+            visibleOfferedShifts.length > 0 &&
+            reviewSelectedShiftId != null
+        ) {
+            const isVisible = visibleOfferedShifts.some(
+                (s) => s.id === reviewSelectedShiftId,
+            );
             if (!isVisible) {
                 setReviewSelectedShiftId(visibleOfferedShifts[0].id);
             }
         }
     }, [reviewHideNeedOff, visibleOfferedShifts, reviewSelectedShiftId]);
 
-    const handleRespondToOffer = useCallback(async (item: ActionRequiredItem, action: 'accept' | 'reject', selectedShiftId?: number | null) => {
-        const offerId = item.id;
-        const isLfw = item.action_type === 'looking_for_work_offer';
-        setOfferRespondError(null);
-        setOfferResponding(action);
-        try {
-            const url = isLfw
-                ? `/api/looking-for-work/offers/${offerId}/${action}`
-                : `/api/offers/${offerId}/${action}`;
-            const body = !isLfw && action === 'accept' && selectedShiftId != null ? { selected_shift_id: selectedShiftId } : {};
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-XSRF-TOKEN': getCsrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                credentials: 'include',
-                body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
-            });
-            const data = await res.json().catch(() => ({}));
-            if (res.ok && data.ok) {
-                setReviewOfferItem(null);
-                setReviewLfwOfferGroup(null);
-                setReviewSwapOfferGroup(null);
-                fetchEvents();
-                router.reload({ only: DASHBOARD_RELOAD_ONLY });
-            } else {
-                setOfferRespondError(data.message ?? (res.status === 422 ? (data.errors?.[0] ?? 'Request failed') : `Request failed (${res.status}). Try again.`));
+    const handleRespondToOffer = useCallback(
+        async (
+            item: ActionRequiredItem,
+            action: 'accept' | 'reject',
+            selectedShiftId?: number | null,
+        ) => {
+            const offerId = item.id;
+            const isLfw = item.action_type === 'looking_for_work_offer';
+            setOfferRespondError(null);
+            setOfferResponding(action);
+            try {
+                const url = isLfw
+                    ? `/api/looking-for-work/offers/${offerId}/${action}`
+                    : `/api/offers/${offerId}/${action}`;
+                const body =
+                    !isLfw && action === 'accept' && selectedShiftId != null
+                        ? { selected_shift_id: selectedShiftId }
+                        : {};
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-XSRF-TOKEN': getCsrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'include',
+                    body:
+                        Object.keys(body).length > 0
+                            ? JSON.stringify(body)
+                            : undefined,
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.ok) {
+                    setReviewOfferItem(null);
+                    setReviewLfwOfferGroup(null);
+                    setReviewSwapOfferGroup(null);
+                    fetchEvents();
+                    router.reload({ only: DASHBOARD_RELOAD_ONLY });
+                } else {
+                    setOfferRespondError(
+                        data.message ??
+                            (res.status === 422
+                                ? (data.errors?.[0] ?? 'Request failed')
+                                : `Request failed (${res.status}). Try again.`),
+                    );
+                }
+            } catch {
+                setOfferRespondError('Network error. Try again.');
+            } finally {
+                setOfferResponding(null);
             }
-        } catch {
-            setOfferRespondError('Network error. Try again.');
-        } finally {
-            setOfferResponding(null);
-        }
-    }, [fetchEvents]);
+        },
+        [fetchEvents],
+    );
 
-    const [deletingPostGroup, setDeletingPostGroup] = useState<string | null>(null);
-    const deleteActivePostGroup = useCallback(async (group: ActivePostGroup) => {
-        const key = `${group.shiftId}-${group.kind}`;
-        setDeletingPostGroup(key);
-        try {
-            const res = await fetch(`/api/shifts/${group.shiftId}/postings`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-XSRF-TOKEN': getCsrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                credentials: 'include',
-                body: JSON.stringify({ postings: [], delete_ids: group.posts.map((p) => p.id) }),
-            });
-            if (res.ok) {
-                handlePostSuccess();
+    const [deletingPostGroup, setDeletingPostGroup] = useState<string | null>(
+        null,
+    );
+    const deleteActivePostGroup = useCallback(
+        async (group: ActivePostGroup) => {
+            const key = `${group.shiftId}-${group.kind}`;
+            setDeletingPostGroup(key);
+            try {
+                const res = await fetch(
+                    `/api/shifts/${group.shiftId}/postings`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                            'X-XSRF-TOKEN': getCsrfToken(),
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            postings: [],
+                            delete_ids: group.posts.map((p) => p.id),
+                        }),
+                    },
+                );
+                if (res.ok) {
+                    handlePostSuccess();
+                }
+            } finally {
+                setDeletingPostGroup((k) => (k === key ? null : k));
             }
-        } finally {
-            setDeletingPostGroup((k) => (k === key ? null : k));
-        }
-    }, [handlePostSuccess]);
+        },
+        [handlePostSuccess],
+    );
 
-    const [dismissingNotificationId, setDismissingNotificationId] = useState<number | null>(null);
-    const dismissNewShiftNotification = useCallback(async (notificationId: number) => {
-        setDismissingNotificationId(notificationId);
-        try {
-            const res = await fetch(`/api/notifications/${notificationId}/read`, {
-                method: 'PATCH',
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-XSRF-TOKEN': getCsrfToken() },
-                credentials: 'include',
-            });
-            if (res.ok) {
-                fetchEvents();
-                router.reload({ only: DASHBOARD_RELOAD_ONLY });
+    const [dismissingNotificationId, setDismissingNotificationId] = useState<
+        number | null
+    >(null);
+    const dismissNewShiftNotification = useCallback(
+        async (notificationId: number) => {
+            setDismissingNotificationId(notificationId);
+            try {
+                const res = await fetch(
+                    `/api/notifications/${notificationId}/read`,
+                    {
+                        method: 'PATCH',
+                        headers: {
+                            Accept: 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-XSRF-TOKEN': getCsrfToken(),
+                        },
+                        credentials: 'include',
+                    },
+                );
+                if (res.ok) {
+                    fetchEvents();
+                    router.reload({ only: DASHBOARD_RELOAD_ONLY });
+                }
+            } finally {
+                setDismissingNotificationId((id) =>
+                    id === notificationId ? null : id,
+                );
             }
-        } finally {
-            setDismissingNotificationId((id) => (id === notificationId ? null : id));
-        }
-    }, [fetchEvents]);
+        },
+        [fetchEvents],
+    );
 
-    const selectedRange = selectedRangeId ? timeOffRanges.find((r) => r.id === selectedRangeId) : null;
+    const selectedRange = selectedRangeId
+        ? timeOffRanges.find((r) => r.id === selectedRangeId)
+        : null;
 
     useEffect(() => {
         if (!jumpToMonthOpen) return;
         const onPointerDown = (e: PointerEvent) => {
-            if (jumpToMonthPopoverRef.current?.contains(e.target as Node)) return;
+            if (jumpToMonthPopoverRef.current?.contains(e.target as Node))
+                return;
             setJumpToMonthOpen(false);
         };
-        const t = setTimeout(() => window.addEventListener('pointerdown', onPointerDown), 0);
+        const t = setTimeout(
+            () => window.addEventListener('pointerdown', onPointerDown),
+            0,
+        );
         return () => {
             clearTimeout(t);
             window.removeEventListener('pointerdown', onPointerDown);
@@ -1216,19 +1568,34 @@ export default function AppDashboard() {
             return;
         }
         let cancelled = false;
-        const params = new URLSearchParams({ start: selectedRange.start_date, end: selectedRange.end_date });
+        const params = new URLSearchParams({
+            start: selectedRange.start_date,
+            end: selectedRange.end_date,
+        });
         fetch(`/api/calendar/events?${params}`, {
-            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
             credentials: 'include',
         })
-            .then((res) => res.ok ? res.json() : [])
-            .then((data) => { if (!cancelled) setEventsInSelectedRange(Array.isArray(data) ? data : []); })
-            .catch(() => { if (!cancelled) setEventsInSelectedRange([]); });
-        return () => { cancelled = true; };
+            .then((res) => (res.ok ? res.json() : []))
+            .then((data) => {
+                if (!cancelled)
+                    setEventsInSelectedRange(Array.isArray(data) ? data : []);
+            })
+            .catch(() => {
+                if (!cancelled) setEventsInSelectedRange([]);
+            });
+        return () => {
+            cancelled = true;
+        };
     }, [selectedRange]);
 
     const now = new Date();
-    const shiftsInSelectedRange = eventsInSelectedRange.filter((e) => new Date(e.end) >= now && !e.extendedProps?.pending_incoming);
+    const shiftsInSelectedRange = eventsInSelectedRange.filter(
+        (e) => new Date(e.end) >= now && !e.extendedProps?.pending_incoming,
+    );
     const shiftIdsInRange = shiftsInSelectedRange
         .map((e) => e.extendedProps?.shiftId)
         .filter((id): id is number => id != null);
@@ -1240,7 +1607,7 @@ export default function AppDashboard() {
                 !ev.extendedProps?.pending_incoming &&
                 new Date(ev.end) >= now &&
                 ev.start.slice(0, 10) <= r.end_date &&
-                ev.end.slice(0, 10) >= r.start_date
+                ev.end.slice(0, 10) >= r.start_date,
         ).length;
     }
 
@@ -1257,7 +1624,11 @@ export default function AppDashboard() {
                     'X-XSRF-TOKEN': getCsrfToken(),
                 },
                 credentials: 'include',
-                body: JSON.stringify({ title: newRangeTitle.trim() || undefined, start_date: newRangeStart, end_date: newRangeEnd }),
+                body: JSON.stringify({
+                    title: newRangeTitle.trim() || undefined,
+                    start_date: newRangeStart,
+                    end_date: newRangeEnd,
+                }),
             });
             if (res.ok) {
                 const data = await res.json();
@@ -1272,57 +1643,84 @@ export default function AppDashboard() {
         }
     }, [newRangeTitle, newRangeStart, newRangeEnd]);
 
-    const removePostForShift = useCallback(async (shiftId: number, postIds: number[], rangeStart: string, rangeEnd: string) => {
-        if (postIds.length === 0) return;
-        setDeletingPostShiftId(shiftId);
-        try {
-            const res = await fetch(`/api/shifts/${shiftId}/postings`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-XSRF-TOKEN': getCsrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                credentials: 'include',
-                body: JSON.stringify({ postings: [], delete_ids: postIds }),
-            });
-            if (res.ok) {
-                handlePostSuccess();
-                const params = new URLSearchParams({ start: rangeStart, end: rangeEnd });
-                fetch(`/api/calendar/events?${params}`, {
-                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    const removePostForShift = useCallback(
+        async (
+            shiftId: number,
+            postIds: number[],
+            rangeStart: string,
+            rangeEnd: string,
+        ) => {
+            if (postIds.length === 0) return;
+            setDeletingPostShiftId(shiftId);
+            try {
+                const res = await fetch(`/api/shifts/${shiftId}/postings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-XSRF-TOKEN': getCsrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
                     credentials: 'include',
-                })
-                    .then((r) => (r.ok ? r.json() : []))
-                    .then((data) => setEventsInSelectedRange(Array.isArray(data) ? data : []))
-                    .catch(() => {});
+                    body: JSON.stringify({ postings: [], delete_ids: postIds }),
+                });
+                if (res.ok) {
+                    handlePostSuccess();
+                    const params = new URLSearchParams({
+                        start: rangeStart,
+                        end: rangeEnd,
+                    });
+                    fetch(`/api/calendar/events?${params}`, {
+                        headers: {
+                            Accept: 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'include',
+                    })
+                        .then((r) => (r.ok ? r.json() : []))
+                        .then((data) =>
+                            setEventsInSelectedRange(
+                                Array.isArray(data) ? data : [],
+                            ),
+                        )
+                        .catch(() => {});
+                }
+            } finally {
+                setDeletingPostShiftId(null);
             }
-        } finally {
-            setDeletingPostShiftId(null);
-        }
-    }, [handlePostSuccess]);
+        },
+        [handlePostSuccess],
+    );
 
-    const removeTimeOffRange = useCallback(async (id: number) => {
-        try {
-            const res = await fetch(`/api/time-off-ranges/${id}`, {
-                method: 'DELETE',
-                headers: { 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'include',
-            });
-            if (res.ok) {
-                setTimeOffRanges((prev) => prev.filter((r) => r.id !== id));
-                if (selectedRangeId === id) setSelectedRangeId(null);
+    const removeTimeOffRange = useCallback(
+        async (id: number) => {
+            try {
+                const res = await fetch(`/api/time-off-ranges/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-XSRF-TOKEN': getCsrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'include',
+                });
+                if (res.ok) {
+                    setTimeOffRanges((prev) => prev.filter((r) => r.id !== id));
+                    if (selectedRangeId === id) setSelectedRangeId(null);
+                }
+            } catch {
+                // ignore
             }
-        } catch {
-            // ignore
-        }
-    }, [selectedRangeId]);
+        },
+        [selectedRangeId],
+    );
 
     const modalDateOnly = modalDate ? modalDate.slice(0, 10) : null;
     const dayEvents = modalDateOnly
         ? events.filter((e) => {
-              const start = typeof e.start === 'string' ? e.start : (e.start as Date)?.toISOString?.();
+              const start =
+                  typeof e.start === 'string'
+                      ? e.start
+                      : (e.start as Date)?.toISOString?.();
               if (!start) return false;
               const d = new Date(start);
               const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1332,7 +1730,11 @@ export default function AppDashboard() {
 
     /** When opening the date popup for a day with no shifts, show the "View posts" section so the available post box is visible. */
     useEffect(() => {
-        if (modalDateOnly && dayEvents.length === 0 && modalDateOnly >= new Date().toISOString().slice(0, 10)) {
+        if (
+            modalDateOnly &&
+            dayEvents.length === 0 &&
+            modalDateOnly >= new Date().toISOString().slice(0, 10)
+        ) {
             setDatePopupPostsOpen(true);
         }
     }, [modalDateOnly, dayEvents.length]);
@@ -1340,35 +1742,42 @@ export default function AppDashboard() {
     /** Shift shown in top of card: active now, or today's shift (starts later today) */
     const currentOrTodayShift = currentShift ?? todayShift ?? null;
     /** Shift shown in "Next" section: the one after current/today (or next if none) */
-    const displayNextShift =
-        currentShift
-            ? nextShift
-            : todayShift && nextShift?.id === todayShift.id
-                ? (upcomingShifts.find((s) => s.id !== todayShift.id) ?? null)
-                : nextShift;
+    const displayNextShift = currentShift
+        ? nextShift
+        : todayShift && nextShift?.id === todayShift.id
+          ? (upcomingShifts.find((s) => s.id !== todayShift.id) ?? null)
+          : nextShift;
 
-    const onFindFFClick = useCallback(
-        async (forShift: ShiftSummary | null) => {
-            if (!forShift?.start_time_utc) return;
-            const date = forShift.start_time_utc.slice(0, 10);
-            if (date < new Date().toISOString().slice(0, 10)) return;
-            setFindFFLoading(true);
-            setFindFFModal(null);
-            try {
-                const res = await fetch(`/api/looking-for-work/posts-for-date?date=${encodeURIComponent(date)}`, {
-                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    const onFindFFClick = useCallback(async (forShift: ShiftSummary | null) => {
+        if (!forShift?.start_time_utc) return;
+        const date = forShift.start_time_utc.slice(0, 10);
+        if (date < new Date().toISOString().slice(0, 10)) return;
+        setFindFFLoading(true);
+        setFindFFModal(null);
+        try {
+            const res = await fetch(
+                `/api/looking-for-work/posts-for-date?date=${encodeURIComponent(date)}`,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
                     credentials: 'include',
-                });
-                const data = await res.json().catch(() => ({}));
-                const lfwPosts = Array.isArray(data.lfw_ff_posts) ? data.lfw_ff_posts : [];
-                const lfwCount = typeof data.lfw_ff_count === 'number' ? data.lfw_ff_count : lfwPosts.length;
-                setFindFFModal({ date, lfwCount, lfwPosts, forShift });
-            } finally {
-                setFindFFLoading(false);
-            }
-        },
-        []
-    );
+                },
+            );
+            const data = await res.json().catch(() => ({}));
+            const lfwPosts = Array.isArray(data.lfw_ff_posts)
+                ? data.lfw_ff_posts
+                : [];
+            const lfwCount =
+                typeof data.lfw_ff_count === 'number'
+                    ? data.lfw_ff_count
+                    : lfwPosts.length;
+            setFindFFModal({ date, lfwCount, lfwPosts, forShift });
+        } finally {
+            setFindFFLoading(false);
+        }
+    }, []);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -1382,10 +1791,14 @@ export default function AppDashboard() {
                                 key={banner.id}
                                 className="flex gap-3 rounded-xl border border-amber-500/50 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-950/30"
                             >
-                                <MessageSquare className="size-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                                <MessageSquare className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
                                 <div className="min-w-0 flex-1">
-                                    <h3 className="font-semibold text-amber-900 dark:text-amber-100">{banner.title}</h3>
-                                    <p className="mt-1 whitespace-pre-wrap text-sm text-amber-800 dark:text-amber-200">{banner.body}</p>
+                                    <h3 className="font-semibold text-amber-900 dark:text-amber-100">
+                                        {banner.title}
+                                    </h3>
+                                    <p className="mt-1 text-sm whitespace-pre-wrap text-amber-800 dark:text-amber-200">
+                                        {banner.body}
+                                    </p>
                                 </div>
                                 <Button
                                     variant="outline"
@@ -1393,25 +1806,36 @@ export default function AppDashboard() {
                                     className="shrink-0 border-amber-600/50 text-amber-800 hover:bg-amber-100 dark:border-amber-500/50 dark:text-amber-200 dark:hover:bg-amber-900/50"
                                     onClick={async () => {
                                         try {
-                                            const res = await fetch(`/api/banner-messages/${banner.id}/acknowledge`, {
-                                                method: 'POST',
-                                                headers: {
-                                                    'Accept': 'application/json',
-                                                    'Content-Type': 'application/json',
-                                                    'X-Requested-With': 'XMLHttpRequest',
-                                                    'X-XSRF-TOKEN': getCsrfToken(),
+                                            const res = await fetch(
+                                                `/api/banner-messages/${banner.id}/acknowledge`,
+                                                {
+                                                    method: 'POST',
+                                                    headers: {
+                                                        Accept: 'application/json',
+                                                        'Content-Type':
+                                                            'application/json',
+                                                        'X-Requested-With':
+                                                            'XMLHttpRequest',
+                                                        'X-XSRF-TOKEN':
+                                                            getCsrfToken(),
+                                                    },
+                                                    credentials: 'include',
                                                 },
-                                                credentials: 'include',
-                                            });
+                                            );
                                             if (res.ok) {
-                                                setBannerMessages((prev) => prev.filter((m) => m.id !== banner.id));
+                                                setBannerMessages((prev) =>
+                                                    prev.filter(
+                                                        (m) =>
+                                                            m.id !== banner.id,
+                                                    ),
+                                                );
                                             }
                                         } catch {
                                             // ignore
                                         }
                                     }}
                                 >
-                                    <Check className="size-4 mr-1" />
+                                    <Check className="mr-1 size-4" />
                                     Acknowledge
                                 </Button>
                             </div>
@@ -1442,13 +1866,22 @@ export default function AppDashboard() {
                                         : 'rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 dark:border-amber-500/40'
                                 }
                             >
-                                <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                                <h3 className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
                                     {currentShift ? 'Now' : 'Today'}
                                 </h3>
-                                <p className="mt-0.5 font-semibold text-foreground">{currentOrTodayShift.position_name}</p>
+                                <p className="mt-0.5 font-semibold text-foreground">
+                                    {currentOrTodayShift.position_name}
+                                </p>
                                 <p className="text-xs text-muted-foreground">
-                                    {formatTime(currentOrTodayShift.start_time_utc)} – {formatTime(currentOrTodayShift.end_time_utc)}
-                                    {currentOrTodayShift.workgroup_name && ` · ${currentOrTodayShift.workgroup_name}`}
+                                    {formatTime(
+                                        currentOrTodayShift.start_time_utc,
+                                    )}{' '}
+                                    –{' '}
+                                    {formatTime(
+                                        currentOrTodayShift.end_time_utc,
+                                    )}
+                                    {currentOrTodayShift.workgroup_name &&
+                                        ` · ${currentOrTodayShift.workgroup_name}`}
                                 </p>
                                 {/* When shift has started: FF options only; when today (not started): Post, Find FF, Be A FF — same order as Next shift */}
                                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1459,19 +1892,36 @@ export default function AppDashboard() {
                                             className="h-7"
                                             onClick={() =>
                                                 setPostModalShift({
-                                                    shiftId: currentOrTodayShift.id,
-                                                    position_name: currentOrTodayShift.position_name,
-                                                    desk_type: currentOrTodayShift.desk_type ?? null,
+                                                    shiftId:
+                                                        currentOrTodayShift.id,
+                                                    position_name:
+                                                        currentOrTodayShift.position_name,
+                                                    desk_type:
+                                                        currentOrTodayShift.desk_type ??
+                                                        null,
                                                     start: currentOrTodayShift.start_time_utc,
                                                     end: currentOrTodayShift.end_time_utc,
-                                                    workgroup_id: (currentOrTodayShift as { workgroup_id?: number | null }).workgroup_id ?? null,
-                                                    workgroup_name: currentOrTodayShift.workgroup_name,
-                                                    is_training: (currentOrTodayShift as { is_training?: boolean }).is_training ?? false,
+                                                    workgroup_id:
+                                                        (
+                                                            currentOrTodayShift as {
+                                                                workgroup_id?:
+                                                                    | number
+                                                                    | null;
+                                                            }
+                                                        ).workgroup_id ?? null,
+                                                    workgroup_name:
+                                                        currentOrTodayShift.workgroup_name,
+                                                    is_training:
+                                                        (
+                                                            currentOrTodayShift as {
+                                                                is_training?: boolean;
+                                                            }
+                                                        ).is_training ?? false,
                                                     posts: [],
                                                 })
                                             }
                                         >
-                                            <ArrowLeftRight className="size-3.5 mr-1" />
+                                            <ArrowLeftRight className="mr-1 size-3.5" />
                                             Post
                                         </Button>
                                     )}
@@ -1480,9 +1930,11 @@ export default function AppDashboard() {
                                         size="sm"
                                         className="h-7 border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-600 dark:text-purple-300 dark:hover:bg-purple-950/30"
                                         disabled={findFFLoading}
-                                        onClick={() => onFindFFClick(currentOrTodayShift)}
+                                        onClick={() =>
+                                            onFindFFClick(currentOrTodayShift)
+                                        }
                                     >
-                                        <Plane className="size-3.5 mr-1" />
+                                        <Plane className="mr-1 size-3.5" />
                                         {findFFLoading ? '…' : 'Find FF'}
                                     </Button>
                                     <Button
@@ -1490,11 +1942,24 @@ export default function AppDashboard() {
                                         size="sm"
                                         className="h-7 border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-600 dark:text-purple-300 dark:hover:bg-purple-950/30"
                                         onClick={() => {
-                                            if (currentOrTodayShift?.start_time_utc) {
-                                                const d = currentOrTodayShift.start_time_utc.slice(0, 10);
-                                                if (d >= new Date().toISOString().slice(0, 10)) {
+                                            if (
+                                                currentOrTodayShift?.start_time_utc
+                                            ) {
+                                                const d =
+                                                    currentOrTodayShift.start_time_utc.slice(
+                                                        0,
+                                                        10,
+                                                    );
+                                                if (
+                                                    d >=
+                                                    new Date()
+                                                        .toISOString()
+                                                        .slice(0, 10)
+                                                ) {
                                                     setFfModalDate(d);
-                                                    setFfModalStep('before_after');
+                                                    setFfModalStep(
+                                                        'before_after',
+                                                    );
                                                     setFfModalTimeFrame(null);
                                                     setFfModalPosts([]);
                                                     setFfModalOpen(true);
@@ -1502,7 +1967,7 @@ export default function AppDashboard() {
                                             }
                                         }}
                                     >
-                                        <Plane className="size-3.5 mr-1" />
+                                        <Plane className="mr-1 size-3.5" />
                                         Be A FF
                                     </Button>
                                 </div>
@@ -1510,25 +1975,43 @@ export default function AppDashboard() {
                         )}
 
                         {/* Below: Next shift (or days until next) */}
-                        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mt-3">
+                        <h3 className="mt-3 text-xs font-medium tracking-wider text-muted-foreground uppercase">
                             Next shift
                         </h3>
                         {displayNextShift ? (
                             <>
                                 {(() => {
-                                    const days = daysUntilShift(displayNextShift.start_time_utc);
-                                    const daysLabel = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days until shift`;
+                                    const days = daysUntilShift(
+                                        displayNextShift.start_time_utc,
+                                    );
+                                    const daysLabel =
+                                        days === 0
+                                            ? 'Today'
+                                            : days === 1
+                                              ? 'Tomorrow'
+                                              : `${days} days until shift`;
                                     const dateStr = (() => {
                                         try {
-                                            const d = new Date(displayNextShift.start_time_utc);
-                                            return d.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short', day: 'numeric' }).replace(', ', ' ');
+                                            const d = new Date(
+                                                displayNextShift.start_time_utc,
+                                            );
+                                            return d
+                                                .toLocaleDateString('en-US', {
+                                                    timeZone: 'America/Chicago',
+                                                    weekday: 'short',
+                                                    day: 'numeric',
+                                                })
+                                                .replace(', ', ' ');
                                         } catch {
-                                            return displayNextShift.start_time_utc.slice(8, 10);
+                                            return displayNextShift.start_time_utc.slice(
+                                                8,
+                                                10,
+                                            );
                                         }
                                     })();
                                     return (
                                         <p className="mt-2 text-sm font-bold text-foreground">
-                                            {daysLabel}  {dateStr}
+                                            {daysLabel} {dateStr}
                                         </p>
                                     );
                                 })()}
@@ -1537,7 +2020,9 @@ export default function AppDashboard() {
                                         <CalendarSync className="size-4" />
                                     </div>
                                     <div className="min-w-0">
-                                        <span className="font-semibold text-foreground">{displayNextShift.position_name}</span>
+                                        <span className="font-semibold text-foreground">
+                                            {displayNextShift.position_name}
+                                        </span>
                                         <span className="ml-1.5 rounded-full bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300">
                                             Upcoming
                                         </span>
@@ -1545,11 +2030,25 @@ export default function AppDashboard() {
                                 </div>
                                 {displayNextShift.desk_type && (
                                     <p className="mt-1 text-xs text-muted-foreground">
-                                        {getDeskTypeLabel(userWorkgroups, (displayNextShift as { workgroup_id?: number | null }).workgroup_id ?? null, displayNextShift.desk_type)}
+                                        {getDeskTypeLabel(
+                                            userWorkgroups,
+                                            (
+                                                displayNextShift as {
+                                                    workgroup_id?:
+                                                        | number
+                                                        | null;
+                                                }
+                                            ).workgroup_id ?? null,
+                                            displayNextShift.desk_type,
+                                        )}
                                     </p>
                                 )}
                                 <p className="mt-2 text-xs text-muted-foreground">
-                                    {formatTime(displayNextShift.start_time_utc)} – {formatTime(displayNextShift.end_time_utc)}
+                                    {formatTime(
+                                        displayNextShift.start_time_utc,
+                                    )}{' '}
+                                    –{' '}
+                                    {formatTime(displayNextShift.end_time_utc)}
                                 </p>
                                 <div className="mt-3 flex flex-wrap gap-1.5">
                                     <Button
@@ -1559,18 +2058,34 @@ export default function AppDashboard() {
                                         onClick={() =>
                                             setPostModalShift({
                                                 shiftId: displayNextShift.id,
-                                                position_name: displayNextShift.position_name,
-                                                desk_type: displayNextShift.desk_type ?? null,
+                                                position_name:
+                                                    displayNextShift.position_name,
+                                                desk_type:
+                                                    displayNextShift.desk_type ??
+                                                    null,
                                                 start: displayNextShift.start_time_utc,
                                                 end: displayNextShift.end_time_utc,
-                                                workgroup_id: (displayNextShift as { workgroup_id?: number | null }).workgroup_id ?? null,
-                                                workgroup_name: displayNextShift.workgroup_name,
-                                                is_training: (displayNextShift as { is_training?: boolean }).is_training ?? false,
+                                                workgroup_id:
+                                                    (
+                                                        displayNextShift as {
+                                                            workgroup_id?:
+                                                                | number
+                                                                | null;
+                                                        }
+                                                    ).workgroup_id ?? null,
+                                                workgroup_name:
+                                                    displayNextShift.workgroup_name,
+                                                is_training:
+                                                    (
+                                                        displayNextShift as {
+                                                            is_training?: boolean;
+                                                        }
+                                                    ).is_training ?? false,
                                                 posts: [],
                                             })
                                         }
                                     >
-                                        <ArrowLeftRight className="size-3.5 mr-1" />
+                                        <ArrowLeftRight className="mr-1 size-3.5" />
                                         Post
                                     </Button>
                                     <Button
@@ -1578,9 +2093,11 @@ export default function AppDashboard() {
                                         size="sm"
                                         className="h-7 border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-600 dark:text-purple-300 dark:hover:bg-purple-950/30"
                                         disabled={findFFLoading}
-                                        onClick={() => onFindFFClick(displayNextShift)}
+                                        onClick={() =>
+                                            onFindFFClick(displayNextShift)
+                                        }
                                     >
-                                        <Plane className="size-3.5 mr-1" />
+                                        <Plane className="mr-1 size-3.5" />
                                         {findFFLoading ? '…' : 'Find FF'}
                                     </Button>
                                     <Button
@@ -1588,11 +2105,24 @@ export default function AppDashboard() {
                                         size="sm"
                                         className="h-7 border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-600 dark:text-purple-300 dark:hover:bg-purple-950/30"
                                         onClick={() => {
-                                            if (displayNextShift?.start_time_utc) {
-                                                const d = displayNextShift.start_time_utc.slice(0, 10);
-                                                if (d >= new Date().toISOString().slice(0, 10)) {
+                                            if (
+                                                displayNextShift?.start_time_utc
+                                            ) {
+                                                const d =
+                                                    displayNextShift.start_time_utc.slice(
+                                                        0,
+                                                        10,
+                                                    );
+                                                if (
+                                                    d >=
+                                                    new Date()
+                                                        .toISOString()
+                                                        .slice(0, 10)
+                                                ) {
                                                     setFfModalDate(d);
-                                                    setFfModalStep('before_after');
+                                                    setFfModalStep(
+                                                        'before_after',
+                                                    );
                                                     setFfModalTimeFrame(null);
                                                     setFfModalPosts([]);
                                                     setFfModalOpen(true);
@@ -1600,7 +2130,7 @@ export default function AppDashboard() {
                                             }
                                         }}
                                     >
-                                        <Plane className="size-3.5 mr-1" />
+                                        <Plane className="mr-1 size-3.5" />
                                         Be A FF
                                     </Button>
                                 </div>
@@ -1608,24 +2138,35 @@ export default function AppDashboard() {
                         ) : (
                             <>
                                 {nextShift ? (
-                                    currentOrTodayShift && nextShift.id === currentOrTodayShift.id ? (
-                                        <p className="mt-2 text-xs text-muted-foreground">Next shift is above.</p>
+                                    currentOrTodayShift &&
+                                    nextShift.id === currentOrTodayShift.id ? (
+                                        <p className="mt-2 text-xs text-muted-foreground">
+                                            Next shift is above.
+                                        </p>
                                     ) : (
                                         <p className="mt-2 text-sm text-muted-foreground">
                                             {(() => {
-                                                const days = daysUntilShift(nextShift.start_time_utc);
-                                                return days === 0 ? 'Today' : days === 1 ? '1 day until next shift' : `${days} days until next shift`;
+                                                const days = daysUntilShift(
+                                                    nextShift.start_time_utc,
+                                                );
+                                                return days === 0
+                                                    ? 'Today'
+                                                    : days === 1
+                                                      ? '1 day until next shift'
+                                                      : `${days} days until next shift`;
                                             })()}
                                         </p>
                                     )
                                 ) : (
-                                    <p className="mt-2 text-sm text-muted-foreground">No upcoming shift</p>
+                                    <p className="mt-2 text-sm text-muted-foreground">
+                                        No upcoming shift
+                                    </p>
                                 )}
                             </>
                         )}
                     </section>
                     {/* Tabs + content: Time off | Available to work | My active posts */}
-                    <div className="min-w-0 flex flex-col">
+                    <div className="flex min-w-0 flex-col">
                         <div className="flex gap-1 border-b border-sidebar-border/50 pb-2">
                             <button
                                 type="button"
@@ -1644,702 +2185,1827 @@ export default function AppDashboard() {
                             <button
                                 type="button"
                                 className={`rounded px-3 py-1.5 text-sm font-medium ${dashboardLeftTab === 'active_posts' ? 'bg-background text-foreground shadow' : 'text-muted-foreground hover:text-foreground'}`}
-                                onClick={() => setDashboardLeftTab('active_posts')}
+                                onClick={() =>
+                                    setDashboardLeftTab('active_posts')
+                                }
                             >
                                 My active posts
                             </button>
                         </div>
-                        <div className="min-w-0 flex-1 min-h-0">
-                {dashboardLeftTab === 'active_posts' ? (
-                <section className="flex min-h-0 flex-col rounded-xl border border-sidebar-border/50 bg-card p-3 shadow-sm min-w-0">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                <ArrowLeftRight className="size-3.5" />
-                                My active posts
-                            </h3>
-                            <p className="mt-1 text-[10px] text-muted-foreground">Active until shift start.</p>
-                        </div>
-                        {(activePosts.length > 0 || activeLookingForWorkPosts.length > 0) && (
-                            <div className="flex shrink-0 items-center gap-2">
-                                <select
-                                    value={activePostTypeFilter}
-                                    onChange={(e) => setActivePostTypeFilter(e.target.value)}
-                                    className="h-7 rounded-md border border-input bg-background px-2 text-xs"
-                                >
-                                    <option value="">All types</option>
-                                    <option value="trade">Trade</option>
-                                    <option value="cash">Giveaway</option>
-                                    <option value="flight_follow">Flight following</option>
-                                    <option value="looking_for_work">Looking for work</option>
-                                </select>
-                                <input
-                                    type="text"
-                                    placeholder="Date (3/14) or desk…"
-                                    value={activePostSearch}
-                                    onChange={(e) => setActivePostSearch(e.target.value)}
-                                    className="h-7 w-32 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground"
-                                />
-                            </div>
-                        )}
-                    </div>
-                    {activePosts.length === 0 && activeLookingForWorkPosts.length === 0 ? (
-                        <p className="mt-2 text-xs text-muted-foreground">No open postings. Post a shift from the calendar to trade, give away, or offer flight following. Or create a Looking for work post.</p>
-                    ) : (
-                        <div className="mt-2">
-                            <div className="h-80 min-w-0 overflow-y-auto rounded-md border border-sidebar-border/30 bg-muted/20 p-2 dark:bg-muted/10">
-                                {(() => {
-                                    const groups = groupActivePosts(activePosts);
-                                    const typeFilter = activePostTypeFilter.trim().toLowerCase();
-                                    const search = activePostSearch.trim().toLowerCase();
-                                    const showLfw = !typeFilter || typeFilter === 'looking_for_work';
-                                    const showSwap = !typeFilter || typeFilter === 'trade' || typeFilter === 'cash' || typeFilter === 'flight_follow';
-                                    const filtered = groups.filter((group) => {
-                                        if (!showSwap) return false;
-                                        if (typeFilter && !group.posts.some((p) => p.type === typeFilter)) return false;
-                                        if (!search) return true;
-                                        const shortDate = formatShortDate(group.start);
-                                        const position = (group.position_name ?? '').toLowerCase();
-                                        const deskLabel = group.desk_type ? getDeskTypeLabel(userWorkgroups, group.workgroup_id ?? null, group.desk_type) : '';
-                                        return position.includes(search) || shortDate.includes(search) || deskLabel.toLowerCase().includes(search);
-                                    });
-                                    const filteredLfw = showLfw
-                                        ? activeLookingForWorkPosts.filter((p) => {
-                                            if (!search) return true;
-                                            const shortDate = formatShortDate(p.seeking_date);
-                                            return shortDate.includes(search) || (p.notes ?? '').toLowerCase().includes(search);
-                                        })
-                                        : [];
-                                    if (filtered.length === 0 && filteredLfw.length === 0) {
-                                        return <p className="py-2 text-xs text-muted-foreground">No posts match the filter.</p>;
-                                    }
-                                    return (
-                                        <ul className="flex flex-wrap gap-2 pr-1">
-                                            {filteredLfw.map((p) => (
-                                                <li
-                                                    key={`lfw-${p.id}`}
-                                                    className="flex min-w-[160px] max-w-[280px] flex-1 basis-48 items-start justify-between gap-2 rounded-lg border border-sidebar-border/50 px-2.5 py-2 text-xs"
+                        <div className="min-h-0 min-w-0 flex-1">
+                            {dashboardLeftTab === 'active_posts' ? (
+                                <section className="flex min-h-0 min-w-0 flex-col rounded-xl border border-sidebar-border/50 bg-card p-3 shadow-sm">
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div>
+                                            <h3 className="flex items-center gap-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                                                <ArrowLeftRight className="size-3.5" />
+                                                My active posts
+                                            </h3>
+                                            <p className="mt-1 text-[10px] text-muted-foreground">
+                                                Active until shift start.
+                                            </p>
+                                        </div>
+                                        {(activePosts.length > 0 ||
+                                            activeLookingForWorkPosts.length >
+                                                0) && (
+                                            <div className="flex shrink-0 items-center gap-2">
+                                                <select
+                                                    value={activePostTypeFilter}
+                                                    onChange={(e) =>
+                                                        setActivePostTypeFilter(
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    className="h-7 rounded-md border border-input bg-background px-2 text-xs"
                                                 >
-                                                    <div className="min-w-0 flex-1 shrink space-y-1.5">
-                                                        <span className="block text-sm font-bold text-foreground">LFW</span>
-                                                        <div className="rounded border border-border/60 bg-muted/20 px-1.5 py-1">
-                                                            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Full shift</p>
-                                                            <p className="text-[10px] text-muted-foreground mt-0.5">{formatShortDate(p.seeking_date)}</p>
-                                                            <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                                                                <span className="inline-flex gap-0.5 rounded bg-green-500/20 px-1 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-300">
-                                                                    <DollarSign className="size-2.5" /> ${Number(p.seeking_cash ?? 0).toFixed(0)}
-                                                                    {p.seeking_obo && ' OBO'}
-                                                                </span>
-                                                                {p.seeking_desk_types?.length > 0 && (
-                                                                    <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
-                                                                        {p.seeking_desk_types.join(', ')}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        {p.willing_to_follow && (
-                                                            <div className="rounded border border-purple-500/30 bg-purple-500/10 px-1.5 py-1">
-                                                                <p className="text-[10px] font-medium uppercase tracking-wider text-purple-700 dark:text-purple-300">Flight following</p>
-                                                                <p className="text-[10px] font-medium text-purple-700 dark:text-purple-300 mt-0.5 inline-flex items-center gap-0.5 flex-wrap">
-                                                                    <Plane className="size-2.5 shrink-0" />
-                                                                    {p.willing_to_follow_time_frame
-                                                                        ? (p.willing_to_follow_time_frame === 'before' ? 'Before my shift' : p.willing_to_follow_time_frame === 'after' ? 'After my shift' : 'Any')
-                                                                        : (p.willing_to_follow_slots?.length
-                                                                            ? p.willing_to_follow_slots.map((s) => s.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())).join(', ')
-                                                                            : '') + (p.willing_to_follow_custom ? (p.willing_to_follow_slots?.length ? ' · ' : '') + p.willing_to_follow_custom : '') || 'Any'}
-                                                                </p>
-                                                            </div>
-                                                        )}
-                                                        {p.notes && (
-                                                            <span className="block truncate max-w-full rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground" title={p.notes}>
-                                                                {p.notes}
-                                                            </span>
-                                                        )}
-                                                        {p.pending_offer_count > 0 && (
-                                                            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                                                {p.pending_offer_count} offer{p.pending_offer_count !== 1 ? 's' : ''}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex shrink-0 items-start gap-1">
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="h-6 text-xs"
-                                                            onClick={() => setEditLfwPost(p)}
-                                                        >
-                                                            Edit
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-6 w-6 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                            title="Delete post"
-                                                            disabled={deletingLfwPostId === p.id}
-                                                            onClick={async () => {
-                                                                if (!window.confirm('Remove this Looking for work post? Pending offerers will be notified.')) return;
-                                                                setDeletingLfwPostId(p.id);
-                                                                try {
-                                                                    const res = await fetch(`/api/looking-for-work/posts/${p.id}`, {
-                                                                        method: 'DELETE',
-                                                                        headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
-                                                                        credentials: 'include',
-                                                                    });
-                                                                    if (res.ok) router.reload({ only: DASHBOARD_RELOAD_ONLY });
-                                                                } finally {
-                                                                    setDeletingLfwPostId(null);
-                                                                }
-                                                            }}
-                                                        >
-                                                            {deletingLfwPostId === p.id ? <span className="text-xs">…</span> : <Trash2 className="size-3.5" />}
-                                                        </Button>
-                                                    </div>
-                                                </li>
-                                            ))}
-                                            {filtered.map((group) => {
-                                                const shiftDateShort = group.start ? formatShortDate(group.start) : '';
-                                                return (
-                                                    <li
-                                                    key={`${group.shiftId}-${group.kind}`}
-                                                    className={`flex min-w-[160px] max-w-[280px] flex-1 basis-48 items-start justify-between gap-2 rounded-lg border px-2.5 py-2 text-xs ${
-                                                        group.within_24h
-                                                            ? 'border-amber-500/50 bg-amber-500/10 dark:border-amber-500/40 dark:bg-amber-500/5'
-                                                            : 'border-sidebar-border/50'
-                                                    }`}
-                                                >
-                                                    <div className="min-w-0 flex-1 shrink">
-                                                        <div className="flex flex-wrap items-baseline gap-1.5">
-                                                            <span className="text-sm font-bold text-foreground truncate">
-                                                                {group.position_name || 'Shift'}
-                                                            </span>
-                                                            {shiftDateShort && (
-                                                                <span className="shrink-0 text-muted-foreground">{shiftDateShort}</span>
-                                                            )}
-                                                        </div>
-                                                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                                            {group.posts.map((p) => (
-                                                                <span
-                                                                    key={p.id}
-                                                                    className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                                                                        (p.type === 'trade' || p.type === 'time_trade')
-                                                                            ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
-                                                                            : p.type === 'cash'
-                                                                            ? 'bg-green-500/20 text-green-700 dark:text-green-300'
-                                                                            : 'bg-purple-500/20 text-purple-700 dark:text-purple-300'
-                                                                    }`}
-                                                                >
-                                                                    {p.type === 'trade'
-                                                                        ? 'Trade'
-                                                                        : p.type === 'time_trade'
-                                                                        ? 'Time trade'
-                                                                        : p.type === 'cash'
-                                                                        ? 'Giveaway'
-                                                                        : 'Flight following'}
-                                                                </span>
-                                                            ))}
-                                                            {group.within_24h && (
-                                                                <span className="rounded bg-amber-500/80 px-1.5 py-0.5 text-[10px] font-semibold text-white dark:bg-amber-500">
-                                                                    Within 24h
-                                                                </span>
+                                                    <option value="">
+                                                        All types
+                                                    </option>
+                                                    <option value="trade">
+                                                        Trade
+                                                    </option>
+                                                    <option value="cash">
+                                                        Giveaway
+                                                    </option>
+                                                    <option value="flight_follow">
+                                                        Flight following
+                                                    </option>
+                                                    <option value="looking_for_work">
+                                                        Looking for work
+                                                    </option>
+                                                </select>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Date (3/14) or desk…"
+                                                    value={activePostSearch}
+                                                    onChange={(e) =>
+                                                        setActivePostSearch(
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    className="h-7 w-32 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground"
+                                                />
+                                            </div>
                                         )}
                                     </div>
-                                                        {group.posts.some((p) => p.type === 'time_trade' && (p.preferred_start_times?.length || p.preferred_desk_type)) && (
-                                                            <div className="mt-1 space-y-0.5 text-[10px] text-muted-foreground">
-                                                                {group.posts
-                                                                    .filter((p) => p.type === 'time_trade')
-                                                                    .map((p) => {
-                                                                        const parts: string[] = [];
-                                                                        if (p.preferred_start_times?.length) {
-                                                                            parts.push(p.preferred_start_times.join(', '));
-                                                                        }
-                                                                        if (p.preferred_desk_type) {
-                                                                            const deskLabel = getDeskTypeLabel(userWorkgroups, group.workgroup_id ?? null, p.preferred_desk_type);
-                                                                            if (deskLabel) parts.push(deskLabel);
-                                                                        }
-                                                                        if (parts.length === 0) return null;
-                                                                        return (
-                                                                            <div key={p.id}>
-                                                                                <span className="font-medium">Trying for:</span> {parts.join(' · ')}
-                                                                            </div>
-                                                                        );
-                                                                    })}
-                                                            </div>
-                                                        )}
-                                                        {group.posts.some((p) => (p.type === 'trade' || p.type === 'time_trade') && formatPaybackRanges(p.payback_date_ranges)) && (
-                                                            <div className="mt-1 text-[10px] text-muted-foreground">
-                                                                <span className="font-medium">Payback preferred:</span>{' '}
-                                                                {formatPaybackRanges(group.posts.find((p) => (p.type === 'trade' || p.type === 'time_trade') && p.payback_date_ranges?.length)?.payback_date_ranges)}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex shrink-0 items-start gap-1">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                                            className="h-6 text-xs"
-                                                            onClick={() =>
-                                                                setPostModalShift({
-                                                                    shiftId: group.shiftId,
-                                                                    position_name: group.position_name,
-                                                                    desk_type: group.desk_type ?? null,
-                                                                    start: group.start,
-                                                                    end: group.end,
-                                                                    workgroup_id: group.workgroup_id ?? null,
-                                                                    workgroup_name: group.workgroup_name ?? undefined,
-                                                                    is_training: (group as { is_training?: boolean }).is_training ?? false,
-                                                                    posts: group.posts.map((p) => ({
-                                                                        id: p.id,
-                                                                        type: p.type,
-                                                                        cash_amount: p.cash_amount ?? null,
-                                                                        flight_follow_minutes: p.flight_follow_minutes ?? null,
-                                                                        flight_follow_at: (p as { flight_follow_at?: string | null }).flight_follow_at ?? null,
-                                                                        notes: p.notes ?? null,
-                                                                        preferred_start_times: p.preferred_start_times ?? null,
-                                                                        preferred_desk_type: p.preferred_desk_type ?? null,
-                                                                        payback_date_ranges: (p as { payback_date_ranges?: { start: string; end: string }[] | null }).payback_date_ranges ?? null,
-                                                                    })),
-                                                                })
-                                                            }
-                                                        >
-                                                            Edit
-                                    </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-6 w-6 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                            title="Delete post"
-                                                            disabled={deletingPostGroup === `${group.shiftId}-${group.kind}`}
-                                                            onClick={() => deleteActivePostGroup(group)}
-                                                        >
-                                                            {deletingPostGroup === `${group.shiftId}-${group.kind}` ? <span className="text-xs">…</span> : <Trash2 className="size-3.5" />}
-                                                        </Button>
-                                                    </div>
-                                </li>
-                                                );
-                                            })}
-                        </ul>
-                                    );
-                                })()}
-                            </div>
-                        </div>
-                )}
-                </section>
-                ) : dashboardLeftTab === 'overview' ? (
-                <section className="rounded-xl border border-sidebar-border/50 bg-card p-3 shadow-sm min-w-0">
-                    <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <CalendarOff className="size-3.5" />
-                        Dates I need off
-                    </h3>
-                        <div className="mt-2 space-y-2">
-                            <div className="flex flex-col gap-1">
-                                <Label className="text-[10px]">Title</Label>
-                                <Input
-                                    type="text"
-                                    placeholder="e.g. Vacation, Wedding"
-                                    value={newRangeTitle}
-                                    onChange={(e) => setNewRangeTitle(e.target.value)}
-                                    className="h-8 text-xs"
-                                />
-                            </div>
-                            <div className="flex gap-2">
-                                <div className="flex flex-col gap-1">
-                                    <Label className="text-[10px]">Start</Label>
-                                    <Input
-                                        type="date"
-                                        value={newRangeStart}
-                                        onChange={(e) => {
-                                            const v = e.target.value;
-                                            setNewRangeStart(v);
-                                            setNewRangeEnd((prev) => (!prev || v > prev ? v : prev));
-                                        }}
-                                        className="h-8 text-xs"
-                                    />
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                    <Label className="text-[10px]">End</Label>
-                                    <Input
-                                        type="date"
-                                        value={newRangeEnd}
-                                        onChange={(e) => setNewRangeEnd(e.target.value)}
-                                        className="h-8 text-xs"
-                                    />
-                                </div>
-                                <div className="flex items-end">
-                                    <Button size="sm" className="h-8" onClick={addTimeOffRange} disabled={addingRange || !newRangeStart || !newRangeEnd}>
-                                        {addingRange ? '…' : 'Add'}
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
-                        {timeOffRanges.length > 0 && (
-                            <div className="mt-3 max-h-44 overflow-y-auto">
-                                <ul className="flex flex-wrap gap-2">
-                                    {timeOffRanges.map((r) => {
-                                        const shiftCount = countShiftsInRange(r);
-                                        return (
-                                        <li
-                                            key={r.id}
-                                            className={`flex min-w-0 max-w-[220px] flex-1 basis-40 items-start justify-between gap-1.5 rounded-lg border px-2 py-1.5 text-xs ${
-                                                selectedRangeId === r.id ? 'border-primary bg-primary/5' : 'border-sidebar-border/50'
-                                            }`}
-                                        >
-                                            <button
-                                                type="button"
-                                                className="min-w-0 flex-1 shrink text-left hover:underline"
-                                                onClick={() => setSelectedRangeId(selectedRangeId === r.id ? null : r.id)}
-                                            >
-                                                <span className="block font-medium">{r.title?.trim() || 'Need off'}</span>
-                                                <span className="block text-muted-foreground">
-                                                    {formatRangeShort(r.start_date, r.end_date)}
-                                                    {' · '}
-                                                    <span className={shiftCount === 0 ? 'font-medium text-green-600 dark:text-green-400' : 'font-medium text-red-600 dark:text-red-400'}>
-                                                        ({shiftCount} shift{shiftCount !== 1 ? 's' : ''})
-                                                    </span>
-                                                </span>
-                                            </button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
-                                            onClick={() => removeTimeOffRange(r.id)}
-                                        >
-                                            <Trash2 className="size-3.5" />
-                                        </Button>
-                                        </li>
-                                        );
-                                    })}
-                                </ul>
-                            </div>
-                        )}
-                        <div className="mt-3 rounded-lg border border-sidebar-border/50 bg-muted/50 p-3 dark:bg-muted/30">
-                                    <p className="text-xs font-bold text-foreground">
-                                {selectedRange ? `Shifts of ${formatRangeShort(selectedRange.start_date, selectedRange.end_date)}` : 'Shifts to cover'}
-                                    </p>
-                            {selectedRange ? (
-                                <>
-                                    {shiftsInSelectedRange.length === 0 ? (
-                                        <p className="mt-1 text-xs text-muted-foreground">No shifts in this range.</p>
+                                    {activePosts.length === 0 &&
+                                    activeLookingForWorkPosts.length === 0 ? (
+                                        <p className="mt-2 text-xs text-muted-foreground">
+                                            No open postings. Post a shift from
+                                            the calendar to trade, give away, or
+                                            offer flight following. Or create a
+                                            Looking for work post.
+                                        </p>
                                     ) : (
-                                        <>
-                                            <ul className="mt-1.5 max-h-32 overflow-y-auto space-y-1 text-xs">
-                                                {shiftsInSelectedRange.map((ev) => {
-                                                    const ext = ev.extendedProps;
-                                                    const shiftId = ext?.shiftId;
-                                                    const hasPost = (ext?.posts?.length ?? 0) > 0;
-                                                    const positionName = ext?.position_name ?? ((ev.title || '').replace(/\s*\[Post\]\s*$/, '').trim() || 'Shift');
+                                        <div className="mt-2">
+                                            <div className="h-80 min-w-0 overflow-y-auto rounded-md border border-sidebar-border/30 bg-muted/20 p-2 dark:bg-muted/10">
+                                                {(() => {
+                                                    const groups =
+                                                        groupActivePosts(
+                                                            activePosts,
+                                                        );
+                                                    const typeFilter =
+                                                        activePostTypeFilter
+                                                            .trim()
+                                                            .toLowerCase();
+                                                    const search =
+                                                        activePostSearch
+                                                            .trim()
+                                                            .toLowerCase();
+                                                    const showLfw =
+                                                        !typeFilter ||
+                                                        typeFilter ===
+                                                            'looking_for_work';
+                                                    const showSwap =
+                                                        !typeFilter ||
+                                                        typeFilter ===
+                                                            'trade' ||
+                                                        typeFilter === 'cash' ||
+                                                        typeFilter ===
+                                                            'flight_follow';
+                                                    const filtered =
+                                                        groups.filter(
+                                                            (group) => {
+                                                                if (!showSwap)
+                                                                    return false;
+                                                                if (
+                                                                    typeFilter &&
+                                                                    !group.posts.some(
+                                                                        (p) =>
+                                                                            p.type ===
+                                                                            typeFilter,
+                                                                    )
+                                                                )
+                                                                    return false;
+                                                                if (!search)
+                                                                    return true;
+                                                                const shortDate =
+                                                                    formatShortDate(
+                                                                        group.start,
+                                                                    );
+                                                                const position =
+                                                                    (
+                                                                        group.position_name ??
+                                                                        ''
+                                                                    ).toLowerCase();
+                                                                const deskLabel =
+                                                                    group.desk_type
+                                                                        ? getDeskTypeLabel(
+                                                                              userWorkgroups,
+                                                                              group.workgroup_id ??
+                                                                                  null,
+                                                                              group.desk_type,
+                                                                          )
+                                                                        : '';
+                                                                return (
+                                                                    position.includes(
+                                                                        search,
+                                                                    ) ||
+                                                                    shortDate.includes(
+                                                                        search,
+                                                                    ) ||
+                                                                    deskLabel
+                                                                        .toLowerCase()
+                                                                        .includes(
+                                                                            search,
+                                                                        )
+                                                                );
+                                                            },
+                                                        );
+                                                    const filteredLfw = showLfw
+                                                        ? activeLookingForWorkPosts.filter(
+                                                              (p) => {
+                                                                  if (!search)
+                                                                      return true;
+                                                                  const shortDate =
+                                                                      formatShortDate(
+                                                                          p.seeking_date,
+                                                                      );
+                                                                  return (
+                                                                      shortDate.includes(
+                                                                          search,
+                                                                      ) ||
+                                                                      (
+                                                                          p.notes ??
+                                                                          ''
+                                                                      )
+                                                                          .toLowerCase()
+                                                                          .includes(
+                                                                              search,
+                                                                          )
+                                                                  );
+                                                              },
+                                                          )
+                                                        : [];
+                                                    if (
+                                                        filtered.length === 0 &&
+                                                        filteredLfw.length === 0
+                                                    ) {
+                                                        return (
+                                                            <p className="py-2 text-xs text-muted-foreground">
+                                                                No posts match
+                                                                the filter.
+                                                            </p>
+                                                        );
+                                                    }
                                                     return (
-                                                        <li key={ev.id} className="flex items-center justify-between gap-2">
-                                                            <span className="min-w-0 truncate text-muted-foreground">
-                                                                {positionName} · {ev.start.slice(0, 10)}
-                                                            </span>
-                                                            {shiftId != null && (
-                                                                <span className="flex shrink-0 items-center gap-1">
-                                                                    <Button
-                                                                        variant="outline"
-                                                                        size="sm"
-                                                                        className="h-6 px-2 text-[10px]"
-                                                                        onClick={() =>
-                                                                            setPostModalShift({
-                                                                                shiftId,
-                                                                                position_name: positionName,
-                                                                                desk_type: ext?.desk_type ?? null,
-                                                                                start: ev.start,
-                                                                                end: ev.end ?? ev.start,
-                                                                                workgroup_id: ext?.workgroup_id ?? null,
-                                                                                workgroup_name: ext?.workgroup_name,
-                                                                                is_training: ext?.is_training ?? false,
-                                                                                posts: (ext?.posts ?? []).map((p) => ({
-                                                                                    id: p.id,
-                                                                                    type: p.type,
-                                                                                    cash_amount: p.cash_amount ?? null,
-                                                                                    flight_follow_minutes: p.flight_follow_minutes ?? null,
-                                                                                    flight_follow_at: p.flight_follow_at ?? null,
-                                                                                    notes: p.notes ?? null,
-                                                                                    preferred_start_times: p.preferred_start_times ?? null,
-                                                                                    preferred_desk_type: p.preferred_desk_type ?? null,
-                                                                                    payback_date_ranges: (p as { payback_date_ranges?: { start: string; end: string }[] | null }).payback_date_ranges ?? null,
-                                                                                })),
-                                                                            })
+                                                        <ul className="flex flex-wrap gap-2 pr-1">
+                                                            {filteredLfw.map(
+                                                                (p) => (
+                                                                    <li
+                                                                        key={`lfw-${p.id}`}
+                                                                        className="flex max-w-[280px] min-w-[160px] flex-1 basis-48 items-start justify-between gap-2 rounded-lg border border-sidebar-border/50 px-2.5 py-2 text-xs"
+                                                                    >
+                                                                        <div className="min-w-0 flex-1 shrink space-y-1.5">
+                                                                            <span className="block text-sm font-bold text-foreground">
+                                                                                LFW
+                                                                            </span>
+                                                                            <div className="rounded border border-border/60 bg-muted/20 px-1.5 py-1">
+                                                                                <p className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+                                                                                    Full
+                                                                                    shift
+                                                                                </p>
+                                                                                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                                                                                    {formatShortDate(
+                                                                                        p.seeking_date,
+                                                                                    )}
+                                                                                </p>
+                                                                                <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                                                                                    <span className="inline-flex gap-0.5 rounded bg-green-500/20 px-1 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-300">
+                                                                                        <DollarSign className="size-2.5" />{' '}
+                                                                                        $
+                                                                                        {Number(
+                                                                                            p.seeking_cash ??
+                                                                                                0,
+                                                                                        ).toFixed(
+                                                                                            0,
+                                                                                        )}
+                                                                                        {p.seeking_obo &&
+                                                                                            ' OBO'}
+                                                                                    </span>
+                                                                                    {p
+                                                                                        .seeking_desk_types
+                                                                                        ?.length >
+                                                                                        0 && (
+                                                                                        <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
+                                                                                            {p.seeking_desk_types.join(
+                                                                                                ', ',
+                                                                                            )}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                            {p.willing_to_follow && (
+                                                                                <div className="rounded border border-purple-500/30 bg-purple-500/10 px-1.5 py-1">
+                                                                                    <p className="text-[10px] font-medium tracking-wider text-purple-700 uppercase dark:text-purple-300">
+                                                                                        Flight
+                                                                                        following
+                                                                                    </p>
+                                                                                    <p className="mt-0.5 inline-flex flex-wrap items-center gap-0.5 text-[10px] font-medium text-purple-700 dark:text-purple-300">
+                                                                                        <Plane className="size-2.5 shrink-0" />
+                                                                                        {p.willing_to_follow_time_frame
+                                                                                            ? p.willing_to_follow_time_frame ===
+                                                                                              'before'
+                                                                                                ? 'Before my shift'
+                                                                                                : p.willing_to_follow_time_frame ===
+                                                                                                    'after'
+                                                                                                  ? 'After my shift'
+                                                                                                  : 'Any'
+                                                                                            : (p
+                                                                                                  .willing_to_follow_slots
+                                                                                                  ?.length
+                                                                                                  ? p.willing_to_follow_slots
+                                                                                                        .map(
+                                                                                                            (
+                                                                                                                s,
+                                                                                                            ) =>
+                                                                                                                s
+                                                                                                                    .replace(
+                                                                                                                        '_',
+                                                                                                                        ' ',
+                                                                                                                    )
+                                                                                                                    .replace(
+                                                                                                                        /\b\w/g,
+                                                                                                                        (
+                                                                                                                            c,
+                                                                                                                        ) =>
+                                                                                                                            c.toUpperCase(),
+                                                                                                                    ),
+                                                                                                        )
+                                                                                                        .join(
+                                                                                                            ', ',
+                                                                                                        )
+                                                                                                  : '') +
+                                                                                                  (p.willing_to_follow_custom
+                                                                                                      ? (p
+                                                                                                            .willing_to_follow_slots
+                                                                                                            ?.length
+                                                                                                            ? ' · '
+                                                                                                            : '') +
+                                                                                                        p.willing_to_follow_custom
+                                                                                                      : '') ||
+                                                                                              'Any'}
+                                                                                    </p>
+                                                                                </div>
+                                                                            )}
+                                                                            {p.notes && (
+                                                                                <span
+                                                                                    className="block max-w-full truncate rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                                                                                    title={
+                                                                                        p.notes
+                                                                                    }
+                                                                                >
+                                                                                    {
+                                                                                        p.notes
+                                                                                    }
+                                                                                </span>
+                                                                            )}
+                                                                            {p.pending_offer_count >
+                                                                                0 && (
+                                                                                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                                                                    {
+                                                                                        p.pending_offer_count
+                                                                                    }{' '}
+                                                                                    offer
+                                                                                    {p.pending_offer_count !==
+                                                                                    1
+                                                                                        ? 's'
+                                                                                        : ''}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="flex shrink-0 items-start gap-1">
+                                                                            <Button
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                className="h-6 text-xs"
+                                                                                onClick={() =>
+                                                                                    setEditLfwPost(
+                                                                                        p,
+                                                                                    )
+                                                                                }
+                                                                            >
+                                                                                Edit
+                                                                            </Button>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-6 w-6 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                                                title="Delete post"
+                                                                                disabled={
+                                                                                    deletingLfwPostId ===
+                                                                                    p.id
+                                                                                }
+                                                                                onClick={async () => {
+                                                                                    if (
+                                                                                        !window.confirm(
+                                                                                            'Remove this Looking for work post? Pending offerers will be notified.',
+                                                                                        )
+                                                                                    )
+                                                                                        return;
+                                                                                    setDeletingLfwPostId(
+                                                                                        p.id,
+                                                                                    );
+                                                                                    try {
+                                                                                        const res =
+                                                                                            await fetch(
+                                                                                                `/api/looking-for-work/posts/${p.id}`,
+                                                                                                {
+                                                                                                    method: 'DELETE',
+                                                                                                    headers:
+                                                                                                        {
+                                                                                                            Accept: 'application/json',
+                                                                                                            'X-XSRF-TOKEN':
+                                                                                                                getCsrfToken(),
+                                                                                                            'X-Requested-With':
+                                                                                                                'XMLHttpRequest',
+                                                                                                        },
+                                                                                                    credentials:
+                                                                                                        'include',
+                                                                                                },
+                                                                                            );
+                                                                                        if (
+                                                                                            res.ok
+                                                                                        )
+                                                                                            router.reload(
+                                                                                                {
+                                                                                                    only: DASHBOARD_RELOAD_ONLY,
+                                                                                                },
+                                                                                            );
+                                                                                    } finally {
+                                                                                        setDeletingLfwPostId(
+                                                                                            null,
+                                                                                        );
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                {deletingLfwPostId ===
+                                                                                p.id ? (
+                                                                                    <span className="text-xs">
+                                                                                        …
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <Trash2 className="size-3.5" />
+                                                                                )}
+                                                                            </Button>
+                                                                        </div>
+                                                                    </li>
+                                                                ),
+                                                            )}
+                                                            {filtered.map(
+                                                                (group) => {
+                                                                    const shiftDateShort =
+                                                                        group.start
+                                                                            ? formatShortDate(
+                                                                                  group.start,
+                                                                              )
+                                                                            : '';
+                                                                    return (
+                                                                        <li
+                                                                            key={`${group.shiftId}-${group.kind}`}
+                                                                            className={`flex max-w-[280px] min-w-[160px] flex-1 basis-48 items-start justify-between gap-2 rounded-lg border px-2.5 py-2 text-xs ${
+                                                                                group.within_24h
+                                                                                    ? 'border-amber-500/50 bg-amber-500/10 dark:border-amber-500/40 dark:bg-amber-500/5'
+                                                                                    : 'border-sidebar-border/50'
+                                                                            }`}
+                                                                        >
+                                                                            <div className="min-w-0 flex-1 shrink">
+                                                                                <div className="flex flex-wrap items-baseline gap-1.5">
+                                                                                    <span className="truncate text-sm font-bold text-foreground">
+                                                                                        {group.position_name ||
+                                                                                            'Shift'}
+                                                                                    </span>
+                                                                                    {shiftDateShort && (
+                                                                                        <span className="shrink-0 text-muted-foreground">
+                                                                                            {
+                                                                                                shiftDateShort
+                                                                                            }
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                                                                    {group.posts.map(
+                                                                                        (
+                                                                                            p,
+                                                                                        ) => (
+                                                                                            <span
+                                                                                                key={
+                                                                                                    p.id
+                                                                                                }
+                                                                                                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                                                                                    p.type ===
+                                                                                                        'trade' ||
+                                                                                                    p.type ===
+                                                                                                        'time_trade'
+                                                                                                        ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                                                                                                        : p.type ===
+                                                                                                            'cash'
+                                                                                                          ? 'bg-green-500/20 text-green-700 dark:text-green-300'
+                                                                                                          : 'bg-purple-500/20 text-purple-700 dark:text-purple-300'
+                                                                                                }`}
+                                                                                            >
+                                                                                                {p.type ===
+                                                                                                'trade'
+                                                                                                    ? 'Trade'
+                                                                                                    : p.type ===
+                                                                                                        'time_trade'
+                                                                                                      ? 'Time trade'
+                                                                                                      : p.type ===
+                                                                                                          'cash'
+                                                                                                        ? 'Giveaway'
+                                                                                                        : 'Flight following'}
+                                                                                            </span>
+                                                                                        ),
+                                                                                    )}
+                                                                                    {group.within_24h && (
+                                                                                        <span className="rounded bg-amber-500/80 px-1.5 py-0.5 text-[10px] font-semibold text-white dark:bg-amber-500">
+                                                                                            Within
+                                                                                            24h
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                                {group.posts.some(
+                                                                                    (
+                                                                                        p,
+                                                                                    ) =>
+                                                                                        p.type ===
+                                                                                            'time_trade' &&
+                                                                                        (p
+                                                                                            .preferred_start_times
+                                                                                            ?.length ||
+                                                                                            p.preferred_desk_type),
+                                                                                ) && (
+                                                                                    <div className="mt-1 space-y-0.5 text-[10px] text-muted-foreground">
+                                                                                        {group.posts
+                                                                                            .filter(
+                                                                                                (
+                                                                                                    p,
+                                                                                                ) =>
+                                                                                                    p.type ===
+                                                                                                    'time_trade',
+                                                                                            )
+                                                                                            .map(
+                                                                                                (
+                                                                                                    p,
+                                                                                                ) => {
+                                                                                                    const parts: string[] =
+                                                                                                        [];
+                                                                                                    if (
+                                                                                                        p
+                                                                                                            .preferred_start_times
+                                                                                                            ?.length
+                                                                                                    ) {
+                                                                                                        parts.push(
+                                                                                                            p.preferred_start_times.join(
+                                                                                                                ', ',
+                                                                                                            ),
+                                                                                                        );
+                                                                                                    }
+                                                                                                    if (
+                                                                                                        p.preferred_desk_type
+                                                                                                    ) {
+                                                                                                        const deskLabel =
+                                                                                                            getDeskTypeLabel(
+                                                                                                                userWorkgroups,
+                                                                                                                group.workgroup_id ??
+                                                                                                                    null,
+                                                                                                                p.preferred_desk_type,
+                                                                                                            );
+                                                                                                        if (
+                                                                                                            deskLabel
+                                                                                                        )
+                                                                                                            parts.push(
+                                                                                                                deskLabel,
+                                                                                                            );
+                                                                                                    }
+                                                                                                    if (
+                                                                                                        parts.length ===
+                                                                                                        0
+                                                                                                    )
+                                                                                                        return null;
+                                                                                                    return (
+                                                                                                        <div
+                                                                                                            key={
+                                                                                                                p.id
+                                                                                                            }
+                                                                                                        >
+                                                                                                            <span className="font-medium">
+                                                                                                                Trying
+                                                                                                                for:
+                                                                                                            </span>{' '}
+                                                                                                            {parts.join(
+                                                                                                                ' · ',
+                                                                                                            )}
+                                                                                                        </div>
+                                                                                                    );
+                                                                                                },
+                                                                                            )}
+                                                                                    </div>
+                                                                                )}
+                                                                                {group.posts.some(
+                                                                                    (
+                                                                                        p,
+                                                                                    ) =>
+                                                                                        (p.type ===
+                                                                                            'trade' ||
+                                                                                            p.type ===
+                                                                                                'time_trade') &&
+                                                                                        formatPaybackRanges(
+                                                                                            p.payback_date_ranges,
+                                                                                        ),
+                                                                                ) && (
+                                                                                    <div className="mt-1 text-[10px] text-muted-foreground">
+                                                                                        <span className="font-medium">
+                                                                                            Payback
+                                                                                            preferred:
+                                                                                        </span>{' '}
+                                                                                        {formatPaybackRanges(
+                                                                                            group.posts.find(
+                                                                                                (
+                                                                                                    p,
+                                                                                                ) =>
+                                                                                                    (p.type ===
+                                                                                                        'trade' ||
+                                                                                                        p.type ===
+                                                                                                            'time_trade') &&
+                                                                                                    p
+                                                                                                        .payback_date_ranges
+                                                                                                        ?.length,
+                                                                                            )
+                                                                                                ?.payback_date_ranges,
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className="flex shrink-0 items-start gap-1">
+                                                                                <Button
+                                                                                    variant="outline"
+                                                                                    size="sm"
+                                                                                    className="h-6 text-xs"
+                                                                                    onClick={() =>
+                                                                                        setPostModalShift(
+                                                                                            {
+                                                                                                shiftId:
+                                                                                                    group.shiftId,
+                                                                                                position_name:
+                                                                                                    group.position_name,
+                                                                                                desk_type:
+                                                                                                    group.desk_type ??
+                                                                                                    null,
+                                                                                                start: group.start,
+                                                                                                end: group.end,
+                                                                                                workgroup_id:
+                                                                                                    group.workgroup_id ??
+                                                                                                    null,
+                                                                                                workgroup_name:
+                                                                                                    group.workgroup_name ??
+                                                                                                    undefined,
+                                                                                                is_training:
+                                                                                                    (
+                                                                                                        group as {
+                                                                                                            is_training?: boolean;
+                                                                                                        }
+                                                                                                    )
+                                                                                                        .is_training ??
+                                                                                                    false,
+                                                                                                posts: group.posts.map(
+                                                                                                    (
+                                                                                                        p,
+                                                                                                    ) => ({
+                                                                                                        id: p.id,
+                                                                                                        type: p.type,
+                                                                                                        cash_amount:
+                                                                                                            p.cash_amount ??
+                                                                                                            null,
+                                                                                                        flight_follow_minutes:
+                                                                                                            p.flight_follow_minutes ??
+                                                                                                            null,
+                                                                                                        flight_follow_at:
+                                                                                                            (
+                                                                                                                p as {
+                                                                                                                    flight_follow_at?:
+                                                                                                                        | string
+                                                                                                                        | null;
+                                                                                                                }
+                                                                                                            )
+                                                                                                                .flight_follow_at ??
+                                                                                                            null,
+                                                                                                        notes:
+                                                                                                            p.notes ??
+                                                                                                            null,
+                                                                                                        preferred_start_times:
+                                                                                                            p.preferred_start_times ??
+                                                                                                            null,
+                                                                                                        preferred_desk_type:
+                                                                                                            p.preferred_desk_type ??
+                                                                                                            null,
+                                                                                                        payback_date_ranges:
+                                                                                                            (
+                                                                                                                p as {
+                                                                                                                    payback_date_ranges?:
+                                                                                                                        | {
+                                                                                                                              start: string;
+                                                                                                                              end: string;
+                                                                                                                          }[]
+                                                                                                                        | null;
+                                                                                                                }
+                                                                                                            )
+                                                                                                                .payback_date_ranges ??
+                                                                                                            null,
+                                                                                                    }),
+                                                                                                ),
+                                                                                            },
+                                                                                        )
+                                                                                    }
+                                                                                >
+                                                                                    Edit
+                                                                                </Button>
+                                                                                <Button
+                                                                                    variant="ghost"
+                                                                                    size="icon"
+                                                                                    className="h-6 w-6 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                                                    title="Delete post"
+                                                                                    disabled={
+                                                                                        deletingPostGroup ===
+                                                                                        `${group.shiftId}-${group.kind}`
+                                                                                    }
+                                                                                    onClick={() =>
+                                                                                        deleteActivePostGroup(
+                                                                                            group,
+                                                                                        )
+                                                                                    }
+                                                                                >
+                                                                                    {deletingPostGroup ===
+                                                                                    `${group.shiftId}-${group.kind}` ? (
+                                                                                        <span className="text-xs">
+                                                                                            …
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <Trash2 className="size-3.5" />
+                                                                                    )}
+                                                                                </Button>
+                                                                            </div>
+                                                                        </li>
+                                                                    );
+                                                                },
+                                                            )}
+                                                        </ul>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
+                                    )}
+                                </section>
+                            ) : dashboardLeftTab === 'overview' ? (
+                                <section className="min-w-0 rounded-xl border border-sidebar-border/50 bg-card p-3 shadow-sm">
+                                    <h3 className="flex items-center gap-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                                        <CalendarOff className="size-3.5" />
+                                        Dates I need off
+                                    </h3>
+                                    <div className="mt-2 space-y-2">
+                                        <div className="flex flex-col gap-1">
+                                            <Label className="text-[10px]">
+                                                Title
+                                            </Label>
+                                            <Input
+                                                type="text"
+                                                placeholder="e.g. Vacation, Wedding"
+                                                value={newRangeTitle}
+                                                onChange={(e) =>
+                                                    setNewRangeTitle(
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className="h-8 text-xs"
+                                            />
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <div className="flex flex-col gap-1">
+                                                <Label className="text-[10px]">
+                                                    Start
+                                                </Label>
+                                                <Input
+                                                    type="date"
+                                                    value={newRangeStart}
+                                                    onChange={(e) => {
+                                                        const v =
+                                                            e.target.value;
+                                                        setNewRangeStart(v);
+                                                        setNewRangeEnd(
+                                                            (prev) =>
+                                                                !prev ||
+                                                                v > prev
+                                                                    ? v
+                                                                    : prev,
+                                                        );
+                                                    }}
+                                                    className="h-8 text-xs"
+                                                />
+                                            </div>
+                                            <div className="flex flex-col gap-1">
+                                                <Label className="text-[10px]">
+                                                    End
+                                                </Label>
+                                                <Input
+                                                    type="date"
+                                                    value={newRangeEnd}
+                                                    onChange={(e) =>
+                                                        setNewRangeEnd(
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    className="h-8 text-xs"
+                                                />
+                                            </div>
+                                            <div className="flex items-end">
+                                                <Button
+                                                    size="sm"
+                                                    className="h-8"
+                                                    onClick={addTimeOffRange}
+                                                    disabled={
+                                                        addingRange ||
+                                                        !newRangeStart ||
+                                                        !newRangeEnd
+                                                    }
+                                                >
+                                                    {addingRange ? '…' : 'Add'}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {timeOffRanges.length > 0 && (
+                                        <div className="mt-3 max-h-44 overflow-y-auto">
+                                            <ul className="flex flex-wrap gap-2">
+                                                {timeOffRanges.map((r) => {
+                                                    const shiftCount =
+                                                        countShiftsInRange(r);
+                                                    return (
+                                                        <li
+                                                            key={r.id}
+                                                            className={`flex max-w-[220px] min-w-0 flex-1 basis-40 items-start justify-between gap-1.5 rounded-lg border px-2 py-1.5 text-xs ${
+                                                                selectedRangeId ===
+                                                                r.id
+                                                                    ? 'border-primary bg-primary/5'
+                                                                    : 'border-sidebar-border/50'
+                                                            }`}
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                className="min-w-0 flex-1 shrink text-left hover:underline"
+                                                                onClick={() =>
+                                                                    setSelectedRangeId(
+                                                                        selectedRangeId ===
+                                                                            r.id
+                                                                            ? null
+                                                                            : r.id,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <span className="block font-medium">
+                                                                    {r.title?.trim() ||
+                                                                        'Need off'}
+                                                                </span>
+                                                                <span className="block text-muted-foreground">
+                                                                    {formatRangeShort(
+                                                                        r.start_date,
+                                                                        r.end_date,
+                                                                    )}
+                                                                    {' · '}
+                                                                    <span
+                                                                        className={
+                                                                            shiftCount ===
+                                                                            0
+                                                                                ? 'font-medium text-green-600 dark:text-green-400'
+                                                                                : 'font-medium text-red-600 dark:text-red-400'
                                                                         }
                                                                     >
-                                                                        {hasPost ? 'Edit' : 'Post'}
-                                                                    </Button>
-                                                                    {hasPost && (ext?.posts?.length ?? 0) > 0 && (
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            className="h-6 w-6 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                                            disabled={deletingPostShiftId === shiftId}
-                                                                            onClick={() => {
-                                                                                if (selectedRange && window.confirm('Remove all postings for this shift? The shift will stay on your schedule.')) {
-                                                                                    removePostForShift(shiftId, (ext?.posts ?? []).map((p) => p.id), selectedRange.start_date, selectedRange.end_date);
-                                                                                }
-                                                                            }}
-                                                                        >
-                                                                            {deletingPostShiftId === shiftId ? <span className="text-xs">…</span> : <Trash2 className="size-3.5" />}
-                                                                        </Button>
-                                                                    )}
+                                                                        (
+                                                                        {
+                                                                            shiftCount
+                                                                        }{' '}
+                                                                        shift
+                                                                        {shiftCount !==
+                                                                        1
+                                                                            ? 's'
+                                                                            : ''}
+                                                                        )
+                                                                    </span>
                                                                 </span>
-                                                            )}
+                                                            </button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
+                                                                onClick={() =>
+                                                                    removeTimeOffRange(
+                                                                        r.id,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Trash2 className="size-3.5" />
+                                                            </Button>
                                                         </li>
                                                     );
                                                 })}
                                             </ul>
-                                            <Button
-                                                size="sm"
-                                                className="mt-2 h-7 w-full"
-                                                onClick={() => setBulkPostShiftIds(shiftIdsInRange)}
-                                                disabled={shiftIdsInRange.length === 0}
-                                            >
-                                                Post {shiftIdsInRange.length} shift{shiftIdsInRange.length !== 1 ? 's' : ''}
-                                            </Button>
-                                        </>
+                                        </div>
                                     )}
-                                </>
+                                    <div className="mt-3 rounded-lg border border-sidebar-border/50 bg-muted/50 p-3 dark:bg-muted/30">
+                                        <p className="text-xs font-bold text-foreground">
+                                            {selectedRange
+                                                ? `Shifts of ${formatRangeShort(selectedRange.start_date, selectedRange.end_date)}`
+                                                : 'Shifts to cover'}
+                                        </p>
+                                        {selectedRange ? (
+                                            <>
+                                                {shiftsInSelectedRange.length ===
+                                                0 ? (
+                                                    <p className="mt-1 text-xs text-muted-foreground">
+                                                        No shifts in this range.
+                                                    </p>
+                                                ) : (
+                                                    <>
+                                                        <ul className="mt-1.5 max-h-32 space-y-1 overflow-y-auto text-xs">
+                                                            {shiftsInSelectedRange.map(
+                                                                (ev) => {
+                                                                    const ext =
+                                                                        ev.extendedProps;
+                                                                    const shiftId =
+                                                                        ext?.shiftId;
+                                                                    const hasPost =
+                                                                        (ext
+                                                                            ?.posts
+                                                                            ?.length ??
+                                                                            0) >
+                                                                        0;
+                                                                    const positionName =
+                                                                        ext?.position_name ??
+                                                                        ((
+                                                                            ev.title ||
+                                                                            ''
+                                                                        )
+                                                                            .replace(
+                                                                                /\s*\[Post\]\s*$/,
+                                                                                '',
+                                                                            )
+                                                                            .trim() ||
+                                                                            'Shift');
+                                                                    return (
+                                                                        <li
+                                                                            key={
+                                                                                ev.id
+                                                                            }
+                                                                            className="flex items-center justify-between gap-2"
+                                                                        >
+                                                                            <span className="min-w-0 truncate text-muted-foreground">
+                                                                                {
+                                                                                    positionName
+                                                                                }{' '}
+                                                                                ·{' '}
+                                                                                {ev.start.slice(
+                                                                                    0,
+                                                                                    10,
+                                                                                )}
+                                                                            </span>
+                                                                            {shiftId !=
+                                                                                null && (
+                                                                                <span className="flex shrink-0 items-center gap-1">
+                                                                                    <Button
+                                                                                        variant="outline"
+                                                                                        size="sm"
+                                                                                        className="h-6 px-2 text-[10px]"
+                                                                                        onClick={() =>
+                                                                                            setPostModalShift(
+                                                                                                {
+                                                                                                    shiftId,
+                                                                                                    position_name:
+                                                                                                        positionName,
+                                                                                                    desk_type:
+                                                                                                        ext?.desk_type ??
+                                                                                                        null,
+                                                                                                    start: ev.start,
+                                                                                                    end:
+                                                                                                        ev.end ??
+                                                                                                        ev.start,
+                                                                                                    workgroup_id:
+                                                                                                        ext?.workgroup_id ??
+                                                                                                        null,
+                                                                                                    workgroup_name:
+                                                                                                        ext?.workgroup_name,
+                                                                                                    is_training:
+                                                                                                        ext?.is_training ??
+                                                                                                        false,
+                                                                                                    posts: (
+                                                                                                        ext?.posts ??
+                                                                                                        []
+                                                                                                    ).map(
+                                                                                                        (
+                                                                                                            p,
+                                                                                                        ) => ({
+                                                                                                            id: p.id,
+                                                                                                            type: p.type,
+                                                                                                            cash_amount:
+                                                                                                                p.cash_amount ??
+                                                                                                                null,
+                                                                                                            flight_follow_minutes:
+                                                                                                                p.flight_follow_minutes ??
+                                                                                                                null,
+                                                                                                            flight_follow_at:
+                                                                                                                p.flight_follow_at ??
+                                                                                                                null,
+                                                                                                            notes:
+                                                                                                                p.notes ??
+                                                                                                                null,
+                                                                                                            preferred_start_times:
+                                                                                                                p.preferred_start_times ??
+                                                                                                                null,
+                                                                                                            preferred_desk_type:
+                                                                                                                p.preferred_desk_type ??
+                                                                                                                null,
+                                                                                                            payback_date_ranges:
+                                                                                                                (
+                                                                                                                    p as {
+                                                                                                                        payback_date_ranges?:
+                                                                                                                            | {
+                                                                                                                                  start: string;
+                                                                                                                                  end: string;
+                                                                                                                              }[]
+                                                                                                                            | null;
+                                                                                                                    }
+                                                                                                                )
+                                                                                                                    .payback_date_ranges ??
+                                                                                                                null,
+                                                                                                        }),
+                                                                                                    ),
+                                                                                                },
+                                                                                            )
+                                                                                        }
+                                                                                    >
+                                                                                        {hasPost
+                                                                                            ? 'Edit'
+                                                                                            : 'Post'}
+                                                                                    </Button>
+                                                                                    {hasPost &&
+                                                                                        (ext
+                                                                                            ?.posts
+                                                                                            ?.length ??
+                                                                                            0) >
+                                                                                            0 && (
+                                                                                            <Button
+                                                                                                variant="ghost"
+                                                                                                size="icon"
+                                                                                                className="h-6 w-6 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                                                                disabled={
+                                                                                                    deletingPostShiftId ===
+                                                                                                    shiftId
+                                                                                                }
+                                                                                                onClick={() => {
+                                                                                                    if (
+                                                                                                        selectedRange &&
+                                                                                                        window.confirm(
+                                                                                                            'Remove all postings for this shift? The shift will stay on your schedule.',
+                                                                                                        )
+                                                                                                    ) {
+                                                                                                        removePostForShift(
+                                                                                                            shiftId,
+                                                                                                            (
+                                                                                                                ext?.posts ??
+                                                                                                                []
+                                                                                                            ).map(
+                                                                                                                (
+                                                                                                                    p,
+                                                                                                                ) =>
+                                                                                                                    p.id,
+                                                                                                            ),
+                                                                                                            selectedRange.start_date,
+                                                                                                            selectedRange.end_date,
+                                                                                                        );
+                                                                                                    }
+                                                                                                }}
+                                                                                            >
+                                                                                                {deletingPostShiftId ===
+                                                                                                shiftId ? (
+                                                                                                    <span className="text-xs">
+                                                                                                        …
+                                                                                                    </span>
+                                                                                                ) : (
+                                                                                                    <Trash2 className="size-3.5" />
+                                                                                                )}
+                                                                                            </Button>
+                                                                                        )}
+                                                                                </span>
+                                                                            )}
+                                                                        </li>
+                                                                    );
+                                                                },
+                                                            )}
+                                                        </ul>
+                                                        <Button
+                                                            size="sm"
+                                                            className="mt-2 h-7 w-full"
+                                                            onClick={() =>
+                                                                setBulkPostShiftIds(
+                                                                    shiftIdsInRange,
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                shiftIdsInRange.length ===
+                                                                0
+                                                            }
+                                                        >
+                                                            Post{' '}
+                                                            {
+                                                                shiftIdsInRange.length
+                                                            }{' '}
+                                                            shift
+                                                            {shiftIdsInRange.length !==
+                                                            1
+                                                                ? 's'
+                                                                : ''}
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                Select a date range above to see
+                                                shifts in that range.
+                                            </p>
+                                        )}
+                                    </div>
+                                </section>
                             ) : (
-                                    <p className="mt-1 text-xs text-muted-foreground">Select a date range above to see shifts in that range.</p>
+                                <section className="min-w-0 rounded-xl border border-sidebar-border/50 bg-card p-3 shadow-sm">
+                                    <h3 className="flex items-center gap-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                                        <Briefcase className="size-3.5" />
+                                        Looking for work
+                                    </h3>
+                                    <div className="mt-2 space-y-2">
+                                        <div className="flex flex-col gap-1">
+                                            <Label className="text-[10px]">
+                                                Title for this date range
+                                            </Label>
+                                            <Input
+                                                type="text"
+                                                placeholder="e.g. March availability"
+                                                value={bulkLfwRangeTitle}
+                                                onChange={(e) =>
+                                                    setBulkLfwRangeTitle(
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className="h-8 text-xs"
+                                            />
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <div className="flex flex-col gap-1">
+                                                <Label className="text-[10px]">
+                                                    Start
+                                                </Label>
+                                                <Input
+                                                    type="date"
+                                                    value={bulkLfwFrom}
+                                                    onChange={(e) => {
+                                                        const v =
+                                                            e.target.value;
+                                                        setBulkLfwFrom(v);
+                                                        setBulkLfwTo((p) =>
+                                                            !p || v > p ? v : p,
+                                                        );
+                                                    }}
+                                                    className="h-8 text-xs"
+                                                    min={new Date()
+                                                        .toISOString()
+                                                        .slice(0, 10)}
+                                                />
+                                            </div>
+                                            <div className="flex flex-col gap-1">
+                                                <Label className="text-[10px]">
+                                                    End
+                                                </Label>
+                                                <Input
+                                                    type="date"
+                                                    value={bulkLfwTo}
+                                                    onChange={(e) =>
+                                                        setBulkLfwTo(
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    className="h-8 text-xs"
+                                                    min={
+                                                        bulkLfwFrom ||
+                                                        new Date()
+                                                            .toISOString()
+                                                            .slice(0, 10)
+                                                    }
+                                                />
+                                            </div>
+                                            <div className="flex items-end">
+                                                <Button
+                                                    size="sm"
+                                                    className="h-8"
+                                                    disabled={
+                                                        !bulkLfwFrom ||
+                                                        !bulkLfwTo ||
+                                                        addingLfwPuck
+                                                    }
+                                                    onClick={async () => {
+                                                        if (
+                                                            !bulkLfwFrom ||
+                                                            !bulkLfwTo
+                                                        )
+                                                            return;
+                                                        setAddingLfwPuck(true);
+                                                        try {
+                                                            const res =
+                                                                await fetch(
+                                                                    '/api/lfw-date-ranges',
+                                                                    {
+                                                                        method: 'POST',
+                                                                        headers:
+                                                                            {
+                                                                                'Content-Type':
+                                                                                    'application/json',
+                                                                                Accept: 'application/json',
+                                                                                'X-XSRF-TOKEN':
+                                                                                    getCsrfToken(),
+                                                                                'X-Requested-With':
+                                                                                    'XMLHttpRequest',
+                                                                            },
+                                                                        credentials:
+                                                                            'include',
+                                                                        body: JSON.stringify(
+                                                                            {
+                                                                                title:
+                                                                                    bulkLfwRangeTitle.trim() ||
+                                                                                    'LFW',
+                                                                                date_from:
+                                                                                    bulkLfwFrom,
+                                                                                date_to:
+                                                                                    bulkLfwTo,
+                                                                            },
+                                                                        ),
+                                                                    },
+                                                                );
+                                                            if (res.ok) {
+                                                                const data =
+                                                                    await res.json();
+                                                                setRangePucks(
+                                                                    (prev) => [
+                                                                        ...prev,
+                                                                        {
+                                                                            id: data.id,
+                                                                            title: data.title,
+                                                                            dateFrom:
+                                                                                data.dateFrom,
+                                                                            dateTo: data.dateTo,
+                                                                        },
+                                                                    ],
+                                                                );
+                                                                setBulkLfwRangeTitle(
+                                                                    'LFW',
+                                                                );
+                                                                setBulkLfwFrom(
+                                                                    '',
+                                                                );
+                                                                setBulkLfwTo(
+                                                                    '',
+                                                                );
+                                                            }
+                                                        } finally {
+                                                            setAddingLfwPuck(
+                                                                false,
+                                                            );
+                                                        }
+                                                    }}
+                                                >
+                                                    {addingLfwPuck
+                                                        ? '…'
+                                                        : 'Add'}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {rangePucks.length > 0 && (
+                                        <div className="mt-3 max-h-44 overflow-y-auto">
+                                            <ul className="flex flex-wrap gap-2">
+                                                {rangePucks.map((puck) => {
+                                                    const from = new Date(
+                                                        puck.dateFrom +
+                                                            'T12:00:00Z',
+                                                    );
+                                                    const to = new Date(
+                                                        puck.dateTo +
+                                                            'T12:00:00Z',
+                                                    );
+                                                    const datesInRange: string[] =
+                                                        [];
+                                                    for (
+                                                        let t = from.getTime();
+                                                        t <= to.getTime();
+                                                        t += 24 * 60 * 60 * 1000
+                                                    )
+                                                        datesInRange.push(
+                                                            new Date(t)
+                                                                .toISOString()
+                                                                .slice(0, 10),
+                                                        );
+                                                    const offDates =
+                                                        datesInRange.filter(
+                                                            (d) =>
+                                                                !datesWithShifts.has(
+                                                                    d,
+                                                                ) &&
+                                                                d >=
+                                                                    new Date()
+                                                                        .toISOString()
+                                                                        .slice(
+                                                                            0,
+                                                                            10,
+                                                                        ),
+                                                        );
+                                                    const daysOffCount =
+                                                        offDates.length;
+                                                    const isExpanded =
+                                                        expandedPuckId ===
+                                                        puck.id;
+                                                    return (
+                                                        <li
+                                                            key={puck.id}
+                                                            className={`flex max-w-[220px] min-w-0 flex-1 basis-40 items-start justify-between gap-1.5 rounded-lg border px-2 py-1.5 text-xs ${
+                                                                isExpanded
+                                                                    ? 'border-primary bg-primary/5'
+                                                                    : 'border-sidebar-border/50'
+                                                            }`}
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                className="min-w-0 flex-1 shrink text-left hover:underline"
+                                                                onClick={() =>
+                                                                    setExpandedPuckId(
+                                                                        isExpanded
+                                                                            ? null
+                                                                            : puck.id,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <span className="block font-medium">
+                                                                    {puck.title}
+                                                                </span>
+                                                                <span className="block text-muted-foreground">
+                                                                    {formatRangeShort(
+                                                                        puck.dateFrom,
+                                                                        puck.dateTo,
+                                                                    )}{' '}
+                                                                    ·{' '}
+                                                                    <span className="font-medium">
+                                                                        {
+                                                                            daysOffCount
+                                                                        }{' '}
+                                                                        day
+                                                                        {daysOffCount !==
+                                                                        1
+                                                                            ? 's'
+                                                                            : ''}{' '}
+                                                                        off
+                                                                    </span>
+                                                                </span>
+                                                            </button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
+                                                                onClick={async () => {
+                                                                    if (
+                                                                        !window.confirm(
+                                                                            'Remove this date range?',
+                                                                        )
+                                                                    )
+                                                                        return;
+                                                                    const id =
+                                                                        puck.id;
+                                                                    try {
+                                                                        const res =
+                                                                            await fetch(
+                                                                                `/api/lfw-date-ranges/${id}`,
+                                                                                {
+                                                                                    method: 'DELETE',
+                                                                                    headers:
+                                                                                        {
+                                                                                            'X-XSRF-TOKEN':
+                                                                                                getCsrfToken(),
+                                                                                            'X-Requested-With':
+                                                                                                'XMLHttpRequest',
+                                                                                        },
+                                                                                    credentials:
+                                                                                        'include',
+                                                                                },
+                                                                            );
+                                                                        if (
+                                                                            res.ok
+                                                                        ) {
+                                                                            setRangePucks(
+                                                                                (
+                                                                                    prev,
+                                                                                ) =>
+                                                                                    prev.filter(
+                                                                                        (
+                                                                                            p,
+                                                                                        ) =>
+                                                                                            p.id !==
+                                                                                            id,
+                                                                                    ),
+                                                                            );
+                                                                            if (
+                                                                                expandedPuckId ===
+                                                                                id
+                                                                            )
+                                                                                setExpandedPuckId(
+                                                                                    null,
+                                                                                );
+                                                                        }
+                                                                    } catch {
+                                                                        // ignore
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <Trash2 className="size-3.5" />
+                                                            </Button>
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    <div className="mt-3 rounded-lg border border-sidebar-border/50 bg-muted/50 p-3 dark:bg-muted/30">
+                                        <p className="text-xs font-bold text-foreground">
+                                            {expandedPuckId
+                                                ? (() => {
+                                                      const puck =
+                                                          rangePucks.find(
+                                                              (p) =>
+                                                                  p.id ===
+                                                                  expandedPuckId,
+                                                          );
+                                                      return puck
+                                                          ? `Days of ${formatRangeShort(puck.dateFrom, puck.dateTo)}`
+                                                          : 'Days available to work';
+                                                  })()
+                                                : 'Days available to work'}
+                                        </p>
+                                        {!expandedPuckId ? (
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                Select a date range above to see
+                                                days without a shift and post
+                                                Looking for work.
+                                            </p>
+                                        ) : (
+                                            (() => {
+                                                const puck = rangePucks.find(
+                                                    (p) =>
+                                                        p.id === expandedPuckId,
+                                                );
+                                                if (!puck) return null;
+                                                const from = new Date(
+                                                    puck.dateFrom +
+                                                        'T12:00:00Z',
+                                                );
+                                                const to = new Date(
+                                                    puck.dateTo + 'T12:00:00Z',
+                                                );
+                                                const datesInRange: string[] =
+                                                    [];
+                                                for (
+                                                    let t = from.getTime();
+                                                    t <= to.getTime();
+                                                    t += 24 * 60 * 60 * 1000
+                                                )
+                                                    datesInRange.push(
+                                                        new Date(t)
+                                                            .toISOString()
+                                                            .slice(0, 10),
+                                                    );
+                                                const offDates =
+                                                    datesInRange.filter(
+                                                        (d) =>
+                                                            !datesWithShifts.has(
+                                                                d,
+                                                            ) &&
+                                                            d >=
+                                                                new Date()
+                                                                    .toISOString()
+                                                                    .slice(
+                                                                        0,
+                                                                        10,
+                                                                    ),
+                                                    );
+                                                return (
+                                                    <>
+                                                        {offDates.length ===
+                                                        0 ? (
+                                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                                No days without
+                                                                a shift in this
+                                                                range (or all in
+                                                                the past).
+                                                            </p>
+                                                        ) : (
+                                                            <>
+                                                                <ul className="mt-1.5 max-h-32 space-y-1 overflow-y-auto text-xs">
+                                                                    {offDates.map(
+                                                                        (
+                                                                            dateStr,
+                                                                        ) => {
+                                                                            const existing =
+                                                                                activeLookingForWorkPosts.find(
+                                                                                    (
+                                                                                        p,
+                                                                                    ) =>
+                                                                                        p.seeking_date ===
+                                                                                        dateStr,
+                                                                                );
+                                                                            return (
+                                                                                <li
+                                                                                    key={
+                                                                                        dateStr
+                                                                                    }
+                                                                                    className="flex items-center justify-between gap-2"
+                                                                                >
+                                                                                    <span className="text-muted-foreground">
+                                                                                        {
+                                                                                            dateStr
+                                                                                        }
+                                                                                    </span>
+                                                                                    <div className="flex gap-1">
+                                                                                        {existing ? (
+                                                                                            <>
+                                                                                                <Button
+                                                                                                    variant="outline"
+                                                                                                    size="sm"
+                                                                                                    className="h-6 px-2 text-[10px]"
+                                                                                                    onClick={() =>
+                                                                                                        setEditLfwPost(
+                                                                                                            existing,
+                                                                                                        )
+                                                                                                    }
+                                                                                                >
+                                                                                                    Edit
+                                                                                                </Button>
+                                                                                                <Button
+                                                                                                    variant="ghost"
+                                                                                                    size="icon"
+                                                                                                    className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
+                                                                                                    disabled={
+                                                                                                        deletingLfwPostId ===
+                                                                                                        existing.id
+                                                                                                    }
+                                                                                                    onClick={async () => {
+                                                                                                        if (
+                                                                                                            !window.confirm(
+                                                                                                                'Remove this Looking for work post?',
+                                                                                                            )
+                                                                                                        )
+                                                                                                            return;
+                                                                                                        setDeletingLfwPostId(
+                                                                                                            existing.id,
+                                                                                                        );
+                                                                                                        try {
+                                                                                                            const res =
+                                                                                                                await fetch(
+                                                                                                                    `/api/looking-for-work/posts/${existing.id}`,
+                                                                                                                    {
+                                                                                                                        method: 'DELETE',
+                                                                                                                        headers:
+                                                                                                                            {
+                                                                                                                                Accept: 'application/json',
+                                                                                                                                'X-XSRF-TOKEN':
+                                                                                                                                    getCsrfToken(),
+                                                                                                                                'X-Requested-With':
+                                                                                                                                    'XMLHttpRequest',
+                                                                                                                            },
+                                                                                                                        credentials:
+                                                                                                                            'include',
+                                                                                                                    },
+                                                                                                                );
+                                                                                                            if (
+                                                                                                                res.ok
+                                                                                                            )
+                                                                                                                router.reload(
+                                                                                                                    {
+                                                                                                                        only: DASHBOARD_RELOAD_ONLY,
+                                                                                                                    },
+                                                                                                                );
+                                                                                                        } finally {
+                                                                                                            setDeletingLfwPostId(
+                                                                                                                null,
+                                                                                                            );
+                                                                                                        }
+                                                                                                    }}
+                                                                                                >
+                                                                                                    <Trash2 className="size-3.5" />
+                                                                                                </Button>
+                                                                                            </>
+                                                                                        ) : (
+                                                                                            <Button
+                                                                                                variant="outline"
+                                                                                                size="sm"
+                                                                                                className="h-6 px-2 text-[10px]"
+                                                                                                disabled={
+                                                                                                    postingLfwDate !=
+                                                                                                    null
+                                                                                                }
+                                                                                                onClick={async () => {
+                                                                                                    setPostingLfwDate(
+                                                                                                        dateStr,
+                                                                                                    );
+                                                                                                    try {
+                                                                                                        const res =
+                                                                                                            await fetch(
+                                                                                                                '/api/looking-for-work/posts',
+                                                                                                                {
+                                                                                                                    method: 'POST',
+                                                                                                                    headers:
+                                                                                                                        {
+                                                                                                                            'Content-Type':
+                                                                                                                                'application/json',
+                                                                                                                            Accept: 'application/json',
+                                                                                                                            'X-XSRF-TOKEN':
+                                                                                                                                getCsrfToken(),
+                                                                                                                            'X-Requested-With':
+                                                                                                                                'XMLHttpRequest',
+                                                                                                                        },
+                                                                                                                    credentials:
+                                                                                                                        'include',
+                                                                                                                    body: JSON.stringify(
+                                                                                                                        {
+                                                                                                                            seeking_date:
+                                                                                                                                dateStr,
+                                                                                                                            seeking_cash: 0,
+                                                                                                                            seeking_obo: false,
+                                                                                                                            notes: null,
+                                                                                                                            seeking_desk_types:
+                                                                                                                                null,
+                                                                                                                        },
+                                                                                                                    ),
+                                                                                                                },
+                                                                                                            );
+                                                                                                        if (
+                                                                                                            res.ok
+                                                                                                        )
+                                                                                                            router.reload(
+                                                                                                                {
+                                                                                                                    only: DASHBOARD_RELOAD_ONLY,
+                                                                                                                },
+                                                                                                            );
+                                                                                                    } finally {
+                                                                                                        setPostingLfwDate(
+                                                                                                            null,
+                                                                                                        );
+                                                                                                    }
+                                                                                                }}
+                                                                                            >
+                                                                                                {postingLfwDate ===
+                                                                                                dateStr
+                                                                                                    ? '…'
+                                                                                                    : 'Post'}
+                                                                                            </Button>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </li>
+                                                                            );
+                                                                        },
+                                                                    )}
+                                                                </ul>
+                                                                <Button
+                                                                    size="sm"
+                                                                    className="mt-2 h-7 w-full"
+                                                                    disabled={
+                                                                        postingLfwAllPuckId !=
+                                                                            null ||
+                                                                        offDates.every(
+                                                                            (
+                                                                                d,
+                                                                            ) =>
+                                                                                activeLookingForWorkPosts.some(
+                                                                                    (
+                                                                                        p,
+                                                                                    ) =>
+                                                                                        p.seeking_date ===
+                                                                                        d,
+                                                                                ),
+                                                                        )
+                                                                    }
+                                                                    onClick={async () => {
+                                                                        const toPost =
+                                                                            offDates.filter(
+                                                                                (
+                                                                                    d,
+                                                                                ) =>
+                                                                                    !activeLookingForWorkPosts.some(
+                                                                                        (
+                                                                                            p,
+                                                                                        ) =>
+                                                                                            p.seeking_date ===
+                                                                                            d,
+                                                                                    ),
+                                                                            );
+                                                                        if (
+                                                                            toPost.length ===
+                                                                            0
+                                                                        )
+                                                                            return;
+                                                                        setPostingLfwAllPuckId(
+                                                                            puck.id,
+                                                                        );
+                                                                        try {
+                                                                            for (const dateStr of toPost)
+                                                                                await fetch(
+                                                                                    '/api/looking-for-work/posts',
+                                                                                    {
+                                                                                        method: 'POST',
+                                                                                        headers:
+                                                                                            {
+                                                                                                'Content-Type':
+                                                                                                    'application/json',
+                                                                                                Accept: 'application/json',
+                                                                                                'X-XSRF-TOKEN':
+                                                                                                    getCsrfToken(),
+                                                                                                'X-Requested-With':
+                                                                                                    'XMLHttpRequest',
+                                                                                            },
+                                                                                        credentials:
+                                                                                            'include',
+                                                                                        body: JSON.stringify(
+                                                                                            {
+                                                                                                seeking_date:
+                                                                                                    dateStr,
+                                                                                                seeking_cash: 0,
+                                                                                                seeking_obo: false,
+                                                                                                notes: null,
+                                                                                                seeking_desk_types:
+                                                                                                    null,
+                                                                                            },
+                                                                                        ),
+                                                                                    },
+                                                                                );
+                                                                            router.reload(
+                                                                                {
+                                                                                    only: DASHBOARD_RELOAD_ONLY,
+                                                                                },
+                                                                            );
+                                                                        } finally {
+                                                                            setPostingLfwAllPuckId(
+                                                                                null,
+                                                                            );
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    {postingLfwAllPuckId ===
+                                                                    puck.id
+                                                                        ? 'Posting…'
+                                                                        : `Post all (${offDates.filter((d) => !activeLookingForWorkPosts.some((p) => p.seeking_date === d)).length} dates)`}
+                                                                </Button>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()
+                                        )}
+                                    </div>
+                                </section>
                             )}
                         </div>
-                </section>
-                ) : (
-                <section className="rounded-xl border border-sidebar-border/50 bg-card p-3 shadow-sm min-w-0">
-                            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <Briefcase className="size-3.5" />
-                        Looking for work
-                            </h3>
-                    <div className="mt-2 space-y-2">
-                        <div className="flex flex-col gap-1">
-                            <Label className="text-[10px]">Title for this date range</Label>
-                            <Input type="text" placeholder="e.g. March availability" value={bulkLfwRangeTitle} onChange={(e) => setBulkLfwRangeTitle(e.target.value)} className="h-8 text-xs" />
-                        </div>
-                        <div className="flex gap-2">
-                            <div className="flex flex-col gap-1">
-                                <Label className="text-[10px]">Start</Label>
-                                <Input type="date" value={bulkLfwFrom} onChange={(e) => { const v = e.target.value; setBulkLfwFrom(v); setBulkLfwTo((p) => (!p || v > p ? v : p)); }} className="h-8 text-xs" min={new Date().toISOString().slice(0, 10)} />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                <Label className="text-[10px]">End</Label>
-                                <Input type="date" value={bulkLfwTo} onChange={(e) => setBulkLfwTo(e.target.value)} className="h-8 text-xs" min={bulkLfwFrom || new Date().toISOString().slice(0, 10)} />
                     </div>
-                            <div className="flex items-end">
-                                <Button size="sm" className="h-8" disabled={!bulkLfwFrom || !bulkLfwTo || addingLfwPuck} onClick={async () => {
-                                    if (!bulkLfwFrom || !bulkLfwTo) return;
-                                    setAddingLfwPuck(true);
-                                    try {
-                                        const res = await fetch('/api/lfw-date-ranges', {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
-                                            credentials: 'include',
-                                            body: JSON.stringify({ title: bulkLfwRangeTitle.trim() || 'LFW', date_from: bulkLfwFrom, date_to: bulkLfwTo }),
-                                        });
-                                        if (res.ok) {
-                                            const data = await res.json();
-                                            setRangePucks((prev) => [...prev, { id: data.id, title: data.title, dateFrom: data.dateFrom, dateTo: data.dateTo }]);
-                                            setBulkLfwRangeTitle('LFW');
-                                            setBulkLfwFrom('');
-                                            setBulkLfwTo('');
-                                        }
-                                    } finally {
-                                        setAddingLfwPuck(false);
-                                    }
-                                }}>{addingLfwPuck ? '…' : 'Add'}</Button>
-                            </div>
-                        </div>
-                    </div>
-                    {rangePucks.length > 0 && (
-                        <div className="mt-3 max-h-44 overflow-y-auto">
-                            <ul className="flex flex-wrap gap-2">
-                                {rangePucks.map((puck) => {
-                                    const from = new Date(puck.dateFrom + 'T12:00:00Z');
-                                    const to = new Date(puck.dateTo + 'T12:00:00Z');
-                                    const datesInRange: string[] = [];
-                                    for (let t = from.getTime(); t <= to.getTime(); t += 24 * 60 * 60 * 1000) datesInRange.push(new Date(t).toISOString().slice(0, 10));
-                                    const offDates = datesInRange.filter((d) => !datesWithShifts.has(d) && d >= new Date().toISOString().slice(0, 10));
-                                    const daysOffCount = offDates.length;
-                                    const isExpanded = expandedPuckId === puck.id;
-                                                return (
-                                                    <li
-                                            key={puck.id}
-                                            className={`flex min-w-0 max-w-[220px] flex-1 basis-40 items-start justify-between gap-1.5 rounded-lg border px-2 py-1.5 text-xs ${
-                                                isExpanded ? 'border-primary bg-primary/5' : 'border-sidebar-border/50'
-                                            }`}
-                                        >
-                                            <button
-                                                type="button"
-                                                className="min-w-0 flex-1 shrink text-left hover:underline"
-                                                onClick={() => setExpandedPuckId(isExpanded ? null : puck.id)}
-                                            >
-                                                <span className="block font-medium">{puck.title}</span>
-                                                <span className="block text-muted-foreground">{formatRangeShort(puck.dateFrom, puck.dateTo)} · <span className="font-medium">{daysOffCount} day{daysOffCount !== 1 ? 's' : ''} off</span></span>
-                                            </button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
-                                                onClick={async () => {
-                                                    if (!window.confirm('Remove this date range?')) return;
-                                                    const id = puck.id;
-                                                    try {
-                                                        const res = await fetch(`/api/lfw-date-ranges/${id}`, {
-                                                            method: 'DELETE',
-                                                            headers: { 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
-                                                            credentials: 'include',
-                                                        });
-                                                        if (res.ok) {
-                                                            setRangePucks((prev) => prev.filter((p) => p.id !== id));
-                                                            if (expandedPuckId === id) setExpandedPuckId(null);
-                                                        }
-                                                    } catch {
-                                                        // ignore
-                                                    }
-                                                }}
-                                            >
-                                                <Trash2 className="size-3.5" />
-                                                        </Button>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </div>
-                    )}
-                    <div className="mt-3 rounded-lg border border-sidebar-border/50 bg-muted/50 p-3 dark:bg-muted/30">
-                        <p className="text-xs font-bold text-foreground">
-                            {expandedPuckId ? (() => {
-                                const puck = rangePucks.find((p) => p.id === expandedPuckId);
-                                return puck ? `Days of ${formatRangeShort(puck.dateFrom, puck.dateTo)}` : 'Days available to work';
-                            })() : 'Days available to work'}
-                        </p>
-                        {!expandedPuckId ? (
-                            <p className="mt-1 text-xs text-muted-foreground">Select a date range above to see days without a shift and post Looking for work.</p>
-                        ) : (() => {
-                            const puck = rangePucks.find((p) => p.id === expandedPuckId);
-                            if (!puck) return null;
-                            const from = new Date(puck.dateFrom + 'T12:00:00Z');
-                            const to = new Date(puck.dateTo + 'T12:00:00Z');
-                            const datesInRange: string[] = [];
-                            for (let t = from.getTime(); t <= to.getTime(); t += 24 * 60 * 60 * 1000) datesInRange.push(new Date(t).toISOString().slice(0, 10));
-                            const offDates = datesInRange.filter((d) => !datesWithShifts.has(d) && d >= new Date().toISOString().slice(0, 10));
-                            return (
-                                <>
-                                    {offDates.length === 0 ? (
-                                        <p className="mt-1 text-xs text-muted-foreground">No days without a shift in this range (or all in the past).</p>
-                                    ) : (
-                                        <>
-                                            <ul className="mt-1.5 max-h-32 space-y-1 overflow-y-auto text-xs">
-                                                {offDates.map((dateStr) => {
-                                                    const existing = activeLookingForWorkPosts.find((p) => p.seeking_date === dateStr);
-                                                    return (
-                                                        <li key={dateStr} className="flex items-center justify-between gap-2">
-                                                            <span className="text-muted-foreground">{dateStr}</span>
-                                                            <div className="flex gap-1">
-                                                                {existing ? (
-                                                                    <>
-                                                                        <Button variant="outline" size="sm" className="h-6 px-2 text-[10px]" onClick={() => setEditLfwPost(existing)}>Edit</Button>
-                                                                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-destructive hover:text-destructive" disabled={deletingLfwPostId === existing.id} onClick={async () => {
-                                                                            if (!window.confirm('Remove this Looking for work post?')) return;
-                                                                            setDeletingLfwPostId(existing.id);
-                                                                            try {
-                                                                                const res = await fetch(`/api/looking-for-work/posts/${existing.id}`, { method: 'DELETE', headers: { Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'include' });
-                                                                                if (res.ok) router.reload({ only: DASHBOARD_RELOAD_ONLY });
-                                                                            } finally { setDeletingLfwPostId(null); }
-                                                                        }}><Trash2 className="size-3.5" /></Button>
-                                                                    </>
-                                                                ) : (
-                                                                    <Button variant="outline" size="sm" className="h-6 px-2 text-[10px]" disabled={postingLfwDate != null} onClick={async () => {
-                                                                        setPostingLfwDate(dateStr);
-                                                                        try {
-                                                                            const res = await fetch('/api/looking-for-work/posts', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'include', body: JSON.stringify({ seeking_date: dateStr, seeking_cash: 0, seeking_obo: false, notes: null, seeking_desk_types: null }) });
-                                                                            if (res.ok) router.reload({ only: DASHBOARD_RELOAD_ONLY });
-                                                                        } finally { setPostingLfwDate(null); }
-                                                                    }}>{postingLfwDate === dateStr ? '…' : 'Post'}</Button>
-                                                                )}
-                                                    </div>
-                                                </li>
-                                                );
-                                            })}
-                                        </ul>
-                                            <Button size="sm" className="mt-2 h-7 w-full" disabled={postingLfwAllPuckId != null || offDates.every((d) => activeLookingForWorkPosts.some((p) => p.seeking_date === d))} onClick={async () => {
-                                                const toPost = offDates.filter((d) => !activeLookingForWorkPosts.some((p) => p.seeking_date === d));
-                                                if (toPost.length === 0) return;
-                                                setPostingLfwAllPuckId(puck.id);
-                                                try {
-                                                    for (const dateStr of toPost) await fetch('/api/looking-for-work/posts', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'include', body: JSON.stringify({ seeking_date: dateStr, seeking_cash: 0, seeking_obo: false, notes: null, seeking_desk_types: null }) });
-                                                    router.reload({ only: DASHBOARD_RELOAD_ONLY });
-                                                } finally { setPostingLfwAllPuckId(null); }
-                                            }}>{postingLfwAllPuckId === puck.id ? 'Posting…' : `Post all (${offDates.filter((d) => !activeLookingForWorkPosts.some((p) => p.seeking_date === d)).length} dates)`}</Button>
-                                        </>
-                                    )}
-                                </>
-                                    );
-                                })()}
-                            </div>
-                </section>
-                )}
-
-                        </div>
-                        </div>
                 </div>
 
                 {/* Action required — only when someone has responded to your post */}
                 {actionRequired.length > 0 && (
                     <section className="space-y-3">
-                        <h2 className="text-sm font-medium text-muted-foreground">Action required</h2>
+                        <h2 className="text-sm font-medium text-muted-foreground">
+                            Action required
+                        </h2>
                         <ul className="space-y-2">
                             {groupedActionRequired.map(({ single, group }) => {
-                                const isLfw = single.action_type === 'looking_for_work_offer';
-                                const isMultiLfw = isLfw && group != null && group.length > 1;
-                                const isMultiSwap = !isLfw && group != null && group.length > 1;
+                                const isLfw =
+                                    single.action_type ===
+                                    'looking_for_work_offer';
+                                const isMultiLfw =
+                                    isLfw && group != null && group.length > 1;
+                                const isMultiSwap =
+                                    !isLfw && group != null && group.length > 1;
                                 const label = isLfw
-                                    ? (isMultiLfw
+                                    ? isMultiLfw
                                         ? `${group!.length} offers on your Looking for work post${single.seeking_date ? ` (${single.seeking_date})` : ''}`
-                                        : `Someone responded to your Looking for work post${single.seeking_date ? ` (${single.seeking_date})` : ''}`)
-                                    : (isMultiSwap
-                                        ? `${group!.length} people responded to your ${postTypeLabel(single.post_type)}${single.position_name ? ` · ${single.position_name}` : ''}`
-                                        : `Someone responded to your ${postTypeLabel(single.post_type)}${single.position_name ? ` · ${single.position_name}` : ''}`);
-                                const key = isMultiLfw ? `lfw-post-${single.looking_for_work_post_id}` : isMultiSwap ? `swap-post-${single.swap_post_id}` : (isLfw ? `lfw-${single.id}` : String(single.id));
+                                        : `Someone responded to your Looking for work post${single.seeking_date ? ` (${single.seeking_date})` : ''}`
+                                    : isMultiSwap
+                                      ? `${group!.length} people responded to your ${postTypeLabel(single.post_type)}${single.position_name ? ` · ${single.position_name}` : ''}`
+                                      : `Someone responded to your ${postTypeLabel(single.post_type)}${single.position_name ? ` · ${single.position_name}` : ''}`;
+                                const key = isMultiLfw
+                                    ? `lfw-post-${single.looking_for_work_post_id}`
+                                    : isMultiSwap
+                                      ? `swap-post-${single.swap_post_id}`
+                                      : isLfw
+                                        ? `lfw-${single.id}`
+                                        : String(single.id);
                                 return (
-                                <li
-                                    key={key}
-                                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 dark:border-amber-500/30 dark:bg-amber-500/10"
-                                >
-                                    <div>
-                                        <p className="font-medium">{label}</p>
-                                        {!isLfw && single.start_time_utc && (
-                                            <p className="text-sm text-muted-foreground">
-                                                {formatCentral(single.start_time_utc)}
-                                            </p>
-                                        )}
-                                        {isLfw && single.seeking_date && (
-                                            <p className="text-sm text-muted-foreground">{single.seeking_date}</p>
-                                        )}
-                                        {!isMultiLfw && !isMultiSwap && single.offered_shift_summary && (isLfw || single.post_type === 'trade' || single.post_type === 'time_trade') && (
-                                            <p className="text-xs text-muted-foreground">
-                                                Offered: {single.offered_shift_summary}
-                                            </p>
-                                        )}
-                </div>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => {
-                                            if (isMultiLfw && group) {
-                                                setReviewSwapOfferGroup(null);
-                                                setReviewLfwOfferGroup(group);
-                                                setReviewOfferItem(group[0]);
-                                            } else if (isMultiSwap && group) {
-                                                setReviewLfwOfferGroup(null);
-                                                setReviewSwapOfferGroup(group);
-                                                setReviewOfferItem(group[0]);
-                                            } else {
-                                                setReviewLfwOfferGroup(null);
-                                                setReviewSwapOfferGroup(null);
-                                                setReviewOfferItem(single);
-                                            }
-                                        }}
+                                    <li
+                                        key={key}
+                                        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 dark:border-amber-500/30 dark:bg-amber-500/10"
                                     >
-                                        Review
-                                    </Button>
-                                </li>
+                                        <div>
+                                            <p className="font-medium">
+                                                {label}
+                                            </p>
+                                            {!isLfw &&
+                                                single.start_time_utc && (
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {formatCentral(
+                                                            single.start_time_utc,
+                                                        )}
+                                                    </p>
+                                                )}
+                                            {isLfw && single.seeking_date && (
+                                                <p className="text-sm text-muted-foreground">
+                                                    {single.seeking_date}
+                                                </p>
+                                            )}
+                                            {!isMultiLfw &&
+                                                !isMultiSwap &&
+                                                single.offered_shift_summary &&
+                                                (isLfw ||
+                                                    single.post_type ===
+                                                        'trade' ||
+                                                    single.post_type ===
+                                                        'time_trade') && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Offered:{' '}
+                                                        {
+                                                            single.offered_shift_summary
+                                                        }
+                                                    </p>
+                                                )}
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                if (isMultiLfw && group) {
+                                                    setReviewSwapOfferGroup(
+                                                        null,
+                                                    );
+                                                    setReviewLfwOfferGroup(
+                                                        group,
+                                                    );
+                                                    setReviewOfferItem(
+                                                        group[0],
+                                                    );
+                                                } else if (
+                                                    isMultiSwap &&
+                                                    group
+                                                ) {
+                                                    setReviewLfwOfferGroup(
+                                                        null,
+                                                    );
+                                                    setReviewSwapOfferGroup(
+                                                        group,
+                                                    );
+                                                    setReviewOfferItem(
+                                                        group[0],
+                                                    );
+                                                } else {
+                                                    setReviewLfwOfferGroup(
+                                                        null,
+                                                    );
+                                                    setReviewSwapOfferGroup(
+                                                        null,
+                                                    );
+                                                    setReviewOfferItem(single);
+                                                }
+                                            }}
+                                        >
+                                            Review
+                                        </Button>
+                                    </li>
                                 );
                             })}
                         </ul>
@@ -2350,25 +4016,45 @@ export default function AppDashboard() {
                 <section className="min-w-0 flex-1 space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2">
-                            <h2 className="text-sm font-medium text-muted-foreground">Calendar</h2>
+                            <h2 className="text-sm font-medium text-muted-foreground">
+                                Calendar
+                            </h2>
                             {props.lastWorkzoneSyncAt && (
-                                <span className="text-xs text-muted-foreground" title="Last import or reconcile">
-                                    Last sync: {formatCentral(props.lastWorkzoneSyncAt)}
+                                <span
+                                    className="text-xs text-muted-foreground"
+                                    title="Last import or reconcile"
+                                >
+                                    Last sync:{' '}
+                                    {formatCentral(props.lastWorkzoneSyncAt)}
                                 </span>
                             )}
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleRefresh}
+                                className="gap-1.5"
+                            >
                                 <RefreshCw className="size-4" />
                                 Refresh
                             </Button>
-                            <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5"
+                                asChild
+                            >
                                 <Link href={importSchedule.url()}>
                                     <Download className="size-4" />
                                     Import
                                 </Link>
                             </Button>
-                            <Button size="sm" className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => setShowAddShiftModal(true)}>
+                            <Button
+                                size="sm"
+                                className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
+                                onClick={() => setShowAddShiftModal(true)}
+                            >
                                 <Plus className="size-4" />
                                 Add Shift
                             </Button>
@@ -2376,8 +4062,13 @@ export default function AppDashboard() {
                     </div>
                     <div className="schedule-calendar relative rounded-xl border border-sidebar-border/70 bg-card p-2 sm:p-4 dark:border-sidebar-border">
                         {calendarEventsLoading && (
-                            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/80 backdrop-blur-[1px]" aria-hidden="true">
-                                <span className="text-sm text-muted-foreground">Loading…</span>
+                            <div
+                                className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/80 backdrop-blur-[1px]"
+                                aria-hidden="true"
+                            >
+                                <span className="text-sm text-muted-foreground">
+                                    Loading…
+                                </span>
                             </div>
                         )}
                         <FullCalendar
@@ -2398,20 +4089,33 @@ export default function AppDashboard() {
                                 jumpToMonth: {
                                     text: 'Jump to month',
                                     click: (ev: MouseEvent) => {
-                                        const api = calendarRef.current?.getApi?.();
+                                        const api =
+                                            calendarRef.current?.getApi?.();
                                         if (api) {
                                             const d = api.getDate();
-                                            setJumpToMonth({ month: d.getMonth(), year: d.getFullYear() });
+                                            setJumpToMonth({
+                                                month: d.getMonth(),
+                                                year: d.getFullYear(),
+                                            });
                                         }
-                                        setJumpToMonthAnchor({ x: ev.clientX, y: ev.clientY });
+                                        setJumpToMonthAnchor({
+                                            x: ev.clientX,
+                                            y: ev.clientY,
+                                        });
                                         setJumpToMonthOpen(true);
                                     },
                                 },
                             }}
-                            events={[...timeOffToCalendarEvents(timeOffRanges), ...events.map(normalizeEventEnd)]}
+                            events={[
+                                ...timeOffToCalendarEvents(timeOffRanges),
+                                ...events.map(normalizeEventEnd),
+                            ]}
                             eventContent={eventContent}
                             eventClassNames={(arg) =>
-                                arg.event.end && new Date(arg.event.end) < new Date() ? ['fc-event-past'] : []
+                                arg.event.end &&
+                                new Date(arg.event.end) < new Date()
+                                    ? ['fc-event-past']
+                                    : []
                             }
                             datesSet={handleDatesSet}
                             dateClick={handleDateClick}
@@ -2420,8 +4124,14 @@ export default function AppDashboard() {
                                 const d = arg.date;
                                 const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                                 const classes: string[] = [];
-                                if (datesWithEligibleGiveaway.includes(localDateStr)) classes.push('has-eligible-giveaway');
-                                if (datesWithEligibleFF.includes(localDateStr)) classes.push('has-eligible-ff');
+                                if (
+                                    datesWithEligibleGiveaway.includes(
+                                        localDateStr,
+                                    )
+                                )
+                                    classes.push('has-eligible-giveaway');
+                                if (datesWithEligibleFF.includes(localDateStr))
+                                    classes.push('has-eligible-ff');
                                 return classes;
                             }}
                             editable={false}
@@ -2431,14 +4141,32 @@ export default function AppDashboard() {
                             aspectRatio={1.8}
                         />
                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                            <span><span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-red-500 align-middle" /> Regulatory</span>
+                            <span>
+                                <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-red-500 align-middle" />{' '}
+                                Regulatory
+                            </span>
                             <span className="text-blue-600">Trade</span>
                             <span className="text-green-600">$ Cash</span>
-                            <span className="text-purple-600">FF Flight follow</span>
-                            <span className="text-green-600">$ on day = eligible giveaway</span>
-                            <span className="text-purple-600">FF on day = eligible flight follow</span>
+                            <span className="text-purple-600">
+                                FF Flight follow
+                            </span>
+                            <span className="text-green-600">
+                                $ on day = eligible giveaway
+                            </span>
+                            <span className="text-purple-600">
+                                FF on day = eligible flight follow
+                            </span>
                             {timeOffRanges.length > 0 && (
-                                <span><span className="mr-1 inline-block h-1.5 w-1.5 rounded-sm align-middle" style={{ backgroundColor: 'rgba(148, 163, 184, 0.4)' }} /> Need off</span>
+                                <span>
+                                    <span
+                                        className="mr-1 inline-block h-1.5 w-1.5 rounded-sm align-middle"
+                                        style={{
+                                            backgroundColor:
+                                                'rgba(148, 163, 184, 0.4)',
+                                        }}
+                                    />{' '}
+                                    Need off
+                                </span>
                             )}
                         </div>
                     </div>
@@ -2452,30 +4180,61 @@ export default function AppDashboard() {
                     className="fixed z-50 min-w-[12rem] rounded-lg border border-border bg-popover p-3 shadow-lg"
                     style={{
                         left: (() => {
-                            if (typeof window === 'undefined') return jumpToMonthAnchor.x;
+                            if (typeof window === 'undefined')
+                                return jumpToMonthAnchor.x;
                             const w = 208;
-                            return Math.max(8, Math.min(jumpToMonthAnchor.x, window.innerWidth - w - 8));
+                            return Math.max(
+                                8,
+                                Math.min(
+                                    jumpToMonthAnchor.x,
+                                    window.innerWidth - w - 8,
+                                ),
+                            );
                         })(),
                         top: (() => {
-                            if (typeof window === 'undefined') return jumpToMonthAnchor.y + 8;
+                            if (typeof window === 'undefined')
+                                return jumpToMonthAnchor.y + 8;
                             const h = 180;
                             const y = jumpToMonthAnchor.y + 8;
-                            if (y + h > window.innerHeight - 8) return Math.max(8, jumpToMonthAnchor.y - h - 4);
+                            if (y + h > window.innerHeight - 8)
+                                return Math.max(8, jumpToMonthAnchor.y - h - 4);
                             return y;
                         })(),
                     }}
                 >
-                    <div className="mb-2 text-sm font-medium">Jump to month</div>
+                    <div className="mb-2 text-sm font-medium">
+                        Jump to month
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                         <div>
                             <Label className="text-xs">Month</Label>
                             <select
                                 value={jumpToMonth.month}
-                                onChange={(e) => setJumpToMonth((p) => ({ ...p, month: parseInt(e.target.value, 10) }))}
+                                onChange={(e) =>
+                                    setJumpToMonth((p) => ({
+                                        ...p,
+                                        month: parseInt(e.target.value, 10),
+                                    }))
+                                }
                                 className="mt-0.5 flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
                             >
-                                {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((name, i) => (
-                                    <option key={name} value={i}>{name}</option>
+                                {[
+                                    'Jan',
+                                    'Feb',
+                                    'Mar',
+                                    'Apr',
+                                    'May',
+                                    'Jun',
+                                    'Jul',
+                                    'Aug',
+                                    'Sep',
+                                    'Oct',
+                                    'Nov',
+                                    'Dec',
+                                ].map((name, i) => (
+                                    <option key={name} value={i}>
+                                        {name}
+                                    </option>
                                 ))}
                             </select>
                         </div>
@@ -2486,7 +4245,14 @@ export default function AppDashboard() {
                                 min={2020}
                                 max={2040}
                                 value={jumpToMonth.year}
-                                onChange={(e) => setJumpToMonth((p) => ({ ...p, year: parseInt(e.target.value, 10) || p.year }))}
+                                onChange={(e) =>
+                                    setJumpToMonth((p) => ({
+                                        ...p,
+                                        year:
+                                            parseInt(e.target.value, 10) ||
+                                            p.year,
+                                    }))
+                                }
                                 className="mt-0.5 h-8 text-sm"
                             />
                         </div>
@@ -2495,7 +4261,15 @@ export default function AppDashboard() {
                         size="sm"
                         className="mt-2 w-full"
                         onClick={() => {
-                            calendarRef.current?.getApi?.().gotoDate(new Date(jumpToMonth.year, jumpToMonth.month, 1));
+                            calendarRef.current
+                                ?.getApi?.()
+                                .gotoDate(
+                                    new Date(
+                                        jumpToMonth.year,
+                                        jumpToMonth.month,
+                                        1,
+                                    ),
+                                );
                             setJumpToMonthOpen(false);
                         }}
                     >
@@ -2504,180 +4278,524 @@ export default function AppDashboard() {
                 </div>
             )}
 
-            <Dialog open={!!modalDate} onOpenChange={(open) => {
-                if (!open) {
-                    setModalDate(null);
-                    setDatePopupPostsOpen(false);
-                }
-            }}>
-                <DialogContent className="max-h-[85vh] overflow-y-auto" aria-describedby={undefined}>
+            <Dialog
+                open={!!modalDate}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setModalDate(null);
+                        setDatePopupPostsOpen(false);
+                    }
+                }}
+            >
+                <DialogContent
+                    className="max-h-[85vh] overflow-y-auto"
+                    aria-describedby={undefined}
+                >
                     <DialogHeader>
                         <DialogTitle>Shifts for {modalDate}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-2">
-                        {dayEvents.length === 0 && <p className="text-sm text-muted-foreground">No shifts this day.</p>}
+                        {dayEvents.length === 0 && (
+                            <p className="text-sm text-muted-foreground">
+                                No shifts this day.
+                            </p>
+                        )}
                         {dayEvents.map((ev) => {
                             const posts = ev.extendedProps?.posts ?? [];
-                            const positionName = ev.extendedProps?.position_name ?? ((ev.title || '').replace(/\s*\[Post\]\s*$/, '').trim() || 'Shift');
+                            const positionName =
+                                ev.extendedProps?.position_name ??
+                                ((ev.title || '')
+                                    .replace(/\s*\[Post\]\s*$/, '')
+                                    .trim() ||
+                                    'Shift');
                             const isPast = new Date(ev.end) < new Date();
-                            const isPendingIncoming = ev.extendedProps?.pending_incoming;
+                            const isPendingIncoming =
+                                ev.extendedProps?.pending_incoming;
                             const isNewShift = ev.extendedProps?.is_new_shift;
-                            const newShiftNotificationId = ev.extendedProps?.new_shift_notification_id ?? null;
-                            const actionRequiredOfferId = ev.extendedProps?.action_required_offer_id;
-                            const actionRequiredItem = actionRequiredOfferId != null ? actionRequired.find((a) => a.id === actionRequiredOfferId) : null;
+                            const newShiftNotificationId =
+                                ev.extendedProps?.new_shift_notification_id ??
+                                null;
+                            const actionRequiredOfferId =
+                                ev.extendedProps?.action_required_offer_id;
+                            const actionRequiredItem =
+                                actionRequiredOfferId != null
+                                    ? actionRequired.find(
+                                          (a) => a.id === actionRequiredOfferId,
+                                      )
+                                    : null;
                             return (
                                 <div
                                     key={ev.id}
                                     className={`flex flex-col gap-2 rounded border p-2 text-sm sm:flex-row sm:items-center sm:justify-between ${
-                                        isPendingIncoming ? 'border-amber-500/40 bg-amber-50/80 dark:bg-amber-950/30' : actionRequiredItem ? 'border-amber-500/40 bg-amber-50/50 dark:bg-amber-950/20' : isNewShift ? 'border-green-500/40 bg-green-50/50 dark:bg-green-950/20' : isPast ? 'border-muted bg-muted/30 opacity-75' : ''
+                                        isPendingIncoming
+                                            ? 'border-amber-500/40 bg-amber-50/80 dark:bg-amber-950/30'
+                                            : actionRequiredItem
+                                              ? 'border-amber-500/40 bg-amber-50/50 dark:bg-amber-950/20'
+                                              : isNewShift
+                                                ? 'border-green-500/40 bg-green-50/50 dark:bg-green-950/20'
+                                                : isPast
+                                                  ? 'border-muted bg-muted/30 opacity-75'
+                                                  : ''
                                     }`}
                                 >
                                     <div>
-                                        <div className="font-medium">{positionName}</div>
-                                        <div className="text-muted-foreground text-xs">
-                                            {timeWithSubscript(formatStartTimeOnly(ev.start))}
+                                        <div className="font-medium">
+                                            {positionName}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {timeWithSubscript(
+                                                formatStartTimeOnly(ev.start),
+                                            )}
                                             {!isPast && (
                                                 <>
                                                     {' – '}
-                                                    {timeWithSubscript(formatStartTimeOnly(ev.end))}
+                                                    {timeWithSubscript(
+                                                        formatStartTimeOnly(
+                                                            ev.end,
+                                                        ),
+                                                    )}
                                                 </>
                                             )}
-                                            {auth?.user?.time_display_preference === 'central_zulu' && (
+                                            {auth?.user
+                                                ?.time_display_preference ===
+                                                'central_zulu' && (
                                                 <span className="ml-1">
-                                                    ({new Date(ev.start).toISOString().slice(11, 16)}Z
-                                                    {!isPast && ` – ${new Date(ev.end).toISOString().slice(11, 16)}Z`})
+                                                    (
+                                                    {new Date(ev.start)
+                                                        .toISOString()
+                                                        .slice(11, 16)}
+                                                    Z
+                                                    {!isPast &&
+                                                        ` – ${new Date(ev.end).toISOString().slice(11, 16)}Z`}
+                                                    )
                                                 </span>
                                             )}
                                         </div>
                                         {isPendingIncoming && (
-                                            <div className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">Pending — waiting for response</div>
-                                        )}
-                                        {actionRequiredItem && !isPendingIncoming && (
-                                            <div className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">Action required — respond to offer</div>
-                                        )}
-                                        {isNewShift && !isPendingIncoming && (
-                                            <div className="mt-1 text-xs font-medium text-green-700 dark:text-green-400">New shift — your response was accepted. Please check workzone to ensure the change has been made properly.</div>
-                                        )}
-                                        {posts.length > 0 && !isPendingIncoming && (
-                                            <div className="mt-1 text-xs">
-                                                Posted: {posts.map((p) => (p.type === 'trade' ? 'Trade' : p.type === 'time_trade' ? 'Time trade' : p.type === 'cash' ? 'Giveaway' : 'Flight following')).join(', ')}
-                                                {posts.some((p) => p.cash_amount) && ' · $'}
-                                                {posts.some((p) => p.flight_follow_minutes) && ' · FF'}
+                                            <div className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                                                Pending — waiting for response
                                             </div>
                                         )}
+                                        {actionRequiredItem &&
+                                            !isPendingIncoming && (
+                                                <div className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                                                    Action required — respond to
+                                                    offer
+                                                </div>
+                                            )}
+                                        {isNewShift && !isPendingIncoming && (
+                                            <div className="mt-1 text-xs font-medium text-green-700 dark:text-green-400">
+                                                New shift — your response was
+                                                accepted. Please check workzone
+                                                to ensure the change has been
+                                                made properly.
+                                            </div>
+                                        )}
+                                        {posts.length > 0 &&
+                                            !isPendingIncoming && (
+                                                <div className="mt-1 text-xs">
+                                                    Posted:{' '}
+                                                    {posts
+                                                        .map((p) =>
+                                                            p.type === 'trade'
+                                                                ? 'Trade'
+                                                                : p.type ===
+                                                                    'time_trade'
+                                                                  ? 'Time trade'
+                                                                  : p.type ===
+                                                                      'cash'
+                                                                    ? 'Giveaway'
+                                                                    : 'Flight following',
+                                                        )
+                                                        .join(', ')}
+                                                    {posts.some(
+                                                        (p) => p.cash_amount,
+                                                    ) && ' · $'}
+                                                    {posts.some(
+                                                        (p) =>
+                                                            p.flight_follow_minutes,
+                                                    ) && ' · FF'}
+                                                </div>
+                                            )}
                                     </div>
                                     {isPast ? (
-                                        <span className="shrink-0 text-xs text-muted-foreground">Past</span>
+                                        <span className="shrink-0 text-xs text-muted-foreground">
+                                            Past
+                                        </span>
                                     ) : isPendingIncoming ? (
-                                        <span className="shrink-0 rounded bg-amber-200/80 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-800/50 dark:text-amber-100">Pending</span>
+                                        <span className="shrink-0 rounded bg-amber-200/80 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-800/50 dark:text-amber-100">
+                                            Pending
+                                        </span>
                                     ) : actionRequiredItem ? (
                                         <div className="flex shrink-0 flex-wrap items-center gap-1">
-                                            <Button size="sm" className="bg-amber-600 hover:bg-amber-700" onClick={() => { setReviewOfferItem(actionRequiredItem); setModalDate(null); }}>
+                                            <Button
+                                                size="sm"
+                                                className="bg-amber-600 hover:bg-amber-700"
+                                                onClick={() => {
+                                                    setReviewOfferItem(
+                                                        actionRequiredItem,
+                                                    );
+                                                    setModalDate(null);
+                                                }}
+                                            >
                                                 Respond to offer
                                             </Button>
                                             {posts.length > 0 ? (
-                                                <Button variant="outline" size="sm" onClick={() => {
-                                                    setPostModalShift({
-                                                        shiftId: ev.extendedProps!.shiftId,
-                                                        position_name: positionName,
-                                                        desk_type: ev.extendedProps?.desk_type ?? null,
-                                                        start: ev.start,
-                                                        end: ev.end,
-                                                        workgroup_id: ev.extendedProps?.workgroup_id ?? null,
-                                                        workgroup_name: ev.extendedProps?.workgroup_name,
-                                                        is_training: ev.extendedProps?.is_training ?? false,
-                                                        posts: posts.map((p) => ({
-                                                            id: p.id,
-                                                            type: p.type,
-                                                            cash_amount: p.cash_amount ?? null,
-                                                            flight_follow_minutes: p.flight_follow_minutes ?? null,
-                                                            flight_follow_at: (p as { flight_follow_at?: string | null }).flight_follow_at ?? null,
-                                                            notes: p.notes ?? null,
-                                                            preferred_start_times: (p as { preferred_start_times?: string[] | null }).preferred_start_times ?? null,
-                                                            preferred_desk_type: (p as { preferred_desk_type?: string | null }).preferred_desk_type ?? null,
-                                                            payback_date_ranges: (p as { payback_date_ranges?: { start: string; end: string }[] | null }).payback_date_ranges ?? null,
-                                                        })),
-                                                    });
-                                                    setModalDate(null);
-                                                }}>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setPostModalShift({
+                                                            shiftId:
+                                                                ev
+                                                                    .extendedProps!
+                                                                    .shiftId,
+                                                            position_name:
+                                                                positionName,
+                                                            desk_type:
+                                                                ev.extendedProps
+                                                                    ?.desk_type ??
+                                                                null,
+                                                            start: ev.start,
+                                                            end: ev.end,
+                                                            workgroup_id:
+                                                                ev.extendedProps
+                                                                    ?.workgroup_id ??
+                                                                null,
+                                                            workgroup_name:
+                                                                ev.extendedProps
+                                                                    ?.workgroup_name,
+                                                            is_training:
+                                                                ev.extendedProps
+                                                                    ?.is_training ??
+                                                                false,
+                                                            posts: posts.map(
+                                                                (p) => ({
+                                                                    id: p.id,
+                                                                    type: p.type,
+                                                                    cash_amount:
+                                                                        p.cash_amount ??
+                                                                        null,
+                                                                    flight_follow_minutes:
+                                                                        p.flight_follow_minutes ??
+                                                                        null,
+                                                                    flight_follow_at:
+                                                                        (
+                                                                            p as {
+                                                                                flight_follow_at?:
+                                                                                    | string
+                                                                                    | null;
+                                                                            }
+                                                                        )
+                                                                            .flight_follow_at ??
+                                                                        null,
+                                                                    notes:
+                                                                        p.notes ??
+                                                                        null,
+                                                                    preferred_start_times:
+                                                                        (
+                                                                            p as {
+                                                                                preferred_start_times?:
+                                                                                    | string[]
+                                                                                    | null;
+                                                                            }
+                                                                        )
+                                                                            .preferred_start_times ??
+                                                                        null,
+                                                                    preferred_desk_type:
+                                                                        (
+                                                                            p as {
+                                                                                preferred_desk_type?:
+                                                                                    | string
+                                                                                    | null;
+                                                                            }
+                                                                        )
+                                                                            .preferred_desk_type ??
+                                                                        null,
+                                                                    payback_date_ranges:
+                                                                        (
+                                                                            p as {
+                                                                                payback_date_ranges?:
+                                                                                    | {
+                                                                                          start: string;
+                                                                                          end: string;
+                                                                                      }[]
+                                                                                    | null;
+                                                                            }
+                                                                        )
+                                                                            .payback_date_ranges ??
+                                                                        null,
+                                                                }),
+                                                            ),
+                                                        });
+                                                        setModalDate(null);
+                                                    }}
+                                                >
                                                     Edit post
                                                 </Button>
                                             ) : null}
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => openEditShiftInDay({ shiftId: ev.extendedProps!.shiftId, position_name: positionName, desk_type: ev.extendedProps?.desk_type ?? null, workgroup_id: ev.extendedProps?.workgroup_id ?? null, workgroup_name: ev.extendedProps?.workgroup_name, start: ev.start, end: ev.end ?? ev.start, regulatory: ev.extendedProps?.regulatory ?? false })}>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="h-8 w-8 p-0"
+                                                        onClick={() =>
+                                                            openEditShiftInDay({
+                                                                shiftId:
+                                                                    ev
+                                                                        .extendedProps!
+                                                                        .shiftId,
+                                                                position_name:
+                                                                    positionName,
+                                                                desk_type:
+                                                                    ev
+                                                                        .extendedProps
+                                                                        ?.desk_type ??
+                                                                    null,
+                                                                workgroup_id:
+                                                                    ev
+                                                                        .extendedProps
+                                                                        ?.workgroup_id ??
+                                                                    null,
+                                                                workgroup_name:
+                                                                    ev
+                                                                        .extendedProps
+                                                                        ?.workgroup_name,
+                                                                start: ev.start,
+                                                                end:
+                                                                    ev.end ??
+                                                                    ev.start,
+                                                                regulatory:
+                                                                    ev
+                                                                        .extendedProps
+                                                                        ?.regulatory ??
+                                                                    false,
+                                                            })
+                                                        }
+                                                    >
                                                         <Pencil className="size-3.5" />
                                                     </Button>
                                                 </TooltipTrigger>
-                                                <TooltipContent side="top">Edit shift</TooltipContent>
+                                                <TooltipContent side="top">
+                                                    Edit shift
+                                                </TooltipContent>
                                             </Tooltip>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button variant="outline" size="sm" className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10" onClick={() => setRemoveShiftConfirm({ shiftId: ev.extendedProps!.shiftId, positionName })}>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                                                        onClick={() =>
+                                                            setRemoveShiftConfirm(
+                                                                {
+                                                                    shiftId:
+                                                                        ev
+                                                                            .extendedProps!
+                                                                            .shiftId,
+                                                                    positionName,
+                                                                },
+                                                            )
+                                                        }
+                                                    >
                                                         <Trash2 className="size-3.5" />
                                                     </Button>
                                                 </TooltipTrigger>
-                                                <TooltipContent side="top">Remove shift</TooltipContent>
+                                                <TooltipContent side="top">
+                                                    Remove shift
+                                                </TooltipContent>
                                             </Tooltip>
                                         </div>
                                     ) : (
                                         <div className="flex shrink-0 flex-wrap items-center gap-1">
-                                            {isNewShift && newShiftNotificationId != null && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="border-green-600 text-green-700 hover:bg-green-50 dark:border-green-500 dark:text-green-400 dark:hover:bg-green-950/30"
-                                                    disabled={dismissingNotificationId === newShiftNotificationId}
-                                                    onClick={() => dismissNewShiftNotification(newShiftNotificationId)}
-                                                >
-                                                    {dismissingNotificationId === newShiftNotificationId ? '…' : 'Acknowledge'}
-                                                </Button>
-                                            )}
+                                            {isNewShift &&
+                                                newShiftNotificationId !=
+                                                    null && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="border-green-600 text-green-700 hover:bg-green-50 dark:border-green-500 dark:text-green-400 dark:hover:bg-green-950/30"
+                                                        disabled={
+                                                            dismissingNotificationId ===
+                                                            newShiftNotificationId
+                                                        }
+                                                        onClick={() =>
+                                                            dismissNewShiftNotification(
+                                                                newShiftNotificationId,
+                                                            )
+                                                        }
+                                                    >
+                                                        {dismissingNotificationId ===
+                                                        newShiftNotificationId
+                                                            ? '…'
+                                                            : 'Acknowledge'}
+                                                    </Button>
+                                                )}
                                             <Button
                                                 variant="outline"
                                                 size="sm"
                                                 className="shrink-0"
                                                 onClick={() =>
                                                     setPostModalShift({
-                                                        shiftId: ev.extendedProps!.shiftId,
-                                                        position_name: positionName,
-                                                        desk_type: ev.extendedProps?.desk_type ?? null,
+                                                        shiftId:
+                                                            ev.extendedProps!
+                                                                .shiftId,
+                                                        position_name:
+                                                            positionName,
+                                                        desk_type:
+                                                            ev.extendedProps
+                                                                ?.desk_type ??
+                                                            null,
                                                         start: ev.start,
                                                         end: ev.end,
-                                                        workgroup_id: ev.extendedProps?.workgroup_id ?? null,
-                                                        workgroup_name: ev.extendedProps?.workgroup_name,
-                                                        is_training: ev.extendedProps?.is_training ?? false,
-                                                        posts: posts.map((p) => ({
-                                                            id: p.id,
-                                                            type: p.type,
-                                                            cash_amount: p.cash_amount ?? null,
-                                                            flight_follow_minutes: p.flight_follow_minutes ?? null,
-                                                            flight_follow_at: (p as { flight_follow_at?: string | null }).flight_follow_at ?? null,
-                                                            notes: p.notes ?? null,
-                                                            preferred_start_times: (p as { preferred_start_times?: string[] | null }).preferred_start_times ?? null,
-                                                            preferred_desk_type: (p as { preferred_desk_type?: string | null }).preferred_desk_type ?? null,
-                                                            payback_date_ranges: (p as { payback_date_ranges?: { start: string; end: string }[] | null }).payback_date_ranges ?? null,
-                                                        })),
+                                                        workgroup_id:
+                                                            ev.extendedProps
+                                                                ?.workgroup_id ??
+                                                            null,
+                                                        workgroup_name:
+                                                            ev.extendedProps
+                                                                ?.workgroup_name,
+                                                        is_training:
+                                                            ev.extendedProps
+                                                                ?.is_training ??
+                                                            false,
+                                                        posts: posts.map(
+                                                            (p) => ({
+                                                                id: p.id,
+                                                                type: p.type,
+                                                                cash_amount:
+                                                                    p.cash_amount ??
+                                                                    null,
+                                                                flight_follow_minutes:
+                                                                    p.flight_follow_minutes ??
+                                                                    null,
+                                                                flight_follow_at:
+                                                                    (
+                                                                        p as {
+                                                                            flight_follow_at?:
+                                                                                | string
+                                                                                | null;
+                                                                        }
+                                                                    )
+                                                                        .flight_follow_at ??
+                                                                    null,
+                                                                notes:
+                                                                    p.notes ??
+                                                                    null,
+                                                                preferred_start_times:
+                                                                    (
+                                                                        p as {
+                                                                            preferred_start_times?:
+                                                                                | string[]
+                                                                                | null;
+                                                                        }
+                                                                    )
+                                                                        .preferred_start_times ??
+                                                                    null,
+                                                                preferred_desk_type:
+                                                                    (
+                                                                        p as {
+                                                                            preferred_desk_type?:
+                                                                                | string
+                                                                                | null;
+                                                                        }
+                                                                    )
+                                                                        .preferred_desk_type ??
+                                                                    null,
+                                                                payback_date_ranges:
+                                                                    (
+                                                                        p as {
+                                                                            payback_date_ranges?:
+                                                                                | {
+                                                                                      start: string;
+                                                                                      end: string;
+                                                                                  }[]
+                                                                                | null;
+                                                                        }
+                                                                    )
+                                                                        .payback_date_ranges ??
+                                                                    null,
+                                                            }),
+                                                        ),
                                                     })
                                                 }
                                             >
-                                                {posts.length > 0 ? 'Edit post' : 'Post shift'}
+                                                {posts.length > 0
+                                                    ? 'Edit post'
+                                                    : 'Post shift'}
                                             </Button>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button variant="outline" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={() => openEditShiftInDay({ shiftId: ev.extendedProps!.shiftId, position_name: positionName, desk_type: ev.extendedProps?.desk_type ?? null, workgroup_id: ev.extendedProps?.workgroup_id ?? null, workgroup_name: ev.extendedProps?.workgroup_name, start: ev.start, end: ev.end ?? ev.start, regulatory: ev.extendedProps?.regulatory ?? false })}>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="h-8 w-8 shrink-0 p-0"
+                                                        onClick={() =>
+                                                            openEditShiftInDay({
+                                                                shiftId:
+                                                                    ev
+                                                                        .extendedProps!
+                                                                        .shiftId,
+                                                                position_name:
+                                                                    positionName,
+                                                                desk_type:
+                                                                    ev
+                                                                        .extendedProps
+                                                                        ?.desk_type ??
+                                                                    null,
+                                                                workgroup_id:
+                                                                    ev
+                                                                        .extendedProps
+                                                                        ?.workgroup_id ??
+                                                                    null,
+                                                                workgroup_name:
+                                                                    ev
+                                                                        .extendedProps
+                                                                        ?.workgroup_name,
+                                                                start: ev.start,
+                                                                end:
+                                                                    ev.end ??
+                                                                    ev.start,
+                                                                regulatory:
+                                                                    ev
+                                                                        .extendedProps
+                                                                        ?.regulatory ??
+                                                                    false,
+                                                            })
+                                                        }
+                                                    >
                                                         <Pencil className="size-3.5" />
                                                     </Button>
                                                 </TooltipTrigger>
-                                                <TooltipContent side="top">Edit shift</TooltipContent>
+                                                <TooltipContent side="top">
+                                                    Edit shift
+                                                </TooltipContent>
                                             </Tooltip>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button variant="outline" size="sm" className="h-8 w-8 p-0 shrink-0 text-destructive hover:bg-destructive/10" onClick={() => setRemoveShiftConfirm({ shiftId: ev.extendedProps!.shiftId, positionName })}>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="h-8 w-8 shrink-0 p-0 text-destructive hover:bg-destructive/10"
+                                                        onClick={() =>
+                                                            setRemoveShiftConfirm(
+                                                                {
+                                                                    shiftId:
+                                                                        ev
+                                                                            .extendedProps!
+                                                                            .shiftId,
+                                                                    positionName,
+                                                                },
+                                                            )
+                                                        }
+                                                    >
                                                         <Trash2 className="size-3.5" />
                                                     </Button>
                                                 </TooltipTrigger>
-                                                <TooltipContent side="top">Remove shift</TooltipContent>
+                                                <TooltipContent side="top">
+                                                    Remove shift
+                                                </TooltipContent>
                                             </Tooltip>
                                         </div>
                                     )}
@@ -2685,74 +4803,141 @@ export default function AppDashboard() {
                             );
                         })}
                     </div>
-                    {modalDate && modalDate >= new Date().toISOString().slice(0, 10) && (
-                        <Collapsible open={datePopupPostsOpen} onOpenChange={setDatePopupPostsOpen} className="mt-4">
-                            <CollapsibleTrigger asChild>
-                                <button
-                                    type="button"
-                                    className="flex w-full items-center gap-2 rounded-lg border border-sidebar-border/70 bg-muted/30 p-3 text-left text-sm font-medium hover:bg-muted/50 dark:border-sidebar-border"
-                                >
-                                    <ChevronRight className={`h-4 w-4 shrink-0 transition-transform ${datePopupPostsOpen ? 'rotate-90' : ''}`} />
-                                    View posts for this date
-                                </button>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
-                                <p className="mt-2 mb-2 text-xs text-muted-foreground">Posts you are eligible for (counts shown):</p>
-                                <div className="flex flex-wrap gap-2">
-                                    <Button variant="outline" size="sm" className="gap-1.5 text-purple-600 dark:text-purple-400" asChild>
-                                        <Link href={`/app/available?date_from=${modalDate}&date_to=${modalDate}&type=flight_follow`} onClick={() => setModalDate(null)}>
-                                            <Plane className="size-3.5 shrink-0" />
-                                            FF
-                                            {eligiblePostCounts ? ` (${eligiblePostCounts.flight_follow})` : ' (…)'}
-                                        </Link>
-                                    </Button>
-                                    <Button variant="outline" size="sm" className="gap-1.5 text-blue-600 dark:text-blue-400" asChild>
-                                        <Link href={`/app/available?date_from=${modalDate}&date_to=${modalDate}&type=time_trade`} onClick={() => setModalDate(null)}>
-                                            <Repeat strokeWidth={2.5} className="size-3.5 shrink-0" />
-                                            Time trades
-                                            {eligiblePostCounts ? ` (${eligiblePostCounts.time_trade})` : ' (…)'}
-                                        </Link>
-                                    </Button>
-                                    <Button variant="outline" size="sm" className="gap-1.5 text-blue-600 dark:text-blue-400" asChild>
-                                        <Link href={`/app/available?date_from=${modalDate}&date_to=${modalDate}&type=trade`} onClick={() => setModalDate(null)}>
-                                            <Handshake className="size-3.5 shrink-0" />
-                                            Trade
-                                            {eligiblePostCounts ? ` (${eligiblePostCounts.trade})` : ' (…)'}
-                                        </Link>
-                                    </Button>
-                                    <Button variant="outline" size="sm" className="gap-1.5 text-green-600 dark:text-green-400" asChild>
-                                        <Link href={`/app/available?date_from=${modalDate}&date_to=${modalDate}&type=cash`} onClick={() => setModalDate(null)}>
-                                            <DollarSign className="size-3.5 shrink-0" />
-                                            Giveaway
-                                            {eligiblePostCounts ? ` (${eligiblePostCounts.cash})` : ' (…)'}
-                                        </Link>
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="gap-1.5"
-                                        onClick={() => {
-                                            if (modalDate) {
-                                                setLfwModalDate(modalDate);
-                                                setLfwModalWilling(false);
-                                                setLfwModalOpen(true);
-                                                setModalDate(null);
-                                            }
-                                        }}
+                    {modalDate &&
+                        modalDate >= new Date().toISOString().slice(0, 10) && (
+                            <Collapsible
+                                open={datePopupPostsOpen}
+                                onOpenChange={setDatePopupPostsOpen}
+                                className="mt-4"
+                            >
+                                <CollapsibleTrigger asChild>
+                                    <button
+                                        type="button"
+                                        className="flex w-full items-center gap-2 rounded-lg border border-sidebar-border/70 bg-muted/30 p-3 text-left text-sm font-medium hover:bg-muted/50 dark:border-sidebar-border"
                                     >
-                                        <Briefcase className="size-3.5 shrink-0" />
-                                        Post looking for work
-                                    </Button>
-                                </div>
-                            </CollapsibleContent>
-                        </Collapsible>
-                    )}
+                                        <ChevronRight
+                                            className={`h-4 w-4 shrink-0 transition-transform ${datePopupPostsOpen ? 'rotate-90' : ''}`}
+                                        />
+                                        View posts for this date
+                                    </button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                    <p className="mt-2 mb-2 text-xs text-muted-foreground">
+                                        Posts you are eligible for (counts
+                                        shown):
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-1.5 text-purple-600 dark:text-purple-400"
+                                            asChild
+                                        >
+                                            <Link
+                                                href={`/app/available?date_from=${modalDate}&date_to=${modalDate}&type=flight_follow`}
+                                                onClick={() =>
+                                                    setModalDate(null)
+                                                }
+                                            >
+                                                <Plane className="size-3.5 shrink-0" />
+                                                FF
+                                                {eligiblePostCounts
+                                                    ? ` (${eligiblePostCounts.flight_follow})`
+                                                    : ' (…)'}
+                                            </Link>
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-1.5 text-blue-600 dark:text-blue-400"
+                                            asChild
+                                        >
+                                            <Link
+                                                href={`/app/available?date_from=${modalDate}&date_to=${modalDate}&type=time_trade`}
+                                                onClick={() =>
+                                                    setModalDate(null)
+                                                }
+                                            >
+                                                <Repeat
+                                                    strokeWidth={2.5}
+                                                    className="size-3.5 shrink-0"
+                                                />
+                                                Time trades
+                                                {eligiblePostCounts
+                                                    ? ` (${eligiblePostCounts.time_trade})`
+                                                    : ' (…)'}
+                                            </Link>
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-1.5 text-blue-600 dark:text-blue-400"
+                                            asChild
+                                        >
+                                            <Link
+                                                href={`/app/available?date_from=${modalDate}&date_to=${modalDate}&type=trade`}
+                                                onClick={() =>
+                                                    setModalDate(null)
+                                                }
+                                            >
+                                                <Handshake className="size-3.5 shrink-0" />
+                                                Trade
+                                                {eligiblePostCounts
+                                                    ? ` (${eligiblePostCounts.trade})`
+                                                    : ' (…)'}
+                                            </Link>
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-1.5 text-green-600 dark:text-green-400"
+                                            asChild
+                                        >
+                                            <Link
+                                                href={`/app/available?date_from=${modalDate}&date_to=${modalDate}&type=cash`}
+                                                onClick={() =>
+                                                    setModalDate(null)
+                                                }
+                                            >
+                                                <DollarSign className="size-3.5 shrink-0" />
+                                                Giveaway
+                                                {eligiblePostCounts
+                                                    ? ` (${eligiblePostCounts.cash})`
+                                                    : ' (…)'}
+                                            </Link>
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-1.5"
+                                            onClick={() => {
+                                                if (modalDate) {
+                                                    setLfwModalDate(modalDate);
+                                                    setLfwModalWilling(false);
+                                                    setLfwModalOpen(true);
+                                                    setModalDate(null);
+                                                }
+                                            }}
+                                        >
+                                            <Briefcase className="size-3.5 shrink-0" />
+                                            Post looking for work
+                                        </Button>
+                                    </div>
+                                </CollapsibleContent>
+                            </Collapsible>
+                        )}
                 </DialogContent>
             </Dialog>
 
             {/* Find FF: show LFW willing-to-follow for next shift date, or offer to post FF / LFW */}
-            <Dialog open={!!findFFModal} onOpenChange={(open) => !open && setFindFFModal(null)}>
-                <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+            <Dialog
+                open={!!findFFModal}
+                onOpenChange={(open) => !open && setFindFFModal(null)}
+            >
+                <DialogContent
+                    className="sm:max-w-md"
+                    aria-describedby={undefined}
+                >
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Plane className="size-5 text-purple-600 dark:text-purple-400" />
@@ -2764,17 +4949,44 @@ export default function AppDashboard() {
                             {findFFModal.lfwCount > 0 ? (
                                 <>
                                     <p className="text-sm text-muted-foreground">
-                                        {findFFModal.lfwCount} {findFFModal.lfwCount === 1 ? 'person is' : 'people are'} willing to follow on {findFFModal.date}. You can offer your shift via Looking for work or view shift-based flight following posts.
+                                        {findFFModal.lfwCount}{' '}
+                                        {findFFModal.lfwCount === 1
+                                            ? 'person is'
+                                            : 'people are'}{' '}
+                                        willing to follow on {findFFModal.date}.
+                                        You can offer your shift via Looking for
+                                        work or view shift-based flight
+                                        following posts.
                                     </p>
                                     <div className="flex flex-wrap gap-2">
-                                        <Button variant="default" size="sm" className="gap-1.5" asChild>
-                                            <Link href={`/app/looking-for-work?date_from=${findFFModal.date}&date_to=${findFFModal.date}`} onClick={() => setFindFFModal(null)}>
+                                        <Button
+                                            variant="default"
+                                            size="sm"
+                                            className="gap-1.5"
+                                            asChild
+                                        >
+                                            <Link
+                                                href={`/app/looking-for-work?date_from=${findFFModal.date}&date_to=${findFFModal.date}`}
+                                                onClick={() =>
+                                                    setFindFFModal(null)
+                                                }
+                                            >
                                                 <Briefcase className="size-3.5 shrink-0" />
                                                 View on Looking for work
                                             </Link>
                                         </Button>
-                                        <Button variant="outline" size="sm" className="gap-1.5 text-purple-600 dark:text-purple-400" asChild>
-                                            <Link href={`/app/available?date_from=${findFFModal.date}&date_to=${findFFModal.date}&type=flight_follow`} onClick={() => setFindFFModal(null)}>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-1.5 text-purple-600 dark:text-purple-400"
+                                            asChild
+                                        >
+                                            <Link
+                                                href={`/app/available?date_from=${findFFModal.date}&date_to=${findFFModal.date}&type=flight_follow`}
+                                                onClick={() =>
+                                                    setFindFFModal(null)
+                                                }
+                                            >
                                                 <Plane className="size-3.5 shrink-0" />
                                                 View shift-based FF
                                             </Link>
@@ -2784,7 +4996,9 @@ export default function AppDashboard() {
                             ) : (
                                 <>
                                     <p className="text-sm text-muted-foreground">
-                                        No active flight followers available for this shift. Post to let people know you are looking for a flight follower.
+                                        No active flight followers available for
+                                        this shift. Post to let people know you
+                                        are looking for a flight follower.
                                     </p>
                                     <div className="flex flex-wrap gap-2">
                                         <Button
@@ -2792,17 +5006,37 @@ export default function AppDashboard() {
                                             size="sm"
                                             className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-600 dark:text-purple-300"
                                             onClick={() => {
-                                                const shift = findFFModal.forShift ?? displayNextShift;
+                                                const shift =
+                                                    findFFModal.forShift ??
+                                                    displayNextShift;
                                                 if (shift) {
                                                     setPostModalShift({
                                                         shiftId: shift.id,
-                                                        position_name: shift.position_name,
-                                                        desk_type: shift.desk_type ?? null,
+                                                        position_name:
+                                                            shift.position_name,
+                                                        desk_type:
+                                                            shift.desk_type ??
+                                                            null,
                                                         start: shift.start_time_utc,
                                                         end: shift.end_time_utc,
-                                                        workgroup_id: (shift as { workgroup_id?: number | null }).workgroup_id ?? null,
-                                                        workgroup_name: shift.workgroup_name,
-                                                        is_training: (shift as { is_training?: boolean }).is_training ?? false,
+                                                        workgroup_id:
+                                                            (
+                                                                shift as {
+                                                                    workgroup_id?:
+                                                                        | number
+                                                                        | null;
+                                                                }
+                                                            ).workgroup_id ??
+                                                            null,
+                                                        workgroup_name:
+                                                            shift.workgroup_name,
+                                                        is_training:
+                                                            (
+                                                                shift as {
+                                                                    is_training?: boolean;
+                                                                }
+                                                            ).is_training ??
+                                                            false,
                                                         posts: [],
                                                         preselectFlightFollow: true,
                                                     });
@@ -2828,7 +5062,10 @@ export default function AppDashboard() {
                     if (!open) setFfModalOpen(false);
                 }}
             >
-                <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+                <DialogContent
+                    className="sm:max-w-md"
+                    aria-describedby={undefined}
+                >
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Plane className="size-5 text-purple-600 dark:text-purple-400" />
@@ -2838,7 +5075,8 @@ export default function AppDashboard() {
                     {ffModalStep === 'before_after' && (
                         <div className="space-y-3">
                             <p className="text-sm text-muted-foreground">
-                                Looking for a flight follower before or after your shift?
+                                Looking for a flight follower before or after
+                                your shift?
                             </p>
                             <div className="flex flex-wrap gap-2">
                                 <Button
@@ -2852,10 +5090,23 @@ export default function AppDashboard() {
                                         try {
                                             const res = await fetch(
                                                 `/api/looking-for-work/posts-for-date?date=${encodeURIComponent(ffModalDate)}&time_frame=before`,
-                                                { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'include' }
+                                                {
+                                                    headers: {
+                                                        Accept: 'application/json',
+                                                        'X-Requested-With':
+                                                            'XMLHttpRequest',
+                                                    },
+                                                    credentials: 'include',
+                                                },
                                             );
-                                            const data = await res.json().catch(() => ({}));
-                                            setFfModalPosts(Array.isArray(data.lfw_ff_posts) ? data.lfw_ff_posts : []);
+                                            const data = await res
+                                                .json()
+                                                .catch(() => ({}));
+                                            setFfModalPosts(
+                                                Array.isArray(data.lfw_ff_posts)
+                                                    ? data.lfw_ff_posts
+                                                    : [],
+                                            );
                                             setFfModalStep('results');
                                         } finally {
                                             setFfModalLoading(false);
@@ -2875,10 +5126,23 @@ export default function AppDashboard() {
                                         try {
                                             const res = await fetch(
                                                 `/api/looking-for-work/posts-for-date?date=${encodeURIComponent(ffModalDate)}&time_frame=after`,
-                                                { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'include' }
+                                                {
+                                                    headers: {
+                                                        Accept: 'application/json',
+                                                        'X-Requested-With':
+                                                            'XMLHttpRequest',
+                                                    },
+                                                    credentials: 'include',
+                                                },
                                             );
-                                            const data = await res.json().catch(() => ({}));
-                                            setFfModalPosts(Array.isArray(data.lfw_ff_posts) ? data.lfw_ff_posts : []);
+                                            const data = await res
+                                                .json()
+                                                .catch(() => ({}));
+                                            setFfModalPosts(
+                                                Array.isArray(data.lfw_ff_posts)
+                                                    ? data.lfw_ff_posts
+                                                    : [],
+                                            );
                                             setFfModalStep('results');
                                         } finally {
                                             setFfModalLoading(false);
@@ -2895,10 +5159,28 @@ export default function AppDashboard() {
                             {ffModalPosts.length > 0 ? (
                                 <>
                                     <p className="text-sm text-muted-foreground">
-                                        {ffModalPosts.length} {ffModalPosts.length === 1 ? 'person is' : 'people are'} willing to follow {ffModalTimeFrame === 'before' ? 'before' : 'after'} a shift on {ffModalDate}.
+                                        {ffModalPosts.length}{' '}
+                                        {ffModalPosts.length === 1
+                                            ? 'person is'
+                                            : 'people are'}{' '}
+                                        willing to follow{' '}
+                                        {ffModalTimeFrame === 'before'
+                                            ? 'before'
+                                            : 'after'}{' '}
+                                        a shift on {ffModalDate}.
                                     </p>
-                                    <Button variant="default" size="sm" className="gap-1.5" asChild>
-                                        <Link href={`/app/looking-for-work?date_from=${ffModalDate}&date_to=${ffModalDate}`} onClick={() => setFfModalOpen(false)}>
+                                    <Button
+                                        variant="default"
+                                        size="sm"
+                                        className="gap-1.5"
+                                        asChild
+                                    >
+                                        <Link
+                                            href={`/app/looking-for-work?date_from=${ffModalDate}&date_to=${ffModalDate}`}
+                                            onClick={() =>
+                                                setFfModalOpen(false)
+                                            }
+                                        >
                                             <Briefcase className="size-3.5 shrink-0" />
                                             View on Looking for work
                                         </Link>
@@ -2907,7 +5189,9 @@ export default function AppDashboard() {
                             ) : (
                                 <>
                                     <p className="text-sm text-muted-foreground">
-                                        No one has posted for this time frame. Would you like to post a Looking for work (willing to follow) for this date?
+                                        No one has posted for this time frame.
+                                        Would you like to post a Looking for
+                                        work (willing to follow) for this date?
                                     </p>
                                     <Button
                                         variant="default"
@@ -2916,7 +5200,9 @@ export default function AppDashboard() {
                                         onClick={() => {
                                             setLfwModalDate(ffModalDate);
                                             setLfwModalWilling(true);
-                                            setLfwModalTimeFrame(ffModalTimeFrame ?? 'any');
+                                            setLfwModalTimeFrame(
+                                                ffModalTimeFrame ?? 'any',
+                                            );
                                             setLfwModalOpen(true);
                                             setFfModalOpen(false);
                                         }}
@@ -2926,7 +5212,15 @@ export default function AppDashboard() {
                                     </Button>
                                 </>
                             )}
-                            <Button variant="ghost" size="sm" onClick={() => { setFfModalStep('before_after'); setFfModalTimeFrame(null); setFfModalPosts([]); }}>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                    setFfModalStep('before_after');
+                                    setFfModalTimeFrame(null);
+                                    setFfModalPosts([]);
+                                }}
+                            >
                                 Back
                             </Button>
                         </div>
@@ -2937,15 +5231,23 @@ export default function AppDashboard() {
             <PostLfwModal
                 open={lfwModalOpen}
                 onOpenChange={setLfwModalOpen}
-                defaultDate={lfwModalDate || new Date().toISOString().slice(0, 10)}
+                defaultDate={
+                    lfwModalDate || new Date().toISOString().slice(0, 10)
+                }
                 defaultWillingToFollow={lfwModalWilling}
                 defaultWillingToFollowTimeFrame={lfwModalTimeFrame}
                 workgroups={userWorkgroups}
                 onSuccess={() => router.reload({ only: DASHBOARD_RELOAD_ONLY })}
             />
 
-            <Dialog open={!!editShiftInDay} onOpenChange={(open) => !open && setEditShiftInDay(null)}>
-                <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" aria-describedby={undefined}>
+            <Dialog
+                open={!!editShiftInDay}
+                onOpenChange={(open) => !open && setEditShiftInDay(null)}
+            >
+                <DialogContent
+                    className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+                    aria-describedby={undefined}
+                >
                     <DialogHeader>
                         <DialogTitle>Edit shift</DialogTitle>
                     </DialogHeader>
@@ -2953,45 +5255,81 @@ export default function AppDashboard() {
                         <>
                             <div className="grid gap-3 pt-2">
                                 <div>
-                                    <Label htmlFor="edit-shift-workgroup">Workgroup</Label>
+                                    <Label htmlFor="edit-shift-workgroup">
+                                        Workgroup
+                                    </Label>
                                     <select
                                         id="edit-shift-workgroup"
                                         value={editShiftWorkgroupId}
-                                        onChange={(e) => setEditShiftWorkgroupId(e.target.value)}
+                                        onChange={(e) =>
+                                            setEditShiftWorkgroupId(
+                                                e.target.value,
+                                            )
+                                        }
                                         className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                                     >
-                                        <option value="">Select workgroup</option>
+                                        <option value="">
+                                            Select workgroup
+                                        </option>
                                         {userWorkgroups.map((wg) => (
-                                            <option key={wg.id} value={wg.id}>{wg.name}</option>
+                                            <option key={wg.id} value={wg.id}>
+                                                {wg.name}
+                                            </option>
                                         ))}
                                     </select>
                                 </div>
                                 <div>
-                                    <Label htmlFor="edit-shift-position">Position / desk name</Label>
+                                    <Label htmlFor="edit-shift-position">
+                                        Position / desk name
+                                    </Label>
                                     <Input
                                         id="edit-shift-position"
                                         value={editShiftPositionName}
-                                        onChange={(e) => setEditShiftPositionName(e.target.value)}
+                                        onChange={(e) =>
+                                            setEditShiftPositionName(
+                                                e.target.value,
+                                            )
+                                        }
                                         className="mt-1"
                                         placeholder="e.g. Desk 1, G2"
                                     />
                                 </div>
                                 {(() => {
-                                    const wg = editShiftWorkgroupId ? userWorkgroups.find((w) => w.id === parseInt(editShiftWorkgroupId, 10)) : null;
+                                    const wg = editShiftWorkgroupId
+                                        ? userWorkgroups.find(
+                                              (w) =>
+                                                  w.id ===
+                                                  parseInt(
+                                                      editShiftWorkgroupId,
+                                                      10,
+                                                  ),
+                                          )
+                                        : null;
                                     const deskTypes = wg?.desk_types ?? [];
                                     if (deskTypes.length === 0) return null;
                                     return (
                                         <div>
-                                            <Label htmlFor="edit-shift-desk-type">Desk type</Label>
+                                            <Label htmlFor="edit-shift-desk-type">
+                                                Desk type
+                                            </Label>
                                             <select
                                                 id="edit-shift-desk-type"
                                                 value={editShiftDeskType}
-                                                onChange={(e) => setEditShiftDeskType(e.target.value)}
+                                                onChange={(e) =>
+                                                    setEditShiftDeskType(
+                                                        e.target.value,
+                                                    )
+                                                }
                                                 className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                                             >
                                                 <option value="">—</option>
                                                 {deskTypes.map((d) => (
-                                                    <option key={d.code} value={d.code}>{d.label}</option>
+                                                    <option
+                                                        key={d.code}
+                                                        value={d.code}
+                                                    >
+                                                        {d.label}
+                                                    </option>
                                                 ))}
                                             </select>
                                         </div>
@@ -2999,31 +5337,82 @@ export default function AppDashboard() {
                                 })()}
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <Label htmlFor="edit-shift-date">Start date</Label>
-                                        <Input id="edit-shift-date" type="date" value={editShiftDate} onChange={(e) => setEditShiftDate(e.target.value)} className="mt-1" />
+                                        <Label htmlFor="edit-shift-date">
+                                            Start date
+                                        </Label>
+                                        <Input
+                                            id="edit-shift-date"
+                                            type="date"
+                                            value={editShiftDate}
+                                            onChange={(e) =>
+                                                setEditShiftDate(e.target.value)
+                                            }
+                                            className="mt-1"
+                                        />
                                     </div>
                                     <div>
-                                        <Label htmlFor="edit-shift-time">Start time</Label>
-                                        <Input id="edit-shift-time" type="time" value={editShiftTime} onChange={(e) => setEditShiftTime(e.target.value)} className="mt-1" />
+                                        <Label htmlFor="edit-shift-time">
+                                            Start time
+                                        </Label>
+                                        <Input
+                                            id="edit-shift-time"
+                                            type="time"
+                                            value={editShiftTime}
+                                            onChange={(e) =>
+                                                setEditShiftTime(e.target.value)
+                                            }
+                                            className="mt-1"
+                                        />
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Checkbox
                                         id="edit-shift-nonstandard"
                                         checked={editShiftNonStandard}
-                                        onCheckedChange={(c) => setEditShiftNonStandard(!!c)}
+                                        onCheckedChange={(c) =>
+                                            setEditShiftNonStandard(!!c)
+                                        }
                                     />
-                                    <Label htmlFor="edit-shift-nonstandard" className="text-sm font-normal">Non-standard end time</Label>
+                                    <Label
+                                        htmlFor="edit-shift-nonstandard"
+                                        className="text-sm font-normal"
+                                    >
+                                        Non-standard end time
+                                    </Label>
                                 </div>
                                 {editShiftNonStandard && (
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <Label htmlFor="edit-shift-end-date">End date</Label>
-                                            <Input id="edit-shift-end-date" type="date" value={editShiftEndDate} onChange={(e) => setEditShiftEndDate(e.target.value)} className="mt-1" />
+                                            <Label htmlFor="edit-shift-end-date">
+                                                End date
+                                            </Label>
+                                            <Input
+                                                id="edit-shift-end-date"
+                                                type="date"
+                                                value={editShiftEndDate}
+                                                onChange={(e) =>
+                                                    setEditShiftEndDate(
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className="mt-1"
+                                            />
                                         </div>
                                         <div>
-                                            <Label htmlFor="edit-shift-end-time">End time</Label>
-                                            <Input id="edit-shift-end-time" type="time" value={editShiftEndTime} onChange={(e) => setEditShiftEndTime(e.target.value)} className="mt-1" />
+                                            <Label htmlFor="edit-shift-end-time">
+                                                End time
+                                            </Label>
+                                            <Input
+                                                id="edit-shift-end-time"
+                                                type="time"
+                                                value={editShiftEndTime}
+                                                onChange={(e) =>
+                                                    setEditShiftEndTime(
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className="mt-1"
+                                            />
                                         </div>
                                     </div>
                                 )}
@@ -3031,14 +5420,35 @@ export default function AppDashboard() {
                                     <Checkbox
                                         id="edit-shift-regulatory"
                                         checked={editShiftRegulatory}
-                                        onCheckedChange={(c) => setEditShiftRegulatory(!!c)}
+                                        onCheckedChange={(c) =>
+                                            setEditShiftRegulatory(!!c)
+                                        }
                                     />
-                                    <Label htmlFor="edit-shift-regulatory" className="text-sm font-normal">Regulatory</Label>
+                                    <Label
+                                        htmlFor="edit-shift-regulatory"
+                                        className="text-sm font-normal"
+                                    >
+                                        Regulatory
+                                    </Label>
                                 </div>
                             </div>
                             <DialogFooter className="gap-2 pt-4">
-                                <Button type="button" variant="outline" onClick={() => setEditShiftInDay(null)}>Cancel</Button>
-                                <Button type="button" onClick={saveEditShiftInDay} disabled={editShiftSaving || !editShiftDate || !editShiftPositionName.trim()}>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setEditShiftInDay(null)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={saveEditShiftInDay}
+                                    disabled={
+                                        editShiftSaving ||
+                                        !editShiftDate ||
+                                        !editShiftPositionName.trim()
+                                    }
+                                >
                                     {editShiftSaving ? 'Saving…' : 'Save'}
                                 </Button>
                             </DialogFooter>
@@ -3047,20 +5457,42 @@ export default function AppDashboard() {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={!!removeShiftConfirm} onOpenChange={(open) => !open && setRemoveShiftConfirm(null)}>
-                <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+            <Dialog
+                open={!!removeShiftConfirm}
+                onOpenChange={(open) => !open && setRemoveShiftConfirm(null)}
+            >
+                <DialogContent
+                    className="sm:max-w-md"
+                    aria-describedby={undefined}
+                >
                     <DialogHeader>
                         <DialogTitle>Remove shift from schedule?</DialogTitle>
                     </DialogHeader>
                     {removeShiftConfirm && (
                         <>
                             <p className="text-sm text-muted-foreground">
-                                This will permanently remove <strong>{removeShiftConfirm.positionName}</strong> from your calendar. Any postings for this shift will also be removed. This cannot be undone.
+                                This will permanently remove{' '}
+                                <strong>
+                                    {removeShiftConfirm.positionName}
+                                </strong>{' '}
+                                from your calendar. Any postings for this shift
+                                will also be removed. This cannot be undone.
                             </p>
                             <DialogFooter className="gap-2 pt-4">
-                                <Button variant="outline" onClick={() => setRemoveShiftConfirm(null)}>Cancel</Button>
-                                <Button variant="destructive" onClick={confirmRemoveShiftInDay} disabled={removeShiftDeleting}>
-                                    {removeShiftDeleting ? 'Removing…' : 'Remove shift'}
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setRemoveShiftConfirm(null)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="destructive"
+                                    onClick={confirmRemoveShiftInDay}
+                                    disabled={removeShiftDeleting}
+                                >
+                                    {removeShiftDeleting
+                                        ? 'Removing…'
+                                        : 'Remove shift'}
                                 </Button>
                             </DialogFooter>
                         </>
@@ -3082,7 +5514,13 @@ export default function AppDashboard() {
                         workgroup_name: postModalShift.workgroup_name,
                         is_training: postModalShift.is_training,
                     }}
-                    allowedStartTimes={postModalShift.workgroup_id != null ? (userWorkgroups.find((w) => w.id === postModalShift.workgroup_id)?.allowed_start_times ?? []) : []}
+                    allowedStartTimes={
+                        postModalShift.workgroup_id != null
+                            ? (userWorkgroups.find(
+                                  (w) => w.id === postModalShift.workgroup_id,
+                              )?.allowed_start_times ?? [])
+                            : []
+                    }
                     workgroups={userWorkgroups}
                     existingPosts={postModalShift.posts}
                     preselectFlightFollow={postModalShift.preselectFlightFollow}
@@ -3091,7 +5529,13 @@ export default function AppDashboard() {
             )}
 
             <Dialog
-                open={reviewOfferItem != null || (reviewLfwOfferGroup != null && reviewLfwOfferGroup.length > 0) || (reviewSwapOfferGroup != null && reviewSwapOfferGroup.length > 0)}
+                open={
+                    reviewOfferItem != null ||
+                    (reviewLfwOfferGroup != null &&
+                        reviewLfwOfferGroup.length > 0) ||
+                    (reviewSwapOfferGroup != null &&
+                        reviewSwapOfferGroup.length > 0)
+                }
                 onOpenChange={(open) => {
                     if (!open) {
                         setReviewOfferItem(null);
@@ -3103,546 +5547,1280 @@ export default function AppDashboard() {
                     }
                 }}
             >
-                <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col overflow-hidden" aria-describedby={undefined}>
+                <DialogContent
+                    className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-md"
+                    aria-describedby={undefined}
+                >
                     <DialogHeader className="shrink-0">
                         <DialogTitle>Review response</DialogTitle>
                         <p className="text-sm font-normal text-muted-foreground">
-                            Accept only once the proper positive contact has been made and the change in workzone has been input.
+                            Accept only once the proper positive contact has
+                            been made and the change in workzone has been input.
                         </p>
                     </DialogHeader>
                     <div className="min-h-0 flex-1 overflow-y-auto">
-                    {reviewLfwOfferGroup && reviewLfwOfferGroup.length > 0 ? (
-                        <div className="space-y-4 py-2">
-                            <div className="space-y-1 text-sm text-muted-foreground">
-                                <p>
-                                    {reviewLfwOfferGroup[0].seeking_date && `Date you wanted to work: ${reviewLfwOfferGroup[0].seeking_date}. `}
-                                    {reviewLfwOfferGroup[0].seeking_obo
-                                        ? 'You asked for or best offer (OBO). '
-                                        : reviewLfwOfferGroup[0].seeking_cash != null && reviewLfwOfferGroup[0].seeking_cash > 0
-                                          ? `You asked for $${Number(reviewLfwOfferGroup[0].seeking_cash).toFixed(0)} cash. `
-                                          : ''}
-                                    Choose one offer to accept or decline each.
-                                </p>
-                                {(() => {
-                                    const desks = reviewLfwOfferGroup[0].seeking_desk_types?.filter(Boolean) ?? [];
-                                    return desks.length > 0 ? (
-                                        <p>
-                                            <span className="font-medium text-foreground">Desk types: </span>
-                                            {desks.join(', ')}
-                                        </p>
-                                    ) : null;
-                                })()}
-                                {reviewLfwOfferGroup[0].post_notes && (
-                                    <div className="rounded border border-border/70 bg-muted/30 p-2 text-sm">
-                                        <span className="font-medium text-foreground">Your post notes: </span>
-                                        <p className="mt-0.5 whitespace-pre-wrap">{reviewLfwOfferGroup[0].post_notes}</p>
-                                    </div>
+                        {reviewLfwOfferGroup &&
+                        reviewLfwOfferGroup.length > 0 ? (
+                            <div className="space-y-4 py-2">
+                                <div className="space-y-1 text-sm text-muted-foreground">
+                                    <p>
+                                        {reviewLfwOfferGroup[0].seeking_date &&
+                                            `Date you wanted to work: ${reviewLfwOfferGroup[0].seeking_date}. `}
+                                        {reviewLfwOfferGroup[0].seeking_obo
+                                            ? 'You asked for or best offer (OBO). '
+                                            : reviewLfwOfferGroup[0]
+                                                    .seeking_cash != null &&
+                                                reviewLfwOfferGroup[0]
+                                                    .seeking_cash > 0
+                                              ? `You asked for $${Number(reviewLfwOfferGroup[0].seeking_cash).toFixed(0)} cash. `
+                                              : ''}
+                                        Choose one offer to accept or decline
+                                        each.
+                                    </p>
+                                    {(() => {
+                                        const desks =
+                                            reviewLfwOfferGroup[0].seeking_desk_types?.filter(
+                                                Boolean,
+                                            ) ?? [];
+                                        return desks.length > 0 ? (
+                                            <p>
+                                                <span className="font-medium text-foreground">
+                                                    Desk types:{' '}
+                                                </span>
+                                                {desks.join(', ')}
+                                            </p>
+                                        ) : null;
+                                    })()}
+                                    {reviewLfwOfferGroup[0].post_notes && (
+                                        <div className="rounded border border-border/70 bg-muted/30 p-2 text-sm">
+                                            <span className="font-medium text-foreground">
+                                                Your post notes:{' '}
+                                            </span>
+                                            <p className="mt-0.5 whitespace-pre-wrap">
+                                                {
+                                                    reviewLfwOfferGroup[0]
+                                                        .post_notes
+                                                }
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                                <ul className="space-y-3">
+                                    {[...reviewLfwOfferGroup]
+                                        .sort((a, b) =>
+                                            (
+                                                a.offer_created_at ?? ''
+                                            ).localeCompare(
+                                                b.offer_created_at ?? '',
+                                            ),
+                                        )
+                                        .map((item) => (
+                                            <li
+                                                key={item.id}
+                                                className="rounded-lg border border-border bg-muted/30 p-3 text-sm"
+                                            >
+                                                <p className="font-medium">
+                                                    {item.offered_by_name ??
+                                                        'Someone'}
+                                                </p>
+                                                {item.offered_shift_summary && (
+                                                    <p className="mt-0.5 text-muted-foreground">
+                                                        Offered:{' '}
+                                                        {
+                                                            item.offered_shift_summary
+                                                        }
+                                                    </p>
+                                                )}
+                                                {item.counter_cash_amount !=
+                                                    null &&
+                                                    Number(
+                                                        item.counter_cash_amount,
+                                                    ) > 0 && (
+                                                        <p className="mt-1 text-sm font-medium text-green-700 dark:text-green-300">
+                                                            {item.seeking_obo
+                                                                ? 'Cash offer (OBO): '
+                                                                : 'Counter offer: '}
+                                                            $
+                                                            {Number(
+                                                                item.counter_cash_amount,
+                                                            ).toFixed(0)}
+                                                            {item.seeking_obo ? (
+                                                                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                                                    (their bid)
+                                                                </span>
+                                                            ) : (
+                                                                item.cash_amount !=
+                                                                    null &&
+                                                                Number(
+                                                                    item.counter_cash_amount,
+                                                                ) >
+                                                                    Number(
+                                                                        item.cash_amount,
+                                                                    ) && (
+                                                                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                                                        (more
+                                                                        than
+                                                                        your
+                                                                        ask)
+                                                                    </span>
+                                                                )
+                                                            )}
+                                                        </p>
+                                                    )}
+                                                {item.offered_by_contact && (
+                                                    <p className="mt-1 text-xs">
+                                                        <span className="font-medium text-foreground">
+                                                            Contact:{' '}
+                                                        </span>
+                                                        <span className="text-muted-foreground">
+                                                            {
+                                                                item.offered_by_contact
+                                                            }
+                                                        </span>
+                                                    </p>
+                                                )}
+                                                {item.response_notes && (
+                                                    <p className="mt-1 text-xs text-muted-foreground">
+                                                        Notes:{' '}
+                                                        {item.response_notes}
+                                                    </p>
+                                                )}
+                                                <div className="mt-2 flex gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={async () => {
+                                                            setOfferRespondError(
+                                                                null,
+                                                            );
+                                                            setOfferResponding(
+                                                                'reject',
+                                                            );
+                                                            try {
+                                                                const res =
+                                                                    await fetch(
+                                                                        `/api/looking-for-work/offers/${item.id}/reject`,
+                                                                        {
+                                                                            method: 'POST',
+                                                                            headers:
+                                                                                {
+                                                                                    Accept: 'application/json',
+                                                                                    'X-XSRF-TOKEN':
+                                                                                        getCsrfToken(),
+                                                                                    'X-Requested-With':
+                                                                                        'XMLHttpRequest',
+                                                                                },
+                                                                            credentials:
+                                                                                'include',
+                                                                        },
+                                                                    );
+                                                                if (res.ok) {
+                                                                    const next =
+                                                                        reviewLfwOfferGroup?.filter(
+                                                                            (
+                                                                                o,
+                                                                            ) =>
+                                                                                o.id !==
+                                                                                item.id,
+                                                                        ) ?? [];
+                                                                    setReviewLfwOfferGroup(
+                                                                        next.length >
+                                                                            0
+                                                                            ? next
+                                                                            : null,
+                                                                    );
+                                                                    if (
+                                                                        next.length ===
+                                                                        0
+                                                                    )
+                                                                        setReviewOfferItem(
+                                                                            null,
+                                                                        );
+                                                                    router.reload(
+                                                                        {
+                                                                            only: DASHBOARD_RELOAD_ONLY,
+                                                                        },
+                                                                    );
+                                                                }
+                                                            } finally {
+                                                                setOfferResponding(
+                                                                    null,
+                                                                );
+                                                            }
+                                                        }}
+                                                        disabled={
+                                                            offerResponding !=
+                                                            null
+                                                        }
+                                                    >
+                                                        {offerResponding ===
+                                                        'reject'
+                                                            ? 'Declining…'
+                                                            : 'Decline'}
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        className="bg-green-600 hover:bg-green-700"
+                                                        onClick={() =>
+                                                            item &&
+                                                            handleRespondToOffer(
+                                                                item,
+                                                                'accept',
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            offerResponding !=
+                                                            null
+                                                        }
+                                                    >
+                                                        {offerResponding ===
+                                                        'accept'
+                                                            ? 'Accepting…'
+                                                            : 'Accept'}
+                                                    </Button>
+                                                </div>
+                                            </li>
+                                        ))}
+                                </ul>
+                                {offerRespondError && (
+                                    <p className="text-sm text-destructive">
+                                        {offerRespondError}
+                                    </p>
                                 )}
                             </div>
-                            <ul className="space-y-3">
-                                {[...reviewLfwOfferGroup]
-                                    .sort((a, b) => (a.offer_created_at ?? '').localeCompare(b.offer_created_at ?? ''))
-                                    .map((item) => (
-                                    <li key={item.id} className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
-                                        <p className="font-medium">{item.offered_by_name ?? 'Someone'}</p>
-                                        {item.offered_shift_summary && (
-                                            <p className="mt-0.5 text-muted-foreground">Offered: {item.offered_shift_summary}</p>
-                                        )}
-                                        {item.counter_cash_amount != null && Number(item.counter_cash_amount) > 0 && (
-                                            <p className="mt-1 text-sm font-medium text-green-700 dark:text-green-300">
-                                                {item.seeking_obo ? 'Cash offer (OBO): ' : 'Counter offer: '}
-                                                ${Number(item.counter_cash_amount).toFixed(0)}
-                                                {item.seeking_obo ? (
-                                                    <span className="ml-1 text-xs font-normal text-muted-foreground">(their bid)</span>
-                                                ) : (
-                                                    item.cash_amount != null &&
-                                                    Number(item.counter_cash_amount) > Number(item.cash_amount) && (
-                                                        <span className="ml-1 text-xs font-normal text-muted-foreground">(more than your ask)</span>
-                                                    )
-                                                )}
-                                            </p>
-                                        )}
-                                        {item.offered_by_contact && (
-                                            <p className="mt-1 text-xs">
-                                                <span className="font-medium text-foreground">Contact: </span>
-                                                <span className="text-muted-foreground">{item.offered_by_contact}</span>
-                                            </p>
-                                        )}
-                                        {item.response_notes && (
-                                            <p className="mt-1 text-xs text-muted-foreground">Notes: {item.response_notes}</p>
-                                        )}
-                                        <div className="mt-2 flex gap-2">
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={async () => {
-                                                    setOfferRespondError(null);
-                                                    setOfferResponding('reject');
-                                                    try {
-                                                        const res = await fetch(`/api/looking-for-work/offers/${item.id}/reject`, {
-                                                            method: 'POST',
-                                                            headers: { Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
-                                                            credentials: 'include',
-                                                        });
-                                                        if (res.ok) {
-                                                            const next = reviewLfwOfferGroup?.filter((o) => o.id !== item.id) ?? [];
-                                                            setReviewLfwOfferGroup(next.length > 0 ? next : null);
-                                                            if (next.length === 0) setReviewOfferItem(null);
-                                                            router.reload({ only: DASHBOARD_RELOAD_ONLY });
-                                                        }
-                                                    } finally {
-                                                        setOfferResponding(null);
+                        ) : reviewSwapOfferGroup &&
+                          reviewSwapOfferGroup.length > 0 ? (
+                            (() => {
+                                const posterShiftDates = new Set(
+                                    events
+                                        .filter(
+                                            (ev) => ev.extendedProps?.shiftId,
+                                        )
+                                        .map((ev) => ev.start.slice(0, 10)),
+                                );
+                                const postedShiftDate =
+                                    reviewSwapOfferGroup[0]?.start_time_utc?.slice(
+                                        0,
+                                        10,
+                                    ) ?? null;
+                                const paybackRangesStr = formatPaybackRanges(
+                                    reviewSwapOfferGroup[0]
+                                        ?.payback_date_ranges,
+                                );
+                                const selectedCombined =
+                                    reviewSelectedCombinedShift &&
+                                    combinedOfferedShifts.some(
+                                        (r) =>
+                                            r.offerId ===
+                                                reviewSelectedCombinedShift.offerId &&
+                                            r.shiftId ===
+                                                reviewSelectedCombinedShift.shiftId,
+                                    )
+                                        ? reviewSelectedCombinedShift
+                                        : combinedOfferedShifts[0]
+                                          ? {
+                                                offerId:
+                                                    combinedOfferedShifts[0]
+                                                        .offerId,
+                                                shiftId:
+                                                    combinedOfferedShifts[0]
+                                                        .shiftId,
+                                            }
+                                          : null;
+                                const selectedOffer = selectedCombined
+                                    ? reviewSwapOfferGroup.find(
+                                          (o) =>
+                                              o.id === selectedCombined.offerId,
+                                      )
+                                    : null;
+                                return (
+                                    <div className="space-y-4 py-2">
+                                        <p className="text-sm text-muted-foreground">
+                                            {reviewSwapOfferGroup[0]
+                                                .position_name &&
+                                                `${reviewSwapOfferGroup[0].position_name} · `}
+                                            {reviewSwapOfferGroup[0]
+                                                .start_time_utc &&
+                                                `${formatCentral(reviewSwapOfferGroup[0].start_time_utc)}. `}
+                                            Select one shift to accept. Each
+                                            shift shows who offered it.
+                                        </p>
+                                        {reviewSwapOfferGroup[0].post_notes && (
+                                            <div className="rounded border border-border/70 bg-muted/30 p-2 text-sm text-muted-foreground">
+                                                <span className="font-medium text-foreground">
+                                                    Your post notes:{' '}
+                                                </span>
+                                                <p className="mt-0.5 whitespace-pre-wrap">
+                                                    {
+                                                        reviewSwapOfferGroup[0]
+                                                            .post_notes
                                                     }
-                                                }}
-                                                disabled={offerResponding != null}
-                                            >
-                                                {offerResponding === 'reject' ? 'Declining…' : 'Decline'}
-                                            </Button>
+                                                </p>
+                                            </div>
+                                        )}
+                                        {paybackRangesStr && (
+                                            <p className="text-sm text-muted-foreground">
+                                                <span className="font-medium">
+                                                    Your payback preferred:
+                                                </span>{' '}
+                                                {paybackRangesStr}
+                                            </p>
+                                        )}
+                                        <div className="flex flex-wrap items-center gap-4">
+                                            {timeOffRanges.length > 0 && (
+                                                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={
+                                                            reviewHideNeedOff
+                                                        }
+                                                        onChange={(e) =>
+                                                            setReviewHideNeedOff(
+                                                                e.target
+                                                                    .checked,
+                                                            )
+                                                        }
+                                                        className="h-4 w-4 rounded border-input"
+                                                    />
+                                                    <span>
+                                                        Hide shifts on dates I
+                                                        need off
+                                                    </span>
+                                                </label>
+                                            )}
+                                            {paybackRangesStr && (
+                                                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={
+                                                            reviewOnlyPaybackRange
+                                                        }
+                                                        onChange={(e) => {
+                                                            const checked =
+                                                                e.target
+                                                                    .checked;
+                                                            setReviewOnlyPaybackRange(
+                                                                checked,
+                                                            );
+                                                            if (
+                                                                checked &&
+                                                                selectedCombined
+                                                            ) {
+                                                                const selectedRow =
+                                                                    combinedOfferedShifts.find(
+                                                                        (r) =>
+                                                                            r.offerId ===
+                                                                                selectedCombined.offerId &&
+                                                                            r.shiftId ===
+                                                                                selectedCombined.shiftId,
+                                                                    );
+                                                                if (
+                                                                    selectedRow?.in_payback_range !==
+                                                                    true
+                                                                ) {
+                                                                    const firstInRange =
+                                                                        combinedOfferedShifts.find(
+                                                                            (
+                                                                                r,
+                                                                            ) =>
+                                                                                r.in_payback_range ===
+                                                                                true,
+                                                                        );
+                                                                    if (
+                                                                        firstInRange
+                                                                    ) {
+                                                                        setReviewSelectedCombinedShift(
+                                                                            {
+                                                                                offerId:
+                                                                                    firstInRange.offerId,
+                                                                                shiftId:
+                                                                                    firstInRange.shiftId,
+                                                                            },
+                                                                        );
+                                                                    }
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="h-4 w-4 rounded border-input"
+                                                    />
+                                                    <span>
+                                                        Only show shifts in my
+                                                        payback range
+                                                    </span>
+                                                </label>
+                                            )}
+                                        </div>
+                                        {visibleCombinedShifts.length === 0 ? (
+                                            <p className="text-sm text-muted-foreground">
+                                                {reviewHideNeedOff
+                                                    ? 'All offered shifts are on days you need off. Turn off the filter above to see them.'
+                                                    : reviewOnlyPaybackRange
+                                                      ? 'No offered shifts fall in your payback range. Turn off the filter to see all.'
+                                                      : 'No shifts to show.'}
+                                            </p>
+                                        ) : (
+                                            <ul className="space-y-1.5">
+                                                {visibleCombinedShifts.map(
+                                                    (row) => {
+                                                        const offerDate =
+                                                            row.start_time_utc?.slice(
+                                                                0,
+                                                                10,
+                                                            ) ?? '';
+                                                        const shiftDatesAfterAccept =
+                                                            new Set(
+                                                                posterShiftDates,
+                                                            );
+                                                        if (postedShiftDate)
+                                                            shiftDatesAfterAccept.delete(
+                                                                postedShiftDate,
+                                                            );
+                                                        if (offerDate)
+                                                            shiftDatesAfterAccept.add(
+                                                                offerDate,
+                                                            );
+                                                        const {
+                                                            daysOffBefore,
+                                                            daysOffAfter,
+                                                        } = offerDate
+                                                            ? getDaysOffBeforeAfter(
+                                                                  offerDate,
+                                                                  shiftDatesAfterAccept,
+                                                              )
+                                                            : {
+                                                                  daysOffBefore: 0,
+                                                                  daysOffAfter: 0,
+                                                              };
+                                                        const inTimeOff =
+                                                            offerDate
+                                                                ? isDateInTimeOffRanges(
+                                                                      offerDate,
+                                                                      timeOffRanges,
+                                                                  )
+                                                                : false;
+                                                        const wouldBeDouble =
+                                                            Boolean(
+                                                                offerDate &&
+                                                                offerDate !==
+                                                                    postedShiftDate &&
+                                                                posterShiftDates.has(
+                                                                    offerDate,
+                                                                ),
+                                                            );
+                                                        const consecutiveWorkDays =
+                                                            offerDate
+                                                                ? getConsecutiveWorkDaysIncluding(
+                                                                      offerDate,
+                                                                      shiftDatesAfterAccept,
+                                                                  )
+                                                                : 0;
+                                                        const isSelected =
+                                                            selectedCombined?.offerId ===
+                                                                row.offerId &&
+                                                            selectedCombined?.shiftId ===
+                                                                row.shiftId;
+                                                        return (
+                                                            <li
+                                                                key={`${row.offerId}-${row.shiftId}`}
+                                                            >
+                                                                <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2.5 hover:bg-muted/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                                                                    <input
+                                                                        type="radio"
+                                                                        name="review-combined-shift"
+                                                                        checked={
+                                                                            isSelected
+                                                                        }
+                                                                        onChange={() =>
+                                                                            setReviewSelectedCombinedShift(
+                                                                                {
+                                                                                    offerId:
+                                                                                        row.offerId,
+                                                                                    shiftId:
+                                                                                        row.shiftId,
+                                                                                },
+                                                                            )
+                                                                        }
+                                                                        className="mt-1 h-4 w-4 shrink-0 border-input"
+                                                                    />
+                                                                    <span className="min-w-0 flex-1">
+                                                                        <div className="flex flex-wrap items-center gap-1.5">
+                                                                            <span className="font-medium">
+                                                                                {
+                                                                                    row.position_name
+                                                                                }
+                                                                            </span>
+                                                                            <span className="text-xs text-muted-foreground">
+                                                                                {formatCentral(
+                                                                                    row.start_time_utc,
+                                                                                )}
+                                                                            </span>
+                                                                        </div>
+                                                                        <p className="mt-0.5 text-xs text-muted-foreground">
+                                                                            {
+                                                                                row.offeredByName
+                                                                            }{' '}
+                                                                            —
+                                                                            Offer
+                                                                            #
+                                                                            {
+                                                                                row.preferenceOrder
+                                                                            }
+                                                                        </p>
+                                                                        {row.counter_cash_amount !=
+                                                                            null &&
+                                                                            Number(
+                                                                                row.counter_cash_amount,
+                                                                            ) >
+                                                                                0 && (
+                                                                                <p className="mt-0.5 text-xs font-medium text-green-700 dark:text-green-300">
+                                                                                    Counter
+                                                                                    offer:
+                                                                                    $
+                                                                                    {Number(
+                                                                                        row.counter_cash_amount,
+                                                                                    ).toFixed(
+                                                                                        0,
+                                                                                    )}
+                                                                                </p>
+                                                                            )}
+                                                                        <div className="mt-1 flex flex-wrap gap-1">
+                                                                            {row.in_payback_range ===
+                                                                                true && (
+                                                                                <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+                                                                                    In
+                                                                                    payback
+                                                                                    range
+                                                                                </span>
+                                                                            )}
+                                                                            {row.in_payback_range ===
+                                                                                false && (
+                                                                                <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-300">
+                                                                                    Outside
+                                                                                    payback
+                                                                                    range
+                                                                                </span>
+                                                                            )}
+                                                                            {daysOffBefore >
+                                                                                0 &&
+                                                                            daysOffAfter >
+                                                                                0 ? (
+                                                                                <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
+                                                                                    Middle
+                                                                                    of
+                                                                                    days
+                                                                                    off
+                                                                                </span>
+                                                                            ) : (
+                                                                                <>
+                                                                                    {daysOffBefore >
+                                                                                        0 && (
+                                                                                        <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
+                                                                                            {daysOffBefore ===
+                                                                                            1
+                                                                                                ? '1 day off before'
+                                                                                                : `${daysOffBefore} days off before`}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {daysOffAfter >
+                                                                                        0 && (
+                                                                                        <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
+                                                                                            {daysOffAfter ===
+                                                                                            1
+                                                                                                ? '1 day off after'
+                                                                                                : `${daysOffAfter} days off after`}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </>
+                                                                            )}
+                                                                            {inTimeOff && (
+                                                                                <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-300">
+                                                                                    Need
+                                                                                    off
+                                                                                </span>
+                                                                            )}
+                                                                            {wouldBeDouble && (
+                                                                                <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                                                                                    Double
+                                                                                </span>
+                                                                            )}
+                                                                            {consecutiveWorkDays >=
+                                                                                6 && (
+                                                                                <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
+                                                                                    {
+                                                                                        consecutiveWorkDays
+                                                                                    }{' '}
+                                                                                    day
+                                                                                    work
+                                                                                    week
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </span>
+                                                                </label>
+                                                            </li>
+                                                        );
+                                                    },
+                                                )}
+                                            </ul>
+                                        )}
+                                        {offerRespondError && (
+                                            <p className="text-sm text-destructive">
+                                                {offerRespondError}
+                                            </p>
+                                        )}
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {reviewSwapOfferGroup.map(
+                                                    (item) => (
+                                                        <Button
+                                                            key={item.id}
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                                                            onClick={async () => {
+                                                                setOfferRespondError(
+                                                                    null,
+                                                                );
+                                                                setOfferResponding(
+                                                                    'reject',
+                                                                );
+                                                                try {
+                                                                    const res =
+                                                                        await fetch(
+                                                                            `/api/offers/${item.id}/reject`,
+                                                                            {
+                                                                                method: 'POST',
+                                                                                headers:
+                                                                                    {
+                                                                                        Accept: 'application/json',
+                                                                                        'X-XSRF-TOKEN':
+                                                                                            getCsrfToken(),
+                                                                                        'X-Requested-With':
+                                                                                            'XMLHttpRequest',
+                                                                                    },
+                                                                                credentials:
+                                                                                    'include',
+                                                                            },
+                                                                        );
+                                                                    if (
+                                                                        res.ok
+                                                                    ) {
+                                                                        const next =
+                                                                            reviewSwapOfferGroup.filter(
+                                                                                (
+                                                                                    o,
+                                                                                ) =>
+                                                                                    o.id !==
+                                                                                    item.id,
+                                                                            );
+                                                                        setReviewSwapOfferGroup(
+                                                                            next.length >
+                                                                                0
+                                                                                ? next
+                                                                                : null,
+                                                                        );
+                                                                        if (
+                                                                            next.length ===
+                                                                            0
+                                                                        )
+                                                                            setReviewOfferItem(
+                                                                                null,
+                                                                            );
+                                                                        router.reload(
+                                                                            {
+                                                                                only: DASHBOARD_RELOAD_ONLY,
+                                                                            },
+                                                                        );
+                                                                    }
+                                                                } finally {
+                                                                    setOfferResponding(
+                                                                        null,
+                                                                    );
+                                                                }
+                                                            }}
+                                                            disabled={
+                                                                offerResponding !=
+                                                                null
+                                                            }
+                                                        >
+                                                            Decline{' '}
+                                                            {item.offered_by_name ??
+                                                                'response'}
+                                                        </Button>
+                                                    ),
+                                                )}
+                                            </div>
                                             <Button
                                                 size="sm"
                                                 className="bg-green-600 hover:bg-green-700"
-                                                onClick={() => item && handleRespondToOffer(item, 'accept')}
-                                                disabled={offerResponding != null}
+                                                disabled={
+                                                    !selectedOffer ||
+                                                    offerResponding != null
+                                                }
+                                                onClick={() =>
+                                                    selectedOffer &&
+                                                    selectedCombined &&
+                                                    handleRespondToOffer(
+                                                        selectedOffer,
+                                                        'accept',
+                                                        selectedCombined.shiftId,
+                                                    )
+                                                }
                                             >
-                                                {offerResponding === 'accept' ? 'Accepting…' : 'Accept'}
+                                                {offerResponding === 'accept'
+                                                    ? 'Accepting…'
+                                                    : 'Accept selected'}
                                             </Button>
                                         </div>
-                                    </li>
-                                ))}
-                            </ul>
-                            {offerRespondError && <p className="text-sm text-destructive">{offerRespondError}</p>}
-                        </div>
-                    ) : reviewSwapOfferGroup && reviewSwapOfferGroup.length > 0 ? (() => {
-                        const posterShiftDates = new Set(
-                            events.filter((ev) => ev.extendedProps?.shiftId).map((ev) => ev.start.slice(0, 10))
-                        );
-                        const postedShiftDate = reviewSwapOfferGroup[0]?.start_time_utc?.slice(0, 10) ?? null;
-                        const paybackRangesStr = formatPaybackRanges(reviewSwapOfferGroup[0]?.payback_date_ranges);
-                        const selectedCombined = reviewSelectedCombinedShift && combinedOfferedShifts.some(
-                            (r) => r.offerId === reviewSelectedCombinedShift.offerId && r.shiftId === reviewSelectedCombinedShift.shiftId
-                        ) ? reviewSelectedCombinedShift : (combinedOfferedShifts[0] ? { offerId: combinedOfferedShifts[0].offerId, shiftId: combinedOfferedShifts[0].shiftId } : null);
-                        const selectedOffer = selectedCombined ? reviewSwapOfferGroup.find((o) => o.id === selectedCombined.offerId) : null;
-                        return (
-                        <div className="space-y-4 py-2">
-                            <p className="text-sm text-muted-foreground">
-                                {reviewSwapOfferGroup[0].position_name && `${reviewSwapOfferGroup[0].position_name} · `}
-                                {reviewSwapOfferGroup[0].start_time_utc && `${formatCentral(reviewSwapOfferGroup[0].start_time_utc)}. `}
-                                Select one shift to accept. Each shift shows who offered it.
-                            </p>
-                            {reviewSwapOfferGroup[0].post_notes && (
-                                <div className="rounded border border-border/70 bg-muted/30 p-2 text-sm text-muted-foreground">
-                                    <span className="font-medium text-foreground">Your post notes: </span>
-                                    <p className="mt-0.5 whitespace-pre-wrap">{reviewSwapOfferGroup[0].post_notes}</p>
-                                </div>
-                            )}
-                            {paybackRangesStr && (
-                                <p className="text-sm text-muted-foreground">
-                                    <span className="font-medium">Your payback preferred:</span> {paybackRangesStr}
-                                </p>
-                            )}
-                            <div className="flex flex-wrap items-center gap-4">
-                                {timeOffRanges.length > 0 && (
-                                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                                        <input
-                                            type="checkbox"
-                                            checked={reviewHideNeedOff}
-                                            onChange={(e) => setReviewHideNeedOff(e.target.checked)}
-                                            className="h-4 w-4 rounded border-input"
-                                        />
-                                        <span>Hide shifts on dates I need off</span>
-                                    </label>
-                                )}
-                                {paybackRangesStr && (
-                                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                                        <input
-                                            type="checkbox"
-                                            checked={reviewOnlyPaybackRange}
-                                            onChange={(e) => {
-                                                const checked = e.target.checked;
-                                                setReviewOnlyPaybackRange(checked);
-                                                if (checked && selectedCombined) {
-                                                    const selectedRow = combinedOfferedShifts.find(
-                                                        (r) => r.offerId === selectedCombined.offerId && r.shiftId === selectedCombined.shiftId
-                                                    );
-                                                    if (selectedRow?.in_payback_range !== true) {
-                                                        const firstInRange = combinedOfferedShifts.find((r) => r.in_payback_range === true);
-                                                        if (firstInRange) {
-                                                            setReviewSelectedCombinedShift({ offerId: firstInRange.offerId, shiftId: firstInRange.shiftId });
-                                                        }
-                                                    }
-                                                }
-                                            }}
-                                            className="h-4 w-4 rounded border-input"
-                                        />
-                                        <span>Only show shifts in my payback range</span>
-                                    </label>
-                                )}
-                            </div>
-                            {visibleCombinedShifts.length === 0 ? (
-                                <p className="text-sm text-muted-foreground">
-                                    {reviewHideNeedOff
-                                        ? 'All offered shifts are on days you need off. Turn off the filter above to see them.'
-                                        : reviewOnlyPaybackRange
-                                          ? 'No offered shifts fall in your payback range. Turn off the filter to see all.'
-                                          : 'No shifts to show.'}
-                                </p>
-                            ) : (
-                            <ul className="space-y-1.5">
-                                {visibleCombinedShifts.map((row) => {
-                                    const offerDate = row.start_time_utc?.slice(0, 10) ?? '';
-                                    const shiftDatesAfterAccept = new Set(posterShiftDates);
-                                    if (postedShiftDate) shiftDatesAfterAccept.delete(postedShiftDate);
-                                    if (offerDate) shiftDatesAfterAccept.add(offerDate);
-                                    const { daysOffBefore, daysOffAfter } = offerDate ? getDaysOffBeforeAfter(offerDate, shiftDatesAfterAccept) : { daysOffBefore: 0, daysOffAfter: 0 };
-                                    const inTimeOff = offerDate ? isDateInTimeOffRanges(offerDate, timeOffRanges) : false;
-                                    const wouldBeDouble = Boolean(offerDate && offerDate !== postedShiftDate && posterShiftDates.has(offerDate));
-                                    const consecutiveWorkDays = offerDate ? getConsecutiveWorkDaysIncluding(offerDate, shiftDatesAfterAccept) : 0;
-                                    const isSelected = selectedCombined?.offerId === row.offerId && selectedCombined?.shiftId === row.shiftId;
-                                    return (
-                                        <li key={`${row.offerId}-${row.shiftId}`}>
-                                            <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2.5 hover:bg-muted/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                                                <input
-                                                    type="radio"
-                                                    name="review-combined-shift"
-                                                    checked={isSelected}
-                                                    onChange={() => setReviewSelectedCombinedShift({ offerId: row.offerId, shiftId: row.shiftId })}
-                                                    className="mt-1 h-4 w-4 shrink-0 border-input"
-                                                />
-                                                <span className="min-w-0 flex-1">
-                                                    <div className="flex flex-wrap items-center gap-1.5">
-                                                        <span className="font-medium">{row.position_name}</span>
-                                                        <span className="text-muted-foreground text-xs">{formatCentral(row.start_time_utc)}</span>
-                                                    </div>
-                                                    <p className="mt-0.5 text-xs text-muted-foreground">
-                                                        {row.offeredByName} — Offer #{row.preferenceOrder}
-                                                    </p>
-                                                    {row.counter_cash_amount != null && Number(row.counter_cash_amount) > 0 && (
-                                                        <p className="mt-0.5 text-xs font-medium text-green-700 dark:text-green-300">
-                                                            Counter offer: ${Number(row.counter_cash_amount).toFixed(0)}
-                                                        </p>
+                                    </div>
+                                );
+                            })()
+                        ) : reviewOfferItem ? (
+                            (() => {
+                                const isLfw =
+                                    reviewOfferItem.action_type ===
+                                    'looking_for_work_offer';
+                                const isTrade =
+                                    reviewOfferItem.post_type === 'trade' ||
+                                    reviewOfferItem.post_type === 'time_trade';
+                                const isCash =
+                                    reviewOfferItem.post_type === 'cash';
+                                const isFlightFollow =
+                                    reviewOfferItem.post_type ===
+                                    'flight_follow';
+                                const offeredShifts =
+                                    reviewOfferItem.offered_shifts ?? [];
+                                const selectedId =
+                                    reviewSelectedShiftId ??
+                                    offeredShifts[0]?.id ??
+                                    null;
+                                const offererName =
+                                    reviewOfferItem.offered_by_name ??
+                                    'Someone';
+                                const cashLabel =
+                                    reviewOfferItem.cash_amount != null &&
+                                    reviewOfferItem.cash_amount > 0
+                                        ? ` for $${Number(reviewOfferItem.cash_amount).toFixed(0)}`
+                                        : ' for the cash amount';
+                                return (
+                                    <div className="space-y-4 py-2">
+                                        <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                                            <p className="font-medium">
+                                                {isLfw &&
+                                                    `${offererName} offered a shift for your Looking for work post${reviewOfferItem.seeking_date ? ` (${reviewOfferItem.seeking_date})` : ''}`}
+                                                {isCash &&
+                                                    !isLfw &&
+                                                    `${offererName} wants your shift${cashLabel}`}
+                                                {isTrade &&
+                                                    (offeredShifts.length > 0
+                                                        ? `${offererName} offered these days in exchange for working the posted shift`
+                                                        : `${offererName} offered a trade`)}
+                                                {isFlightFollow &&
+                                                    `${offererName} responded to your flight following`}
+                                                {!isLfw &&
+                                                    !isCash &&
+                                                    !isTrade &&
+                                                    !isFlightFollow &&
+                                                    `${offererName} responded to your ${postTypeLabel(reviewOfferItem.post_type)}`}
+                                                {!isLfw &&
+                                                    reviewOfferItem.position_name &&
+                                                    ` · ${reviewOfferItem.position_name}`}
+                                            </p>
+                                            {reviewOfferItem.start_time_utc && (
+                                                <p className="mt-1 text-muted-foreground">
+                                                    {formatCentral(
+                                                        reviewOfferItem.start_time_utc,
                                                     )}
-                                                    <div className="mt-1 flex flex-wrap gap-1">
-                                                        {row.in_payback_range === true && (
-                                                            <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">In payback range</span>
-                                                        )}
-                                                        {row.in_payback_range === false && (
-                                                            <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-300">Outside payback range</span>
-                                                        )}
-                                                        {daysOffBefore > 0 && daysOffAfter > 0 ? (
-                                                            <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
-                                                                Middle of days off
-                                                            </span>
+                                                </p>
+                                            )}
+                                            {formatPaybackRanges(
+                                                reviewOfferItem.payback_date_ranges,
+                                            ) && (
+                                                <p className="mt-1 text-muted-foreground">
+                                                    <span className="font-medium">
+                                                        Your payback preferred:
+                                                    </span>{' '}
+                                                    {formatPaybackRanges(
+                                                        reviewOfferItem.payback_date_ranges,
+                                                    )}
+                                                </p>
+                                            )}
+                                            {isLfw &&
+                                                reviewOfferItem.seeking_date && (
+                                                    <p className="mt-1 text-muted-foreground">
+                                                        Date you wanted to work:{' '}
+                                                        {
+                                                            reviewOfferItem.seeking_date
+                                                        }
+                                                    </p>
+                                                )}
+                                            {isLfw &&
+                                                (reviewOfferItem.seeking_desk_types?.filter(
+                                                    Boolean,
+                                                ).length ?? 0) > 0 && (
+                                                    <p className="mt-1 text-muted-foreground">
+                                                        <span className="font-medium text-foreground">
+                                                            Desk types:{' '}
+                                                        </span>
+                                                        {reviewOfferItem
+                                                            .seeking_desk_types!.filter(
+                                                                Boolean,
+                                                            )
+                                                            .join(', ')}
+                                                    </p>
+                                                )}
+                                            {reviewOfferItem.post_notes && (
+                                                <div className="mt-2 rounded border border-border/70 bg-muted/30 p-2 text-sm">
+                                                    <span className="font-medium text-foreground">
+                                                        Your post notes:{' '}
+                                                    </span>
+                                                    <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">
+                                                        {
+                                                            reviewOfferItem.post_notes
+                                                        }
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {(isLfw &&
+                                                reviewOfferItem.offered_shift_summary) ||
+                                            (isTrade &&
+                                                offeredShifts.length === 0 &&
+                                                reviewOfferItem.offered_shift_summary) ? (
+                                                <p className="mt-1 text-muted-foreground">
+                                                    Offered:{' '}
+                                                    {
+                                                        reviewOfferItem.offered_shift_summary
+                                                    }
+                                                </p>
+                                            ) : null}
+                                            {reviewOfferItem.counter_cash_amount !=
+                                                null &&
+                                                Number(
+                                                    reviewOfferItem.counter_cash_amount,
+                                                ) > 0 && (
+                                                    <p className="mt-1.5 text-sm font-medium text-green-700 dark:text-green-300">
+                                                        {isLfw &&
+                                                        reviewOfferItem.seeking_obo ? (
+                                                            <>
+                                                                Cash offer
+                                                                (OBO): $
+                                                                {Number(
+                                                                    reviewOfferItem.counter_cash_amount,
+                                                                ).toFixed(0)}
+                                                                <span className="ml-1 font-normal text-muted-foreground">
+                                                                    (their bid)
+                                                                </span>
+                                                            </>
                                                         ) : (
                                                             <>
-                                                                {daysOffBefore > 0 && (
-                                                                    <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
-                                                                        {daysOffBefore === 1 ? '1 day off before' : `${daysOffBefore} days off before`}
-                                                                    </span>
-                                                                )}
-                                                                {daysOffAfter > 0 && (
-                                                                    <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
-                                                                        {daysOffAfter === 1 ? '1 day off after' : `${daysOffAfter} days off after`}
-                                                                    </span>
-                                                                )}
+                                                                Counter offer: $
+                                                                {Number(
+                                                                    reviewOfferItem.counter_cash_amount,
+                                                                ).toFixed(0)}
+                                                                {reviewOfferItem.cash_amount !=
+                                                                    null &&
+                                                                    Number(
+                                                                        reviewOfferItem.counter_cash_amount,
+                                                                    ) >
+                                                                        Number(
+                                                                            reviewOfferItem.cash_amount,
+                                                                        ) && (
+                                                                        <span className="ml-1 font-normal text-muted-foreground">
+                                                                            (more
+                                                                            than
+                                                                            your
+                                                                            ask)
+                                                                        </span>
+                                                                    )}
                                                             </>
                                                         )}
-                                                        {inTimeOff && (
-                                                            <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-300">Need off</span>
+                                                    </p>
+                                                )}
+                                            {reviewOfferItem.offered_by_contact && (
+                                                <p className="mt-1.5 text-sm">
+                                                    <span className="font-medium text-foreground">
+                                                        Contact:{' '}
+                                                    </span>
+                                                    <span className="text-muted-foreground">
+                                                        {
+                                                            reviewOfferItem.offered_by_contact
+                                                        }
+                                                    </span>
+                                                </p>
+                                            )}
+                                            {reviewOfferItem.response_notes && (
+                                                <div className="mt-2 rounded border border-border/70 bg-muted/30 p-2 text-sm">
+                                                    <span className="font-medium text-foreground">
+                                                        Notes from
+                                                        responder:{' '}
+                                                    </span>
+                                                    <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">
+                                                        {
+                                                            reviewOfferItem.response_notes
+                                                        }
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {isTrade &&
+                                            offeredShifts.length > 0 &&
+                                            (() => {
+                                                const posterShiftDates =
+                                                    new Set(
+                                                        events
+                                                            .filter(
+                                                                (ev) =>
+                                                                    ev
+                                                                        .extendedProps
+                                                                        ?.shiftId,
+                                                            )
+                                                            .map((ev) =>
+                                                                ev.start.slice(
+                                                                    0,
+                                                                    10,
+                                                                ),
+                                                            ),
+                                                    );
+                                                const postedShiftDate =
+                                                    reviewOfferItem.start_time_utc?.slice(
+                                                        0,
+                                                        10,
+                                                    ) ?? null;
+                                                return (
+                                                    <div className="space-y-2">
+                                                        {timeOffRanges.length >
+                                                            0 && (
+                                                            <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={
+                                                                        reviewHideNeedOff
+                                                                    }
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) =>
+                                                                        setReviewHideNeedOff(
+                                                                            e
+                                                                                .target
+                                                                                .checked,
+                                                                        )
+                                                                    }
+                                                                    className="h-4 w-4 rounded border-input"
+                                                                />
+                                                                <span>
+                                                                    Hide shifts
+                                                                    on dates I
+                                                                    need off
+                                                                </span>
+                                                            </label>
                                                         )}
-                                                        {wouldBeDouble && (
-                                                            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">Double</span>
-                                                        )}
-                                                        {consecutiveWorkDays >= 6 && (
-                                                            <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
-                                                                {consecutiveWorkDays} day work week
-                                                            </span>
+                                                        <p className="text-sm font-medium">
+                                                            Select which shift
+                                                            to accept
+                                                            (responder’s offer
+                                                            order):
+                                                        </p>
+                                                        {visibleOfferedShifts.length ===
+                                                        0 ? (
+                                                            <p className="text-sm text-muted-foreground">
+                                                                {reviewHideNeedOff
+                                                                    ? 'All offered shifts are on days you need off. Turn off the filter above to see them.'
+                                                                    : 'No shifts to show.'}
+                                                            </p>
+                                                        ) : (
+                                                            <ul className="space-y-1.5">
+                                                                {visibleOfferedShifts.map(
+                                                                    (
+                                                                        s,
+                                                                        idx,
+                                                                    ) => {
+                                                                        const offerDate =
+                                                                            s.start_time_utc?.slice(
+                                                                                0,
+                                                                                10,
+                                                                            ) ??
+                                                                            '';
+                                                                        const shiftDatesAfterAccept =
+                                                                            new Set(
+                                                                                posterShiftDates,
+                                                                            );
+                                                                        if (
+                                                                            postedShiftDate
+                                                                        )
+                                                                            shiftDatesAfterAccept.delete(
+                                                                                postedShiftDate,
+                                                                            );
+                                                                        if (
+                                                                            offerDate
+                                                                        )
+                                                                            shiftDatesAfterAccept.add(
+                                                                                offerDate,
+                                                                            );
+                                                                        const {
+                                                                            daysOffBefore,
+                                                                            daysOffAfter,
+                                                                        } =
+                                                                            offerDate
+                                                                                ? getDaysOffBeforeAfter(
+                                                                                      offerDate,
+                                                                                      shiftDatesAfterAccept,
+                                                                                  )
+                                                                                : {
+                                                                                      daysOffBefore: 0,
+                                                                                      daysOffAfter: 0,
+                                                                                  };
+                                                                        const inTimeOff =
+                                                                            offerDate
+                                                                                ? isDateInTimeOffRanges(
+                                                                                      offerDate,
+                                                                                      timeOffRanges,
+                                                                                  )
+                                                                                : false;
+                                                                        const wouldBeDouble =
+                                                                            Boolean(
+                                                                                offerDate &&
+                                                                                offerDate !==
+                                                                                    postedShiftDate &&
+                                                                                posterShiftDates.has(
+                                                                                    offerDate,
+                                                                                ),
+                                                                            );
+                                                                        const consecutiveWorkDays =
+                                                                            offerDate
+                                                                                ? getConsecutiveWorkDaysIncluding(
+                                                                                      offerDate,
+                                                                                      shiftDatesAfterAccept,
+                                                                                  )
+                                                                                : 0;
+                                                                        return (
+                                                                            <li
+                                                                                key={
+                                                                                    s.id
+                                                                                }
+                                                                            >
+                                                                                <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2.5 hover:bg-muted/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                                                                                    <input
+                                                                                        type="radio"
+                                                                                        name="review-selected-shift"
+                                                                                        checked={
+                                                                                            selectedId ===
+                                                                                            s.id
+                                                                                        }
+                                                                                        onChange={() =>
+                                                                                            setReviewSelectedShiftId(
+                                                                                                s.id,
+                                                                                            )
+                                                                                        }
+                                                                                        className="mt-1 h-4 w-4 shrink-0 border-input"
+                                                                                    />
+                                                                                    <span className="min-w-0 flex-1">
+                                                                                        <span className="font-medium">
+                                                                                            {
+                                                                                                s.position_name
+                                                                                            }
+                                                                                        </span>
+                                                                                        <span className="ml-1.5 text-xs text-muted-foreground">
+                                                                                            {formatCentral(
+                                                                                                s.start_time_utc,
+                                                                                            )}
+                                                                                        </span>
+                                                                                        <span className="ml-1.5 text-xs text-muted-foreground">
+                                                                                            —
+                                                                                            Offer
+                                                                                            #
+                                                                                            {idx +
+                                                                                                1}
+                                                                                        </span>
+                                                                                        <div className="mt-1 flex flex-wrap gap-1">
+                                                                                            {s.in_payback_range ===
+                                                                                                true && (
+                                                                                                <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+                                                                                                    In
+                                                                                                    payback
+                                                                                                    range
+                                                                                                </span>
+                                                                                            )}
+                                                                                            {s.in_payback_range ===
+                                                                                                false && (
+                                                                                                <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-300">
+                                                                                                    Outside
+                                                                                                    payback
+                                                                                                    range
+                                                                                                </span>
+                                                                                            )}
+                                                                                            {daysOffBefore >
+                                                                                                0 &&
+                                                                                            daysOffAfter >
+                                                                                                0 ? (
+                                                                                                <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
+                                                                                                    Middle
+                                                                                                    of
+                                                                                                    days
+                                                                                                    off
+                                                                                                </span>
+                                                                                            ) : (
+                                                                                                <>
+                                                                                                    {daysOffBefore >
+                                                                                                        0 && (
+                                                                                                        <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
+                                                                                                            {daysOffBefore ===
+                                                                                                            1
+                                                                                                                ? '1 day off before'
+                                                                                                                : `${daysOffBefore} days off before`}
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                    {daysOffAfter >
+                                                                                                        0 && (
+                                                                                                        <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
+                                                                                                            {daysOffAfter ===
+                                                                                                            1
+                                                                                                                ? '1 day off after'
+                                                                                                                : `${daysOffAfter} days off after`}
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </>
+                                                                                            )}
+                                                                                            {inTimeOff && (
+                                                                                                <Tooltip>
+                                                                                                    <TooltipTrigger
+                                                                                                        asChild
+                                                                                                    >
+                                                                                                        <span className="cursor-help rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-300">
+                                                                                                            Need
+                                                                                                            off
+                                                                                                        </span>
+                                                                                                    </TooltipTrigger>
+                                                                                                    <TooltipContent
+                                                                                                        side="top"
+                                                                                                        className="max-w-xs"
+                                                                                                    >
+                                                                                                        {getTimeOffRangeTitleForDate(
+                                                                                                            offerDate,
+                                                                                                            timeOffRanges,
+                                                                                                        ) ??
+                                                                                                            'Need off'}{' '}
+                                                                                                        —
+                                                                                                        this
+                                                                                                        shift
+                                                                                                        falls
+                                                                                                        on
+                                                                                                        a
+                                                                                                        day
+                                                                                                        you
+                                                                                                        need
+                                                                                                        off.
+                                                                                                    </TooltipContent>
+                                                                                                </Tooltip>
+                                                                                            )}
+                                                                                            {wouldBeDouble && (
+                                                                                                <Tooltip>
+                                                                                                    <TooltipTrigger
+                                                                                                        asChild
+                                                                                                    >
+                                                                                                        <span className="cursor-help rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                                                                                                            Double
+                                                                                                        </span>
+                                                                                                    </TooltipTrigger>
+                                                                                                    <TooltipContent
+                                                                                                        side="top"
+                                                                                                        className="max-w-xs"
+                                                                                                    >
+                                                                                                        Accepting
+                                                                                                        this
+                                                                                                        would
+                                                                                                        give
+                                                                                                        you
+                                                                                                        two
+                                                                                                        shifts
+                                                                                                        on
+                                                                                                        the
+                                                                                                        same
+                                                                                                        day.
+                                                                                                    </TooltipContent>
+                                                                                                </Tooltip>
+                                                                                            )}
+                                                                                            {consecutiveWorkDays >=
+                                                                                                6 && (
+                                                                                                <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
+                                                                                                    {
+                                                                                                        consecutiveWorkDays
+                                                                                                    }{' '}
+                                                                                                    day
+                                                                                                    work
+                                                                                                    week
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </span>
+                                                                                </label>
+                                                                            </li>
+                                                                        );
+                                                                    },
+                                                                )}
+                                                            </ul>
                                                         )}
                                                     </div>
-                                                </span>
-                                            </label>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                            )}
-                            {offerRespondError && <p className="text-sm text-destructive">{offerRespondError}</p>}
-                            <div className="flex flex-wrap items-center gap-2 justify-between">
-                                <div className="flex flex-wrap gap-1.5">
-                                    {reviewSwapOfferGroup.map((item) => (
-                                        <Button
-                                            key={item.id}
-                                            size="sm"
-                                            variant="outline"
-                                            className="text-destructive border-destructive/50 hover:bg-destructive/10"
-                                            onClick={async () => {
-                                                setOfferRespondError(null);
-                                                setOfferResponding('reject');
-                                                try {
-                                                    const res = await fetch(`/api/offers/${item.id}/reject`, {
-                                                        method: 'POST',
-                                                        headers: { Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
-                                                        credentials: 'include',
-                                                    });
-                                                    if (res.ok) {
-                                                        const next = reviewSwapOfferGroup.filter((o) => o.id !== item.id);
-                                                        setReviewSwapOfferGroup(next.length > 0 ? next : null);
-                                                        if (next.length === 0) setReviewOfferItem(null);
-                                                        router.reload({ only: DASHBOARD_RELOAD_ONLY });
-                                                    }
-                                                } finally {
-                                                    setOfferResponding(null);
-                                                }
-                                            }}
-                                            disabled={offerResponding != null}
-                                        >
-                                            Decline {item.offered_by_name ?? 'response'}
-                                        </Button>
-                                    ))}
-                                </div>
-                                <Button
-                                    size="sm"
-                                    className="bg-green-600 hover:bg-green-700"
-                                    disabled={!selectedOffer || offerResponding != null}
-                                    onClick={() => selectedOffer && selectedCombined && handleRespondToOffer(selectedOffer, 'accept', selectedCombined.shiftId)}
-                                >
-                                    {offerResponding === 'accept' ? 'Accepting…' : 'Accept selected'}
-                                </Button>
-                            </div>
-                        </div>
-                        );
-                    })() : reviewOfferItem ? (() => {
-                        const isLfw = reviewOfferItem.action_type === 'looking_for_work_offer';
-                        const isTrade = reviewOfferItem.post_type === 'trade' || reviewOfferItem.post_type === 'time_trade';
-                        const isCash = reviewOfferItem.post_type === 'cash';
-                        const isFlightFollow = reviewOfferItem.post_type === 'flight_follow';
-                        const offeredShifts = reviewOfferItem.offered_shifts ?? [];
-                        const selectedId = reviewSelectedShiftId ?? offeredShifts[0]?.id ?? null;
-                        const offererName = reviewOfferItem.offered_by_name ?? 'Someone';
-                        const cashLabel = reviewOfferItem.cash_amount != null && reviewOfferItem.cash_amount > 0
-                            ? ` for $${Number(reviewOfferItem.cash_amount).toFixed(0)}`
-                            : ' for the cash amount';
-                        return (
-                        <div className="space-y-4 py-2">
-                            <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
-                                <p className="font-medium">
-                                    {isLfw && `${offererName} offered a shift for your Looking for work post${reviewOfferItem.seeking_date ? ` (${reviewOfferItem.seeking_date})` : ''}`}
-                                    {isCash && !isLfw && `${offererName} wants your shift${cashLabel}`}
-                                    {isTrade && (offeredShifts.length > 0
-                                        ? `${offererName} offered these days in exchange for working the posted shift`
-                                        : `${offererName} offered a trade`)}
-                                    {isFlightFollow && `${offererName} responded to your flight following`}
-                                    {!isLfw && !isCash && !isTrade && !isFlightFollow && `${offererName} responded to your ${postTypeLabel(reviewOfferItem.post_type)}`}
-                                    {!isLfw && reviewOfferItem.position_name && ` · ${reviewOfferItem.position_name}`}
-                                </p>
-                                {reviewOfferItem.start_time_utc && (
-                                    <p className="mt-1 text-muted-foreground">{formatCentral(reviewOfferItem.start_time_utc)}</p>
-                                )}
-                                {formatPaybackRanges(reviewOfferItem.payback_date_ranges) && (
-                                    <p className="mt-1 text-muted-foreground">
-                                        <span className="font-medium">Your payback preferred:</span> {formatPaybackRanges(reviewOfferItem.payback_date_ranges)}
-                                    </p>
-                                )}
-                                {isLfw && reviewOfferItem.seeking_date && (
-                                    <p className="mt-1 text-muted-foreground">Date you wanted to work: {reviewOfferItem.seeking_date}</p>
-                                )}
-                                {isLfw && (reviewOfferItem.seeking_desk_types?.filter(Boolean).length ?? 0) > 0 && (
-                                    <p className="mt-1 text-muted-foreground">
-                                        <span className="font-medium text-foreground">Desk types: </span>
-                                        {reviewOfferItem.seeking_desk_types!.filter(Boolean).join(', ')}
-                                    </p>
-                                )}
-                                {reviewOfferItem.post_notes && (
-                                    <div className="mt-2 rounded border border-border/70 bg-muted/30 p-2 text-sm">
-                                        <span className="font-medium text-foreground">Your post notes: </span>
-                                        <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{reviewOfferItem.post_notes}</p>
-                                    </div>
-                                )}
-                                {(isLfw && reviewOfferItem.offered_shift_summary) || (isTrade && offeredShifts.length === 0 && reviewOfferItem.offered_shift_summary) ? (
-                                    <p className="mt-1 text-muted-foreground">Offered: {reviewOfferItem.offered_shift_summary}</p>
-                                ) : null}
-                                {reviewOfferItem.counter_cash_amount != null && Number(reviewOfferItem.counter_cash_amount) > 0 && (
-                                    <p className="mt-1.5 text-sm font-medium text-green-700 dark:text-green-300">
-                                        {isLfw && reviewOfferItem.seeking_obo ? (
-                                            <>
-                                                Cash offer (OBO): ${Number(reviewOfferItem.counter_cash_amount).toFixed(0)}
-                                                <span className="ml-1 font-normal text-muted-foreground">(their bid)</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                Counter offer: ${Number(reviewOfferItem.counter_cash_amount).toFixed(0)}
-                                                {reviewOfferItem.cash_amount != null &&
-                                                    Number(reviewOfferItem.counter_cash_amount) > Number(reviewOfferItem.cash_amount) && (
-                                                        <span className="ml-1 font-normal text-muted-foreground">(more than your ask)</span>
-                                                    )}
-                                            </>
+                                                );
+                                            })()}
+                                        {offerRespondError && (
+                                            <p className="text-sm text-destructive">
+                                                {offerRespondError}
+                                            </p>
                                         )}
-                                    </p>
-                                )}
-                                {reviewOfferItem.offered_by_contact && (
-                                    <p className="mt-1.5 text-sm">
-                                        <span className="font-medium text-foreground">Contact: </span>
-                                        <span className="text-muted-foreground">{reviewOfferItem.offered_by_contact}</span>
-                                    </p>
-                                )}
-                                {reviewOfferItem.response_notes && (
-                                    <div className="mt-2 rounded border border-border/70 bg-muted/30 p-2 text-sm">
-                                        <span className="font-medium text-foreground">Notes from responder: </span>
-                                        <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{reviewOfferItem.response_notes}</p>
+                                        <div className="flex flex-wrap justify-end gap-2">
+                                            <Button
+                                                variant="outline"
+                                                onClick={() =>
+                                                    reviewOfferItem &&
+                                                    handleRespondToOffer(
+                                                        reviewOfferItem,
+                                                        'reject',
+                                                    )
+                                                }
+                                                disabled={
+                                                    offerResponding != null
+                                                }
+                                            >
+                                                {offerResponding === 'reject'
+                                                    ? 'Declining…'
+                                                    : 'Decline'}
+                                            </Button>
+                                            <Button
+                                                onClick={() =>
+                                                    reviewOfferItem &&
+                                                    handleRespondToOffer(
+                                                        reviewOfferItem,
+                                                        'accept',
+                                                        isTrade &&
+                                                            offeredShifts.length >
+                                                                0
+                                                            ? (selectedId ??
+                                                                  undefined)
+                                                            : undefined,
+                                                    )
+                                                }
+                                                disabled={
+                                                    offerResponding != null
+                                                }
+                                            >
+                                                {offerResponding === 'accept'
+                                                    ? 'Accepting…'
+                                                    : 'Accept'}
+                                            </Button>
+                                        </div>
                                     </div>
-                                )}
-                            </div>
-                            {isTrade && offeredShifts.length > 0 && (() => {
-                                const posterShiftDates = new Set(
-                                    events.filter((ev) => ev.extendedProps?.shiftId).map((ev) => ev.start.slice(0, 10))
                                 );
-                                const postedShiftDate = reviewOfferItem.start_time_utc?.slice(0, 10) ?? null;
-                                return (
-                                <div className="space-y-2">
-                                    {timeOffRanges.length > 0 && (
-                                        <label className="flex cursor-pointer items-center gap-2 text-sm">
-                                            <input
-                                                type="checkbox"
-                                                checked={reviewHideNeedOff}
-                                                onChange={(e) => setReviewHideNeedOff(e.target.checked)}
-                                                className="h-4 w-4 rounded border-input"
-                                            />
-                                            <span>Hide shifts on dates I need off</span>
-                                        </label>
-                                    )}
-                                    <p className="text-sm font-medium">Select which shift to accept (responder’s offer order):</p>
-                                    {visibleOfferedShifts.length === 0 ? (
-                                        <p className="text-sm text-muted-foreground">
-                                            {reviewHideNeedOff ? 'All offered shifts are on days you need off. Turn off the filter above to see them.' : 'No shifts to show.'}
-                                        </p>
-                                    ) : (
-                                    <ul className="space-y-1.5">
-                                        {visibleOfferedShifts.map((s, idx) => {
-                                            const offerDate = s.start_time_utc?.slice(0, 10) ?? '';
-                                            const shiftDatesAfterAccept = new Set(posterShiftDates);
-                                            if (postedShiftDate) shiftDatesAfterAccept.delete(postedShiftDate);
-                                            if (offerDate) shiftDatesAfterAccept.add(offerDate);
-                                            const { daysOffBefore, daysOffAfter } = offerDate
-                                                ? getDaysOffBeforeAfter(offerDate, shiftDatesAfterAccept)
-                                                : { daysOffBefore: 0, daysOffAfter: 0 };
-                                            const inTimeOff = offerDate ? isDateInTimeOffRanges(offerDate, timeOffRanges) : false;
-                                            const wouldBeDouble = Boolean(
-                                                offerDate && offerDate !== postedShiftDate && posterShiftDates.has(offerDate)
-                                            );
-                                            const consecutiveWorkDays = offerDate ? getConsecutiveWorkDaysIncluding(offerDate, shiftDatesAfterAccept) : 0;
-                                            return (
-                                            <li key={s.id}>
-                                                <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2.5 hover:bg-muted/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                                                    <input
-                                                        type="radio"
-                                                        name="review-selected-shift"
-                                                        checked={selectedId === s.id}
-                                                        onChange={() => setReviewSelectedShiftId(s.id)}
-                                                        className="mt-1 h-4 w-4 shrink-0 border-input"
-                                                    />
-                                                    <span className="min-w-0 flex-1">
-                                                        <span className="font-medium">{s.position_name}</span>
-                                                        <span className="ml-1.5 text-muted-foreground text-xs">
-                                                            {formatCentral(s.start_time_utc)}
-                                                        </span>
-                                                        <span className="ml-1.5 text-xs text-muted-foreground">
-                                                            — Offer #{idx + 1}
-                                                        </span>
-                                                        <div className="mt-1 flex flex-wrap gap-1">
-                                                            {s.in_payback_range === true && (
-                                                                <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
-                                                                    In payback range
-                                                                </span>
-                                                            )}
-                                                            {s.in_payback_range === false && (
-                                                                <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-300">
-                                                                    Outside payback range
-                                                                </span>
-                                                            )}
-                                                            {daysOffBefore > 0 && daysOffAfter > 0 ? (
-                                                                <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
-                                                                    Middle of days off
-                                                                </span>
-                                                            ) : (
-                                                                <>
-                                                            {daysOffBefore > 0 && (
-                                                                        <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
-                                                                    {daysOffBefore === 1 ? '1 day off before' : `${daysOffBefore} days off before`}
-                                                                </span>
-                                                            )}
-                                                            {daysOffAfter > 0 && (
-                                                                        <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
-                                                                    {daysOffAfter === 1 ? '1 day off after' : `${daysOffAfter} days off after`}
-                                                                </span>
-                                                                    )}
-                                                                </>
-                                                            )}
-                                                            {inTimeOff && (
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-300 cursor-help">
-                                                                            Need off
-                                                                        </span>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent side="top" className="max-w-xs">
-                                                                        {getTimeOffRangeTitleForDate(offerDate, timeOffRanges) ?? 'Need off'} — this shift falls on a day you need off.
-                                                                    </TooltipContent>
-                                                                </Tooltip>
-                                                            )}
-                                                            {wouldBeDouble && (
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300 cursor-help">
-                                                                            Double
-                                                                        </span>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent side="top" className="max-w-xs">
-                                                                        Accepting this would give you two shifts on the same day.
-                                                                    </TooltipContent>
-                                                                </Tooltip>
-                                                            )}
-                                                            {consecutiveWorkDays >= 6 && (
-                                                                <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:text-yellow-300">
-                                                                    {consecutiveWorkDays} day work week
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </span>
-                                                </label>
-                                            </li>
-                                            );
-                                        })}
-                                    </ul>
-                                    )}
-                                </div>
-                                );
-                            })()}
-                            {offerRespondError && (
-                                <p className="text-sm text-destructive">{offerRespondError}</p>
-                            )}
-                            <div className="flex flex-wrap gap-2 justify-end">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => reviewOfferItem && handleRespondToOffer(reviewOfferItem, 'reject')}
-                                    disabled={offerResponding != null}
-                                >
-                                    {offerResponding === 'reject' ? 'Declining…' : 'Decline'}
-                                </Button>
-                                <Button
-                                    onClick={() => reviewOfferItem && handleRespondToOffer(reviewOfferItem, 'accept', isTrade && offeredShifts.length > 0 ? (selectedId ?? undefined) : undefined)}
-                                    disabled={offerResponding != null}
-                                >
-                                    {offerResponding === 'accept' ? 'Accepting…' : 'Accept'}
-                                </Button>
-                            </div>
-                        </div>
-                        );
-                    })() : null}
+                            })()
+                        ) : null}
                     </div>
                 </DialogContent>
             </Dialog>
 
             {/* Edit Looking for work post */}
-            <Dialog open={!!editLfwPost} onOpenChange={(open) => !open && setEditLfwPost(null)}>
+            <Dialog
+                open={!!editLfwPost}
+                onOpenChange={(open) => !open && setEditLfwPost(null)}
+            >
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Edit Looking for work post</DialogTitle>
@@ -3650,11 +6828,19 @@ export default function AppDashboard() {
                     {editLfwPost && editLfwForm && (
                         <div className="space-y-4 py-2">
                             <div>
-                                <Label className="text-xs">Date you want to work</Label>
+                                <Label className="text-xs">
+                                    Date you want to work
+                                </Label>
                                 <Input
                                     type="date"
                                     value={editLfwForm.date}
-                                    onChange={(e) => setEditLfwForm((f) => f ? { ...f, date: e.target.value } : null)}
+                                    onChange={(e) =>
+                                        setEditLfwForm((f) =>
+                                            f
+                                                ? { ...f, date: e.target.value }
+                                                : null,
+                                        )
+                                    }
                                     className="mt-1 h-8 text-sm"
                                     min={new Date().toISOString().slice(0, 10)}
                                 />
@@ -3666,7 +6852,13 @@ export default function AppDashboard() {
                                     min={0}
                                     step={1}
                                     value={editLfwForm.cash}
-                                    onChange={(e) => setEditLfwForm((f) => f ? { ...f, cash: e.target.value } : null)}
+                                    onChange={(e) =>
+                                        setEditLfwForm((f) =>
+                                            f
+                                                ? { ...f, cash: e.target.value }
+                                                : null,
+                                        )
+                                    }
                                     className="mt-1 h-8 text-sm"
                                 />
                             </div>
@@ -3674,34 +6866,68 @@ export default function AppDashboard() {
                                 <input
                                     type="checkbox"
                                     checked={editLfwForm.obo}
-                                    onChange={(e) => setEditLfwForm((f) => f ? { ...f, obo: e.target.checked } : null)}
+                                    onChange={(e) =>
+                                        setEditLfwForm((f) =>
+                                            f
+                                                ? {
+                                                      ...f,
+                                                      obo: e.target.checked,
+                                                  }
+                                                : null,
+                                        )
+                                    }
                                     className="h-4 w-4 rounded border-input"
                                 />
                                 <span>Or best offer (OBO)</span>
                             </label>
                             <div>
-                                <Label className="text-xs">Desk types (optional)</Label>
+                                <Label className="text-xs">
+                                    Desk types (optional)
+                                </Label>
                                 <div className="mt-2 flex flex-wrap gap-2">
                                     {((): { code: string; label: string }[] => {
-                                        const m = new Map<string, { code: string; label: string }>();
+                                        const m = new Map<
+                                            string,
+                                            { code: string; label: string }
+                                        >();
                                         for (const w of userWorkgroups) {
-                                            for (const d of w.desk_types ?? []) {
-                                                if (!m.has(d.code)) m.set(d.code, d);
+                                            for (const d of w.desk_types ??
+                                                []) {
+                                                if (!m.has(d.code))
+                                                    m.set(d.code, d);
                                             }
                                         }
                                         return [...m.values()];
                                     })().map((dt) => (
-                                        <label key={dt.code} className="flex items-center gap-2 text-sm">
+                                        <label
+                                            key={dt.code}
+                                            className="flex items-center gap-2 text-sm"
+                                        >
                                             <input
                                                 type="checkbox"
-                                                checked={editLfwForm.deskTypes.includes(dt.code)}
-                                                onChange={(e) => setEditLfwForm((f) => {
-                                                    if (!f) return null;
-                                                    const next = e.target.checked
-                                                        ? [...f.deskTypes, dt.code]
-                                                        : f.deskTypes.filter((c) => c !== dt.code);
-                                                    return { ...f, deskTypes: next };
-                                                })}
+                                                checked={editLfwForm.deskTypes.includes(
+                                                    dt.code,
+                                                )}
+                                                onChange={(e) =>
+                                                    setEditLfwForm((f) => {
+                                                        if (!f) return null;
+                                                        const next = e.target
+                                                            .checked
+                                                            ? [
+                                                                  ...f.deskTypes,
+                                                                  dt.code,
+                                                              ]
+                                                            : f.deskTypes.filter(
+                                                                  (c) =>
+                                                                      c !==
+                                                                      dt.code,
+                                                              );
+                                                        return {
+                                                            ...f,
+                                                            deskTypes: next,
+                                                        };
+                                                    })
+                                                }
                                                 className="h-4 w-4 rounded border-input"
                                             />
                                             <span>{dt.label || dt.code}</span>
@@ -3710,45 +6936,86 @@ export default function AppDashboard() {
                                 </div>
                             </div>
                             <div>
-                                <Label className="text-xs">Notes (optional)</Label>
+                                <Label className="text-xs">
+                                    Notes (optional)
+                                </Label>
                                 <Input
                                     value={editLfwForm.notes}
-                                    onChange={(e) => setEditLfwForm((f) => f ? { ...f, notes: e.target.value } : null)}
+                                    onChange={(e) =>
+                                        setEditLfwForm((f) =>
+                                            f
+                                                ? {
+                                                      ...f,
+                                                      notes: e.target.value,
+                                                  }
+                                                : null,
+                                        )
+                                    }
                                     className="mt-1 h-8 text-sm"
                                     placeholder="e.g. prefer morning"
                                 />
                             </div>
                             <div className="flex justify-end gap-2">
-                                <Button variant="outline" size="sm" onClick={() => setEditLfwPost(null)} disabled={editLfwSaving}>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setEditLfwPost(null)}
+                                    disabled={editLfwSaving}
+                                >
                                     Cancel
                                 </Button>
                                 <Button
                                     size="sm"
-                                    disabled={editLfwSaving || !editLfwForm.date || editLfwForm.cash === ''}
+                                    disabled={
+                                        editLfwSaving ||
+                                        !editLfwForm.date ||
+                                        editLfwForm.cash === ''
+                                    }
                                     onClick={async () => {
-                                        if (!editLfwPost || !editLfwForm) return;
+                                        if (!editLfwPost || !editLfwForm)
+                                            return;
                                         setEditLfwSaving(true);
                                         try {
-                                            const res = await fetch(`/api/looking-for-work/posts/${editLfwPost.id}`, {
-                                                method: 'PUT',
-                                                headers: {
-                                                    'Content-Type': 'application/json',
-                                                    'Accept': 'application/json',
-                                                    'X-XSRF-TOKEN': getCsrfToken(),
-                                                    'X-Requested-With': 'XMLHttpRequest',
+                                            const res = await fetch(
+                                                `/api/looking-for-work/posts/${editLfwPost.id}`,
+                                                {
+                                                    method: 'PUT',
+                                                    headers: {
+                                                        'Content-Type':
+                                                            'application/json',
+                                                        Accept: 'application/json',
+                                                        'X-XSRF-TOKEN':
+                                                            getCsrfToken(),
+                                                        'X-Requested-With':
+                                                            'XMLHttpRequest',
+                                                    },
+                                                    credentials: 'include',
+                                                    body: JSON.stringify({
+                                                        seeking_date:
+                                                            editLfwForm.date,
+                                                        seeking_cash:
+                                                            Number(
+                                                                editLfwForm.cash,
+                                                            ) || 0,
+                                                        seeking_obo:
+                                                            editLfwForm.obo,
+                                                        seeking_desk_types:
+                                                            editLfwForm
+                                                                .deskTypes
+                                                                .length
+                                                                ? editLfwForm.deskTypes
+                                                                : null,
+                                                        notes:
+                                                            editLfwForm.notes ||
+                                                            null,
+                                                    }),
                                                 },
-                                                credentials: 'include',
-                                                body: JSON.stringify({
-                                                    seeking_date: editLfwForm.date,
-                                                    seeking_cash: Number(editLfwForm.cash) || 0,
-                                                    seeking_obo: editLfwForm.obo,
-                                                    seeking_desk_types: editLfwForm.deskTypes.length ? editLfwForm.deskTypes : null,
-                                                    notes: editLfwForm.notes || null,
-                                                }),
-                                            });
+                                            );
                                             if (res.ok) {
                                                 setEditLfwPost(null);
-                                                router.reload({ only: DASHBOARD_RELOAD_ONLY });
+                                                router.reload({
+                                                    only: DASHBOARD_RELOAD_ONLY,
+                                                });
                                             }
                                         } finally {
                                             setEditLfwSaving(false);
@@ -3767,7 +7034,11 @@ export default function AppDashboard() {
                 open={bulkPostShiftIds !== null && bulkPostShiftIds.length > 0}
                 onOpenChange={(open) => !open && setBulkPostShiftIds(null)}
                 shiftIds={bulkPostShiftIds ?? []}
-                shiftCountLabel={selectedRange ? `Shifts in ${formatRangeShort(selectedRange.start_date, selectedRange.end_date)}` : undefined}
+                shiftCountLabel={
+                    selectedRange
+                        ? `Shifts in ${formatRangeShort(selectedRange.start_date, selectedRange.end_date)}`
+                        : undefined
+                }
                 onSuccess={() => {
                     handlePostSuccess();
                     setBulkPostShiftIds(null);

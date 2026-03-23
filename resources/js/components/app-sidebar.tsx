@@ -38,16 +38,26 @@ export function AppSidebar() {
 
     return (
         <Sidebar collapsible="icon" variant="inset">
-            <SidebarHeader className="border-sidebar-border/50 border-b pb-3">
-                <Link href={dashboard()} prefetch className="block outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring rounded-md">
+            <SidebarHeader className="border-b border-sidebar-border/50 pb-3">
+                <Link
+                    href={dashboard()}
+                    prefetch
+                    className="block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                >
                     <AppLogo />
                 </Link>
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} groupLabel="Manage your schedule" />
+                <NavMain
+                    items={mainNavItems}
+                    groupLabel="Manage your schedule"
+                />
                 {isAdmin && (
-                    <NavMain items={adminNavItems} groupLabel="Administration" />
+                    <NavMain
+                        items={adminNavItems}
+                        groupLabel="Administration"
+                    />
                 )}
             </SidebarContent>
         </Sidebar>

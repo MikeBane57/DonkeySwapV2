@@ -1,6 +1,9 @@
+import dayGridPlugin from '@fullcalendar/daygrid';
+import FullCalendar from '@fullcalendar/react';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Plus, Trash2, UserPlus } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ScheduleCalendarShiftEventContent } from '@/components/schedule-calendar-shift-event-content';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -13,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import { normalizeShiftEventEndIso } from '@/lib/schedule-calendar-shift-display';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -34,12 +38,20 @@ type ShiftRow = {
     regulatory: boolean;
 };
 
-type UserOption = { id: number; name: string; email: string; workgroup_ids: number[] };
+type UserOption = {
+    id: number;
+    name: string;
+    email: string;
+    workgroup_ids: number[];
+};
 type DeskTypeOption = { code: string; label: string };
 type WorkgroupOption = {
     id: number;
     name: string;
-    allowed_start_times: { start_time: string; default_duration_minutes: number }[];
+    allowed_start_times: {
+        start_time: string;
+        default_duration_minutes: number;
+    }[];
     desk_types?: DeskTypeOption[];
     positions: { label: string; type?: string; shift_type?: string }[];
 };
@@ -57,21 +69,85 @@ const DESK_TYPE_LABELS: Record<string, string> = {
 
 function formatDateTimeUtc(iso: string): string {
     const d = new Date(iso);
-    return d.toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return d.toLocaleString('en-US', {
+        timeZone: 'America/Chicago',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    });
 }
 
-function getDeskTypeLabel(workgroup: WorkgroupOption | undefined, code: string | null): string {
+function getDeskTypeLabel(
+    workgroup: WorkgroupOption | undefined,
+    code: string | null,
+): string {
     if (!code) return '—';
     const label = workgroup?.desk_types?.find((d) => d.code === code)?.label;
     return label ?? DESK_TYPE_LABELS[code] ?? code;
 }
 
+type AdminShiftCalendarExtendedProps = {
+    position_name: string;
+    /** User name when viewing all users; workgroup when one user is selected. */
+    subtitle?: string;
+    regulatory: boolean;
+};
+
+type AdminFilters = {
+    user_id?: string;
+    user_ids?: number[];
+    date_from?: string;
+    date_to?: string;
+    workgroup_id?: string;
+};
+
+function parseUserIdsFromFilters(f: AdminFilters): number[] {
+    if (Array.isArray(f.user_ids) && f.user_ids.length > 0) {
+        return [
+            ...new Set(
+                f.user_ids
+                    .map((x) => Number(x))
+                    .filter((n) => Number.isInteger(n) && n > 0),
+            ),
+        ].sort((a, b) => a - b);
+    }
+    if (f.user_id) {
+        const id = parseInt(f.user_id, 10);
+        return Number.isInteger(id) && id > 0 ? [id] : [];
+    }
+    return [];
+}
+
+function buildShiftFilterParams(
+    userIds: number[],
+    dateFrom: string,
+    dateTo: string,
+    workgroupId: string,
+): Record<string, string | number[]> {
+    const p: Record<string, string | number[]> = {};
+    if (userIds.length > 0) p.user_ids = userIds;
+    if (dateFrom) p.date_from = dateFrom;
+    if (dateTo) p.date_to = dateTo;
+    if (workgroupId) p.workgroup_id = workgroupId;
+    return p;
+}
+
 export default function AdminShifts() {
-    const { shifts = [], users = [], workgroups = [], filters = {}, flash } = usePage().props as {
+    const page = usePage();
+    const { url } = page;
+    const {
+        shifts = [],
+        users = [],
+        workgroups = [],
+        filters = {} as AdminFilters,
+        flash,
+    } = page.props as {
         shifts: ShiftRow[];
         users: UserOption[];
         workgroups: WorkgroupOption[];
-        filters: { user_id?: string; date_from?: string; date_to?: string; workgroup_id?: string };
+        filters: AdminFilters;
         flash?: { success?: string; error?: string };
     };
     const [success, setSuccess] = useState(flash?.success ?? null);
@@ -81,10 +157,47 @@ export default function AdminShifts() {
     const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-    const [filterUser, setFilterUser] = useState(filters.user_id ?? '');
-    const [filterDateFrom, setFilterDateFrom] = useState(filters.date_from ?? '');
+    const [filterUserIds, setFilterUserIds] = useState<number[]>(() =>
+        parseUserIdsFromFilters(filters),
+    );
+    const [filterDateFrom, setFilterDateFrom] = useState(
+        filters.date_from ?? '',
+    );
     const [filterDateTo, setFilterDateTo] = useState(filters.date_to ?? '');
-    const [filterWorkgroup, setFilterWorkgroup] = useState(filters.workgroup_id ?? '');
+    const [filterWorkgroup, setFilterWorkgroup] = useState(
+        filters.workgroup_id ?? '',
+    );
+    const [userListSearch, setUserListSearch] = useState('');
+    const filterNavigateSkipRef = useRef(true);
+
+    useEffect(() => {
+        filterNavigateSkipRef.current = true;
+        setFilterUserIds(parseUserIdsFromFilters(filters));
+        setFilterDateFrom(filters.date_from ?? '');
+        setFilterDateTo(filters.date_to ?? '');
+        setFilterWorkgroup(filters.workgroup_id ?? '');
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-sync when the visit URL changes; `filters` always matches the current `url`.
+    }, [url]);
+
+    useEffect(() => {
+        if (filterNavigateSkipRef.current) {
+            filterNavigateSkipRef.current = false;
+            return;
+        }
+        const t = window.setTimeout(() => {
+            router.get(
+                '/app/admin/shifts',
+                buildShiftFilterParams(
+                    filterUserIds,
+                    filterDateFrom,
+                    filterDateTo,
+                    filterWorkgroup,
+                ),
+                { replace: true, preserveScroll: true },
+            );
+        }, 350);
+        return () => window.clearTimeout(t);
+    }, [filterUserIds, filterDateFrom, filterDateTo, filterWorkgroup]);
 
     const [addForm, setAddForm] = useState({
         user_id: '',
@@ -99,27 +212,54 @@ export default function AdminShifts() {
     });
     const [moveUserId, setMoveUserId] = useState('');
 
-    const selectedUser = addForm.user_id ? users.find((u) => u.id === parseInt(addForm.user_id, 10)) : null;
+    const selectedUser = addForm.user_id
+        ? users.find((u) => u.id === parseInt(addForm.user_id, 10))
+        : null;
     const allowedWorkgroupsForUser = selectedUser
-        ? workgroups.filter((wg) => selectedUser.workgroup_ids?.includes(wg.id) ?? false)
+        ? workgroups.filter(
+              (wg) => selectedUser.workgroup_ids?.includes(wg.id) ?? false,
+          )
         : workgroups;
     const selectedShiftsForMove = shifts.filter((s) => selectedIds.has(s.id));
-    const workgroupIdsOfSelectedShifts = [...new Set(selectedShiftsForMove.map((s) => s.workgroup_id))];
-    const allowedUsersForMove = workgroupIdsOfSelectedShifts.length > 0
-        ? users.filter((u) => workgroupIdsOfSelectedShifts.every((wgId) => u.workgroup_ids?.includes(wgId)))
-        : users;
-    const selectedWorkgroup = addForm.workgroup_id ? workgroups.find((wg) => wg.id === parseInt(addForm.workgroup_id, 10)) : null;
-    const selectedWorkgroupAllowed = selectedWorkgroup && selectedUser
-        ? selectedUser.workgroup_ids?.includes(selectedWorkgroup.id)
-        : true;
+    const workgroupIdsOfSelectedShifts = [
+        ...new Set(selectedShiftsForMove.map((s) => s.workgroup_id)),
+    ];
+    const allowedUsersForMove =
+        workgroupIdsOfSelectedShifts.length > 0
+            ? users.filter((u) =>
+                  workgroupIdsOfSelectedShifts.every((wgId) =>
+                      u.workgroup_ids?.includes(wgId),
+                  ),
+              )
+            : users;
+    const selectedWorkgroup = addForm.workgroup_id
+        ? workgroups.find((wg) => wg.id === parseInt(addForm.workgroup_id, 10))
+        : null;
+    const selectedWorkgroupAllowed =
+        selectedWorkgroup && selectedUser
+            ? selectedUser.workgroup_ids?.includes(selectedWorkgroup.id)
+            : true;
     const positionOptions = selectedWorkgroup?.positions ?? [];
     const deskTypesInWorkgroup = (() => {
-        const fromDeskTypes = selectedWorkgroup?.desk_types?.map((d) => d.code).filter(Boolean);
-        if (fromDeskTypes && fromDeskTypes.length > 0) return [...new Set(fromDeskTypes)];
-        return [...new Set(positionOptions.map((p) => (p as { shift_type?: string }).shift_type).filter(Boolean))] as string[];
+        const fromDeskTypes = selectedWorkgroup?.desk_types
+            ?.map((d) => d.code)
+            .filter(Boolean);
+        if (fromDeskTypes && fromDeskTypes.length > 0)
+            return [...new Set(fromDeskTypes)];
+        return [
+            ...new Set(
+                positionOptions
+                    .map((p) => (p as { shift_type?: string }).shift_type)
+                    .filter(Boolean),
+            ),
+        ] as string[];
     })();
     const positionOptionsFiltered = addForm.desk_type
-        ? positionOptions.filter((p) => (p as { shift_type?: string }).shift_type === addForm.desk_type)
+        ? positionOptions.filter(
+              (p) =>
+                  (p as { shift_type?: string }).shift_type ===
+                  addForm.desk_type,
+          )
         : positionOptions;
 
     const [rotationForm, setRotationForm] = useState({
@@ -128,21 +268,25 @@ export default function AdminShifts() {
         pattern: '5, 3, 5, 5',
     });
 
-    const applyFilters = () => {
-        const params: Record<string, string> = {};
-        if (filterUser) params.user_id = filterUser;
-        if (filterDateFrom) params.date_from = filterDateFrom;
-        if (filterDateTo) params.date_to = filterDateTo;
-        if (filterWorkgroup) params.workgroup_id = filterWorkgroup;
-        router.get('/app/admin/shifts', params);
-    };
-
     const clearFilters = () => {
-        setFilterUser('');
+        filterNavigateSkipRef.current = true;
+        setFilterUserIds([]);
         setFilterDateFrom('');
         setFilterDateTo('');
         setFilterWorkgroup('');
-        router.get('/app/admin/shifts');
+        setUserListSearch('');
+        router.get(
+            '/app/admin/shifts',
+            {},
+            { replace: true, preserveScroll: true },
+        );
+    };
+
+    const toggleFilterUser = (id: number) => {
+        setFilterUserIds((prev) => {
+            if (prev.includes(id)) return prev.filter((x) => x !== id);
+            return [...prev, id].sort((a, b) => a - b);
+        });
     };
 
     const toggleSelect = (id: number) => {
@@ -161,10 +305,13 @@ export default function AdminShifts() {
 
     const openAdd = () => {
         const firstUser = users[0];
-        const firstAllowedWgId = firstUser?.workgroup_ids?.length ? firstUser.workgroup_ids[0] : workgroups[0]?.id;
+        const firstAllowedWgId = firstUser?.workgroup_ids?.length
+            ? firstUser.workgroup_ids[0]
+            : workgroups[0]?.id;
         setAddForm({
             user_id: firstUser?.id?.toString() ?? '',
-            workgroup_id: firstAllowedWgId != null ? String(firstAllowedWgId) : '',
+            workgroup_id:
+                firstAllowedWgId != null ? String(firstAllowedWgId) : '',
             position_name: '',
             desk_type: '',
             start_date: new Date().toISOString().slice(0, 10),
@@ -190,7 +337,9 @@ export default function AdminShifts() {
             payload.desk_type = addForm.desk_type;
         } else if (
             deskTypesInWorkgroup.includes('extra') &&
-            !positionOptionsFiltered.some((p) => p.label === addForm.position_name.trim())
+            !positionOptionsFiltered.some(
+                (p) => p.label === addForm.position_name.trim(),
+            )
         ) {
             payload.desk_type = 'extra';
         }
@@ -208,7 +357,15 @@ export default function AdminShifts() {
 
     const submitRotation = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!addForm.user_id || !addForm.workgroup_id || !addForm.position_name.trim() || !rotationForm.date_from || !rotationForm.date_to || !rotationForm.pattern.trim()) return;
+        if (
+            !addForm.user_id ||
+            !addForm.workgroup_id ||
+            !addForm.position_name.trim() ||
+            !rotationForm.date_from ||
+            !rotationForm.date_to ||
+            !rotationForm.pattern.trim()
+        )
+            return;
         const payload = {
             user_id: parseInt(addForm.user_id, 10),
             workgroup_id: parseInt(addForm.workgroup_id, 10),
@@ -223,7 +380,9 @@ export default function AdminShifts() {
             (payload as Record<string, unknown>).desk_type = addForm.desk_type;
         } else if (
             deskTypesInWorkgroup.includes('extra') &&
-            !positionOptionsFiltered.some((p) => p.label === addForm.position_name.trim())
+            !positionOptionsFiltered.some(
+                (p) => p.label === addForm.position_name.trim(),
+            )
         ) {
             (payload as Record<string, unknown>).desk_type = 'extra';
         }
@@ -248,12 +407,16 @@ export default function AdminShifts() {
     const submitBulkDelete = () => {
         if (selectedIds.size === 0) return;
         setBulkDeleteOpen(false);
-        router.post('/app/admin/shifts/bulk-destroy', { shift_ids: Array.from(selectedIds) }, {
-            onSuccess: () => {
-                setSelectedIds(new Set());
-                setSuccess('Shifts deleted.');
+        router.post(
+            '/app/admin/shifts/bulk-destroy',
+            { shift_ids: Array.from(selectedIds) },
+            {
+                onSuccess: () => {
+                    setSelectedIds(new Set());
+                    setSuccess('Shifts deleted.');
+                },
             },
-        });
+        );
     };
 
     const openMove = () => {
@@ -264,17 +427,62 @@ export default function AdminShifts() {
     const submitBulkMove = (e: React.FormEvent) => {
         e.preventDefault();
         if (selectedIds.size === 0 || !moveUserId) return;
-        router.post('/app/admin/shifts/bulk-move', {
-            shift_ids: Array.from(selectedIds),
-            user_id: parseInt(moveUserId, 10),
-        }, {
-            onSuccess: () => {
-                setSelectedIds(new Set());
-                setMoveOpen(false);
-                setSuccess('Shifts moved.');
+        router.post(
+            '/app/admin/shifts/bulk-move',
+            {
+                shift_ids: Array.from(selectedIds),
+                user_id: parseInt(moveUserId, 10),
             },
-        });
+            {
+                onSuccess: () => {
+                    setSelectedIds(new Set());
+                    setMoveOpen(false);
+                    setSuccess('Shifts moved.');
+                },
+            },
+        );
     };
+
+    const calendarSubtitleForShift = (s: ShiftRow) => {
+        if (filterUserIds.length === 1) return s.workgroup_name;
+        return s.user_name;
+    };
+
+    const shiftCalendarEvents = shifts.map((s) => ({
+        id: String(s.id),
+        title: s.position_name,
+        start: s.start_time_utc,
+        end: normalizeShiftEventEndIso(s.start_time_utc, s.end_time_utc),
+        extendedProps: {
+            position_name: s.position_name,
+            subtitle: calendarSubtitleForShift(s),
+            regulatory: s.regulatory,
+        } satisfies AdminShiftCalendarExtendedProps,
+    }));
+
+    let calendarInitialDate: string;
+    if (filterDateFrom) {
+        calendarInitialDate = filterDateFrom;
+    } else if (shifts.length === 0) {
+        calendarInitialDate = new Date().toISOString().slice(0, 10);
+    } else {
+        let latest = shifts[0].start_time_utc;
+        for (const s of shifts) {
+            if (s.start_time_utc > latest) latest = s.start_time_utc;
+        }
+        calendarInitialDate = latest.slice(0, 10);
+    }
+
+    const calendarFilterKey = `${filterUserIds.join(',')}|${filterDateFrom}|${filterDateTo}|${filterWorkgroup}`;
+
+    const userSearchLower = userListSearch.trim().toLowerCase();
+    const usersForFilterList = userSearchLower
+        ? users.filter(
+              (u) =>
+                  u.name.toLowerCase().includes(userSearchLower) ||
+                  u.email.toLowerCase().includes(userSearchLower),
+          )
+        : users;
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -282,9 +490,14 @@ export default function AdminShifts() {
             <div className="p-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h1 className="text-2xl font-semibold">Shift Manager</h1>
+                        <h1 className="text-2xl font-semibold">
+                            Shift Manager
+                        </h1>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Add, remove, or move shifts for any user. Use filters then bulk actions for large moves.
+                            Add, remove, or move shifts for any user. Filters
+                            update the list as you change them (after a short
+                            pause). Leave all users unchecked to see everyone,
+                            or select multiple people to compare.
                         </p>
                     </div>
                     <Button onClick={openAdd}>
@@ -299,20 +512,60 @@ export default function AdminShifts() {
                     </div>
                 )}
 
-                {/* Filters */}
+                {/* Filters — update in real time (debounced); pick no users for everyone, or multiple users */}
                 <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-sidebar-border/70 bg-muted/30 p-3 dark:border-sidebar-border">
-                    <div className="min-w-[10rem]">
-                        <Label className="text-xs">User</Label>
-                        <select
-                            value={filterUser}
-                            onChange={(e) => setFilterUser(e.target.value)}
-                            className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                        >
-                            <option value="">All users</option>
-                            {users.map((u) => (
-                                <option key={u.id} value={u.id}>{u.name}</option>
-                            ))}
-                        </select>
+                    <div className="max-w-sm min-w-[12rem] flex-1">
+                        <Label className="text-xs">Users</Label>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                            Leave empty for all users, or check one or more.
+                        </p>
+                        <Input
+                            type="search"
+                            placeholder="Search users…"
+                            value={userListSearch}
+                            onChange={(e) => setUserListSearch(e.target.value)}
+                            className="mt-1.5 h-8 text-sm"
+                            autoComplete="off"
+                        />
+                        <div className="mt-2 max-h-40 overflow-y-auto rounded-md border border-input bg-background p-2">
+                            {usersForFilterList.length === 0 ? (
+                                <p className="text-xs text-muted-foreground">
+                                    No users match.
+                                </p>
+                            ) : (
+                                <ul className="space-y-1.5">
+                                    {usersForFilterList.map((u) => (
+                                        <li key={u.id}>
+                                            <label className="flex cursor-pointer items-start gap-2 text-sm leading-tight">
+                                                <Checkbox
+                                                    className="mt-0.5"
+                                                    checked={filterUserIds.includes(
+                                                        u.id,
+                                                    )}
+                                                    onCheckedChange={() =>
+                                                        toggleFilterUser(u.id)
+                                                    }
+                                                />
+                                                <span className="min-w-0">
+                                                    <span className="font-medium">
+                                                        {u.name}
+                                                    </span>
+                                                    <span className="block truncate text-xs text-muted-foreground">
+                                                        {u.email}
+                                                    </span>
+                                                </span>
+                                            </label>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                        {filterUserIds.length > 0 && (
+                            <p className="mt-1.5 text-xs text-muted-foreground">
+                                {filterUserIds.length} user
+                                {filterUserIds.length === 1 ? '' : 's'} selected
+                            </p>
+                        )}
                     </div>
                     <div>
                         <Label className="text-xs">Date from</Label>
@@ -341,84 +594,238 @@ export default function AdminShifts() {
                         >
                             <option value="">All</option>
                             {workgroups.map((wg) => (
-                                <option key={wg.id} value={wg.id}>{wg.name}</option>
+                                <option key={wg.id} value={wg.id}>
+                                    {wg.name}
+                                </option>
                             ))}
                         </select>
                     </div>
-                    <Button variant="secondary" size="sm" onClick={applyFilters}>Apply</Button>
-                    <Button variant="ghost" size="sm" onClick={clearFilters}>Clear</Button>
+                    <Button variant="ghost" size="sm" onClick={clearFilters}>
+                        Clear filters
+                    </Button>
                 </div>
 
                 {/* Bulk actions */}
                 {selectedIds.size > 0 && (
                     <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-sidebar-border/70 bg-card px-3 py-2">
-                        <span className="text-sm text-muted-foreground">{selectedIds.size} selected</span>
+                        <span className="text-sm text-muted-foreground">
+                            {selectedIds.size} selected
+                        </span>
                         <Button variant="outline" size="sm" onClick={openMove}>
                             <UserPlus className="mr-1 h-4 w-4" />
                             Move to user
                         </Button>
-                        <Button variant="outline" size="sm" className="text-destructive" onClick={() => setBulkDeleteOpen(true)}>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive"
+                            onClick={() => setBulkDeleteOpen(true)}
+                        >
                             <Trash2 className="mr-1 h-4 w-4" />
                             Delete selected
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear selection</Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedIds(new Set())}
+                        >
+                            Clear selection
+                        </Button>
                     </div>
                 )}
 
+                {/* Calendar — same filtered shifts as the table; display rules match dashboard calendar */}
+                <div className="schedule-calendar mt-4 rounded-xl border border-sidebar-border/70 bg-card p-2 sm:p-4 dark:border-sidebar-border">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <h2 className="text-sm font-medium text-muted-foreground">
+                            Shifts calendar
+                        </h2>
+                        <span className="text-xs text-muted-foreground">
+                            Times in Central (same as table)
+                        </span>
+                    </div>
+                    <div className="min-h-[260px]">
+                        <FullCalendar
+                            key={calendarFilterKey}
+                            plugins={[dayGridPlugin]}
+                            initialView="dayGridMonth"
+                            initialDate={calendarInitialDate}
+                            views={{
+                                dayGridMonth: {
+                                    showNonCurrentDates: true,
+                                    fixedWeekCount: true,
+                                },
+                            }}
+                            headerToolbar={{
+                                left: 'title',
+                                right: 'prev,next today',
+                            }}
+                            events={shiftCalendarEvents}
+                            eventContent={(arg) => {
+                                const p = arg.event
+                                    .extendedProps as AdminShiftCalendarExtendedProps;
+                                const start = arg.event.start;
+                                const end = arg.event.end;
+                                const startIso =
+                                    start instanceof Date
+                                        ? start.toISOString()
+                                        : String(start ?? '');
+                                const endIso =
+                                    end == null
+                                        ? startIso
+                                        : end instanceof Date
+                                          ? end.toISOString()
+                                          : String(end);
+                                return (
+                                    <ScheduleCalendarShiftEventContent
+                                        positionLabel={
+                                            p.position_name ?? arg.event.title
+                                        }
+                                        subtitle={p.subtitle}
+                                        startIso={startIso}
+                                        endIso={endIso}
+                                        regulatory={p.regulatory}
+                                        posts={[]}
+                                    />
+                                );
+                            }}
+                            eventClassNames={(arg) =>
+                                arg.event.end &&
+                                new Date(arg.event.end) < new Date()
+                                    ? ['fc-event-past']
+                                    : []
+                            }
+                            height="auto"
+                            contentHeight="auto"
+                            aspectRatio={1.8}
+                        />
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                        <span>
+                            <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-red-500 align-middle" />{' '}
+                            Regulatory
+                        </span>
+                        <span className="text-blue-600 dark:text-blue-400">
+                            Upcoming
+                        </span>
+                        <span className="opacity-70">Past</span>
+                    </div>
+                </div>
+
                 {/* Table */}
                 <div className="mt-4 overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                    <div className="w-full min-w-0 overflow-x-auto">
+                        <table className="w-full min-w-max text-sm">
                             <thead>
                                 <tr className="border-b border-sidebar-border/70 bg-muted/50">
-                                    <th className="p-3 w-10">
+                                    <th className="w-10 p-3">
                                         <Checkbox
-                                            checked={shifts.length > 0 && selectedIds.size === shifts.length}
+                                            checked={
+                                                shifts.length > 0 &&
+                                                selectedIds.size ===
+                                                    shifts.length
+                                            }
                                             onCheckedChange={toggleSelectAll}
                                         />
                                     </th>
-                                    <th className="p-3 text-left font-medium">User</th>
-                                    <th className="p-3 text-left font-medium">Workgroup</th>
-                                    <th className="p-3 text-left font-medium">Position</th>
-                                    <th className="p-3 text-left font-medium">Desk type</th>
-                                    <th className="p-3 text-left font-medium">Start (Central)</th>
-                                    <th className="p-3 text-left font-medium">End (Central)</th>
-                                    <th className="p-3 text-left font-medium">Reg.</th>
-                                    <th className="p-3 text-right font-medium w-20">Actions</th>
+                                    <th className="p-3 text-left font-medium">
+                                        User
+                                    </th>
+                                    <th className="p-3 text-left font-medium">
+                                        Workgroup
+                                    </th>
+                                    <th className="p-3 text-left font-medium">
+                                        Position
+                                    </th>
+                                    <th className="p-3 text-left font-medium">
+                                        Desk type
+                                    </th>
+                                    <th className="p-3 text-left font-medium">
+                                        Start (Central)
+                                    </th>
+                                    <th className="p-3 text-left font-medium">
+                                        End (Central)
+                                    </th>
+                                    <th className="p-3 text-left font-medium">
+                                        Reg.
+                                    </th>
+                                    <th className="w-20 p-3 text-right font-medium">
+                                        Actions
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {shifts.length === 0 ? (
                                     <tr>
-                                        <td colSpan={9} className="p-4 text-muted-foreground">
-                                            No shifts match the filters. Adjust filters or add a shift.
+                                        <td
+                                            colSpan={9}
+                                            className="p-4 text-muted-foreground"
+                                        >
+                                            No shifts match the filters. Adjust
+                                            filters or add a shift.
                                         </td>
                                     </tr>
                                 ) : (
                                     shifts.map((s) => (
-                                        <tr key={s.id} className="border-b border-sidebar-border/50">
+                                        <tr
+                                            key={s.id}
+                                            className="border-b border-sidebar-border/50"
+                                        >
                                             <td className="p-3">
                                                 <Checkbox
-                                                    checked={selectedIds.has(s.id)}
-                                                    onCheckedChange={() => toggleSelect(s.id)}
+                                                    checked={selectedIds.has(
+                                                        s.id,
+                                                    )}
+                                                    onCheckedChange={() =>
+                                                        toggleSelect(s.id)
+                                                    }
                                                 />
                                             </td>
                                             <td className="p-3">
-                                                <span className="font-medium">{s.user_name}</span>
-                                                <span className="block text-xs text-muted-foreground">{s.user_email}</span>
+                                                <span className="font-medium">
+                                                    {s.user_name}
+                                                </span>
+                                                <span className="block text-xs text-muted-foreground">
+                                                    {s.user_email}
+                                                </span>
                                             </td>
-                                            <td className="p-3">{s.workgroup_name}</td>
-                                            <td className="p-3">{s.position_name}</td>
-                                            <td className="p-3">{getDeskTypeLabel(workgroups.find((wg) => wg.id === s.workgroup_id), s.desk_type ?? null)}</td>
-                                            <td className="p-3 whitespace-nowrap">{formatDateTimeUtc(s.start_time_utc)}</td>
-                                            <td className="p-3 whitespace-nowrap">{formatDateTimeUtc(s.end_time_utc)}</td>
-                                            <td className="p-3">{s.regulatory ? 'Yes' : '—'}</td>
+                                            <td className="p-3">
+                                                {s.workgroup_name}
+                                            </td>
+                                            <td className="p-3">
+                                                {s.position_name}
+                                            </td>
+                                            <td className="p-3">
+                                                {getDeskTypeLabel(
+                                                    workgroups.find(
+                                                        (wg) =>
+                                                            wg.id ===
+                                                            s.workgroup_id,
+                                                    ),
+                                                    s.desk_type ?? null,
+                                                )}
+                                            </td>
+                                            <td className="p-3 whitespace-nowrap">
+                                                {formatDateTimeUtc(
+                                                    s.start_time_utc,
+                                                )}
+                                            </td>
+                                            <td className="p-3 whitespace-nowrap">
+                                                {formatDateTimeUtc(
+                                                    s.end_time_utc,
+                                                )}
+                                            </td>
+                                            <td className="p-3">
+                                                {s.regulatory ? 'Yes' : '—'}
+                                            </td>
                                             <td className="p-3 text-right">
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
                                                     className="text-destructive"
-                                                    onClick={() => setDeleteId(s.id)}
+                                                    onClick={() =>
+                                                        setDeleteId(s.id)
+                                                    }
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
@@ -445,16 +852,31 @@ export default function AdminShifts() {
                                 value={addForm.user_id}
                                 onChange={(e) => {
                                     const uid = e.target.value;
-                                    const u = users.find((x) => x.id === parseInt(uid, 10));
+                                    const u = users.find(
+                                        (x) => x.id === parseInt(uid, 10),
+                                    );
                                     const allowedIds = u?.workgroup_ids ?? [];
-                                    const currentWgId = parseInt(addForm.workgroup_id, 10);
-                                    const keepWorkgroup = addForm.workgroup_id && allowedIds.includes(currentWgId);
+                                    const currentWgId = parseInt(
+                                        addForm.workgroup_id,
+                                        10,
+                                    );
+                                    const keepWorkgroup =
+                                        addForm.workgroup_id &&
+                                        allowedIds.includes(currentWgId);
                                     setAddForm((f) => ({
                                         ...f,
                                         user_id: uid,
-                                        workgroup_id: keepWorkgroup ? f.workgroup_id : (allowedIds.length ? String(allowedIds[0]) : ''),
-                                        position_name: keepWorkgroup ? f.position_name : '',
-                                        desk_type: keepWorkgroup ? f.desk_type : '',
+                                        workgroup_id: keepWorkgroup
+                                            ? f.workgroup_id
+                                            : allowedIds.length
+                                              ? String(allowedIds[0])
+                                              : '',
+                                        position_name: keepWorkgroup
+                                            ? f.position_name
+                                            : '',
+                                        desk_type: keepWorkgroup
+                                            ? f.desk_type
+                                            : '',
                                     }));
                                 }}
                                 className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
@@ -462,40 +884,79 @@ export default function AdminShifts() {
                             >
                                 <option value="">Select user</option>
                                 {users.map((u) => (
-                                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                                    <option key={u.id} value={u.id}>
+                                        {u.name} ({u.email})
+                                    </option>
                                 ))}
                             </select>
                         </div>
                         <div>
                             <Label>Workgroup</Label>
                             <select
-                                value={selectedWorkgroupAllowed ? addForm.workgroup_id : ''}
-                                onChange={(e) => setAddForm((f) => ({ ...f, workgroup_id: e.target.value, position_name: '', desk_type: '' }))}
+                                value={
+                                    selectedWorkgroupAllowed
+                                        ? addForm.workgroup_id
+                                        : ''
+                                }
+                                onChange={(e) =>
+                                    setAddForm((f) => ({
+                                        ...f,
+                                        workgroup_id: e.target.value,
+                                        position_name: '',
+                                        desk_type: '',
+                                    }))
+                                }
                                 className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                                 required
                             >
                                 <option value="">Select workgroup</option>
                                 {allowedWorkgroupsForUser.map((wg) => (
-                                    <option key={wg.id} value={wg.id}>{wg.name}</option>
+                                    <option key={wg.id} value={wg.id}>
+                                        {wg.name}
+                                    </option>
                                 ))}
                             </select>
-                            {selectedUser && allowedWorkgroupsForUser.length === 0 && (
-                                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">This user has no workgroups. Assign workgroups in User Manager first.</p>
-                            )}
+                            {selectedUser &&
+                                allowedWorkgroupsForUser.length === 0 && (
+                                    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                                        This user has no workgroups. Assign
+                                        workgroups in User Manager first.
+                                    </p>
+                                )}
                         </div>
                         <div>
                             <Label>Desk type (filter)</Label>
                             <select
-                                value={deskTypesInWorkgroup.includes(addForm.desk_type) ? addForm.desk_type : ''}
-                                onChange={(e) => setAddForm((f) => ({ ...f, desk_type: e.target.value, position_name: '' }))}
+                                value={
+                                    deskTypesInWorkgroup.includes(
+                                        addForm.desk_type,
+                                    )
+                                        ? addForm.desk_type
+                                        : ''
+                                }
+                                onChange={(e) =>
+                                    setAddForm((f) => ({
+                                        ...f,
+                                        desk_type: e.target.value,
+                                        position_name: '',
+                                    }))
+                                }
                                 className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                             >
                                 <option value="">All desks</option>
                                 {deskTypesInWorkgroup.map((dt) => (
-                                    <option key={dt} value={dt}>{getDeskTypeLabel(selectedWorkgroup ?? undefined, dt)}</option>
+                                    <option key={dt} value={dt}>
+                                        {getDeskTypeLabel(
+                                            selectedWorkgroup ?? undefined,
+                                            dt,
+                                        )}
+                                    </option>
                                 ))}
                             </select>
-                            <p className="mt-0.5 text-xs text-muted-foreground">Optional: limits which positions appear below (only types in this workgroup)</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                                Optional: limits which positions appear below
+                                (only types in this workgroup)
+                            </p>
                         </div>
                         <div>
                             <Label>Position / desk</Label>
@@ -503,21 +964,29 @@ export default function AdminShifts() {
                                 <select
                                     value={addForm.position_name}
                                     onChange={(e) => {
-                                        const p = positionOptionsFiltered.find((x) => x.label === e.target.value);
+                                        const p = positionOptionsFiltered.find(
+                                            (x) => x.label === e.target.value,
+                                        );
                                         setAddForm((f) => ({
                                             ...f,
                                             position_name: e.target.value,
-                                            desk_type: (p as { shift_type?: string })?.shift_type ?? f.desk_type,
+                                            desk_type:
+                                                (p as { shift_type?: string })
+                                                    ?.shift_type ?? f.desk_type,
                                         }));
                                     }}
                                     className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                                     required
                                 >
-                                    <option value="">Select or type below</option>
+                                    <option value="">
+                                        Select or type below
+                                    </option>
                                     {positionOptionsFiltered.map((p) => (
                                         <option key={p.label} value={p.label}>
                                             {p.label}
-                                            {p.shift_type ? ` (${getDeskTypeLabel(selectedWorkgroup ?? undefined, p.shift_type)})` : ''}
+                                            {p.shift_type
+                                                ? ` (${getDeskTypeLabel(selectedWorkgroup ?? undefined, p.shift_type)})`
+                                                : ''}
                                         </option>
                                     ))}
                                 </select>
@@ -525,7 +994,12 @@ export default function AdminShifts() {
                             <Input
                                 placeholder="Position name (e.g. Desk 1, G2)"
                                 value={addForm.position_name}
-                                onChange={(e) => setAddForm((f) => ({ ...f, position_name: e.target.value }))}
+                                onChange={(e) =>
+                                    setAddForm((f) => ({
+                                        ...f,
+                                        position_name: e.target.value,
+                                    }))
+                                }
                                 className="mt-1"
                                 required
                             />
@@ -536,28 +1010,51 @@ export default function AdminShifts() {
                                 <Input
                                     type="date"
                                     value={addForm.start_date}
-                                    onChange={(e) => setAddForm((f) => ({ ...f, start_date: e.target.value }))}
+                                    onChange={(e) =>
+                                        setAddForm((f) => ({
+                                            ...f,
+                                            start_date: e.target.value,
+                                        }))
+                                    }
                                     className="mt-1"
                                     required
                                 />
                             </div>
                             <div>
                                 <Label>Start time</Label>
-                                {selectedWorkgroup?.allowed_start_times?.length ? (
+                                {selectedWorkgroup?.allowed_start_times
+                                    ?.length ? (
                                     <select
                                         value={addForm.start_time}
-                                        onChange={(e) => setAddForm((f) => ({ ...f, start_time: e.target.value }))}
+                                        onChange={(e) =>
+                                            setAddForm((f) => ({
+                                                ...f,
+                                                start_time: e.target.value,
+                                            }))
+                                        }
                                         className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                                     >
-                                        {selectedWorkgroup.allowed_start_times.map((t) => (
-                                            <option key={t.start_time} value={t.start_time}>{t.start_time}</option>
-                                        ))}
+                                        {selectedWorkgroup.allowed_start_times.map(
+                                            (t) => (
+                                                <option
+                                                    key={t.start_time}
+                                                    value={t.start_time}
+                                                >
+                                                    {t.start_time}
+                                                </option>
+                                            ),
+                                        )}
                                     </select>
                                 ) : (
                                     <Input
                                         type="time"
                                         value={addForm.start_time}
-                                        onChange={(e) => setAddForm((f) => ({ ...f, start_time: e.target.value }))}
+                                        onChange={(e) =>
+                                            setAddForm((f) => ({
+                                                ...f,
+                                                start_time: e.target.value,
+                                            }))
+                                        }
                                         className="mt-1"
                                     />
                                 )}
@@ -569,7 +1066,12 @@ export default function AdminShifts() {
                                 <Input
                                     type="date"
                                     value={addForm.end_date}
-                                    onChange={(e) => setAddForm((f) => ({ ...f, end_date: e.target.value }))}
+                                    onChange={(e) =>
+                                        setAddForm((f) => ({
+                                            ...f,
+                                            end_date: e.target.value,
+                                        }))
+                                    }
                                     className="mt-1"
                                 />
                             </div>
@@ -578,7 +1080,12 @@ export default function AdminShifts() {
                                 <Input
                                     type="time"
                                     value={addForm.end_time}
-                                    onChange={(e) => setAddForm((f) => ({ ...f, end_time: e.target.value }))}
+                                    onChange={(e) =>
+                                        setAddForm((f) => ({
+                                            ...f,
+                                            end_time: e.target.value,
+                                        }))
+                                    }
                                     className="mt-1"
                                 />
                             </div>
@@ -587,15 +1094,30 @@ export default function AdminShifts() {
                             <Checkbox
                                 id="add-regulatory"
                                 checked={addForm.regulatory}
-                                onCheckedChange={(v) => setAddForm((f) => ({ ...f, regulatory: v === true }))}
+                                onCheckedChange={(v) =>
+                                    setAddForm((f) => ({
+                                        ...f,
+                                        regulatory: v === true,
+                                    }))
+                                }
                             />
-                            <Label htmlFor="add-regulatory" className="text-sm font-normal">Regulatory</Label>
+                            <Label
+                                htmlFor="add-regulatory"
+                                className="text-sm font-normal"
+                            >
+                                Regulatory
+                            </Label>
                         </div>
 
                         <div className="border-t border-border pt-4">
-                            <p className="text-xs font-medium text-muted-foreground">Add by rotation (testing)</p>
+                            <p className="text-xs font-medium text-muted-foreground">
+                                Add by rotation (testing)
+                            </p>
                             <p className="mt-0.5 text-xs text-muted-foreground">
-                                Fill user, workgroup, position, and start time above. Then set a date range and pattern (e.g. 5, 3, 5, 5 = work 5 days, off 3, work 5, off 5). First day in range starts the first work block.
+                                Fill user, workgroup, position, and start time
+                                above. Then set a date range and pattern (e.g.
+                                5, 3, 5, 5 = work 5 days, off 3, work 5, off 5).
+                                First day in range starts the first work block.
                             </p>
                             <div className="mt-3 grid grid-cols-2 gap-3">
                                 <div>
@@ -603,7 +1125,12 @@ export default function AdminShifts() {
                                     <Input
                                         type="date"
                                         value={rotationForm.date_from}
-                                        onChange={(e) => setRotationForm((f) => ({ ...f, date_from: e.target.value }))}
+                                        onChange={(e) =>
+                                            setRotationForm((f) => ({
+                                                ...f,
+                                                date_from: e.target.value,
+                                            }))
+                                        }
                                         className="mt-0.5 h-8 text-sm"
                                     />
                                 </div>
@@ -612,17 +1139,29 @@ export default function AdminShifts() {
                                     <Input
                                         type="date"
                                         value={rotationForm.date_to}
-                                        onChange={(e) => setRotationForm((f) => ({ ...f, date_to: e.target.value }))}
+                                        onChange={(e) =>
+                                            setRotationForm((f) => ({
+                                                ...f,
+                                                date_to: e.target.value,
+                                            }))
+                                        }
                                         className="mt-0.5 h-8 text-sm"
                                     />
                                 </div>
                             </div>
                             <div className="mt-2">
-                                <Label className="text-xs">Pattern (work, off, work, off…)</Label>
+                                <Label className="text-xs">
+                                    Pattern (work, off, work, off…)
+                                </Label>
                                 <Input
                                     placeholder="5, 3, 5, 5"
                                     value={rotationForm.pattern}
-                                    onChange={(e) => setRotationForm((f) => ({ ...f, pattern: e.target.value }))}
+                                    onChange={(e) =>
+                                        setRotationForm((f) => ({
+                                            ...f,
+                                            pattern: e.target.value,
+                                        }))
+                                    }
                                     className="mt-0.5 h-8 text-sm"
                                 />
                             </div>
@@ -632,14 +1171,27 @@ export default function AdminShifts() {
                                 size="sm"
                                 className="mt-2"
                                 onClick={submitRotation}
-                                disabled={!addForm.user_id || !addForm.workgroup_id || !addForm.position_name.trim() || !rotationForm.date_from || !rotationForm.date_to || !rotationForm.pattern.trim()}
+                                disabled={
+                                    !addForm.user_id ||
+                                    !addForm.workgroup_id ||
+                                    !addForm.position_name.trim() ||
+                                    !rotationForm.date_from ||
+                                    !rotationForm.date_to ||
+                                    !rotationForm.pattern.trim()
+                                }
                             >
                                 Add shifts by rotation
                             </Button>
                         </div>
 
                         <DialogFooter>
-                            <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setAddOpen(false)}
+                            >
+                                Cancel
+                            </Button>
                             <Button type="submit">Add shift</Button>
                         </DialogFooter>
                     </form>
@@ -650,28 +1202,50 @@ export default function AdminShifts() {
             <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Move {selectedIds.size} shift(s) to user</DialogTitle>
+                        <DialogTitle>
+                            Move {selectedIds.size} shift(s) to user
+                        </DialogTitle>
                     </DialogHeader>
                     <form onSubmit={submitBulkMove} className="space-y-4">
                         <div>
                             <Label>User</Label>
                             <select
-                                value={allowedUsersForMove.some((u) => u.id === parseInt(moveUserId, 10)) ? moveUserId : ''}
+                                value={
+                                    allowedUsersForMove.some(
+                                        (u) =>
+                                            u.id === parseInt(moveUserId, 10),
+                                    )
+                                        ? moveUserId
+                                        : ''
+                                }
                                 onChange={(e) => setMoveUserId(e.target.value)}
                                 className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                                 required
                             >
                                 <option value="">Select user</option>
                                 {allowedUsersForMove.map((u) => (
-                                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                                    <option key={u.id} value={u.id}>
+                                        {u.name} ({u.email})
+                                    </option>
                                 ))}
                             </select>
-                            {allowedUsersForMove.length === 0 && selectedIds.size > 0 && (
-                                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">No user belongs to all workgroups of the selected shifts. Move shifts in smaller batches by workgroup.</p>
-                            )}
+                            {allowedUsersForMove.length === 0 &&
+                                selectedIds.size > 0 && (
+                                    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                                        No user belongs to all workgroups of the
+                                        selected shifts. Move shifts in smaller
+                                        batches by workgroup.
+                                    </p>
+                                )}
                         </div>
                         <DialogFooter>
-                            <Button type="button" variant="outline" onClick={() => setMoveOpen(false)}>Cancel</Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setMoveOpen(false)}
+                            >
+                                Cancel
+                            </Button>
                             <Button type="submit">Move shifts</Button>
                         </DialogFooter>
                     </form>
@@ -679,17 +1253,28 @@ export default function AdminShifts() {
             </Dialog>
 
             {/* Delete single confirm */}
-            <Dialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
+            <Dialog
+                open={deleteId !== null}
+                onOpenChange={(open) => !open && setDeleteId(null)}
+            >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Delete this shift?</DialogTitle>
                     </DialogHeader>
                     <p className="text-sm text-muted-foreground">
-                        This will permanently remove the shift. Any open postings for this shift will be removed.
+                        This will permanently remove the shift. Any open
+                        postings for this shift will be removed.
                     </p>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
-                        <Button variant="destructive" onClick={submitDelete}>Delete</Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => setDeleteId(null)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={submitDelete}>
+                            Delete
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -698,14 +1283,27 @@ export default function AdminShifts() {
             <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Delete {selectedIds.size} shift(s)?</DialogTitle>
+                        <DialogTitle>
+                            Delete {selectedIds.size} shift(s)?
+                        </DialogTitle>
                     </DialogHeader>
                     <p className="text-sm text-muted-foreground">
-                        This will permanently remove the selected shifts. Any open postings for these shifts will be removed.
+                        This will permanently remove the selected shifts. Any
+                        open postings for these shifts will be removed.
                     </p>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Cancel</Button>
-                        <Button variant="destructive" onClick={submitBulkDelete}>Delete all</Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => setBulkDeleteOpen(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={submitBulkDelete}
+                        >
+                            Delete all
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

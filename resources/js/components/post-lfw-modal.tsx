@@ -13,7 +13,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { getCsrfToken } from '@/lib/csrf';
 
-type Workgroup = { id: number; name: string; desk_types?: { code: string; label: string }[] };
+type Workgroup = {
+    id: number;
+    name: string;
+    desk_types?: { code: string; label: string }[];
+};
 
 export type PostLfwModalProps = {
     open: boolean;
@@ -39,10 +43,21 @@ export function PostLfwModal({
     const [deskTypes, setDeskTypes] = useState<string[]>([]);
     const [cash, setCash] = useState('');
     const [obo, setObo] = useState(false);
-    const [willingToFollow, setWillingToFollow] = useState(defaultWillingToFollow);
-    const [haveShiftOnDate, setHaveShiftOnDate] = useState<boolean | null>(defaultWillingToFollowTimeFrame != null && defaultWillingToFollowTimeFrame !== 'any' ? true : null);
-    const [willingToFollowTimeFrame, setWillingToFollowTimeFrame] = useState<'before' | 'after' | 'any' | ''>(defaultWillingToFollowTimeFrame ?? 'any');
-    const [willingToFollowSlots, setWillingToFollowSlots] = useState<string[]>([]);
+    const [willingToFollow, setWillingToFollow] = useState(
+        defaultWillingToFollow,
+    );
+    const [haveShiftOnDate, setHaveShiftOnDate] = useState<boolean | null>(
+        defaultWillingToFollowTimeFrame != null &&
+            defaultWillingToFollowTimeFrame !== 'any'
+            ? true
+            : null,
+    );
+    const [willingToFollowTimeFrame, setWillingToFollowTimeFrame] = useState<
+        'before' | 'after' | 'any' | ''
+    >(defaultWillingToFollowTimeFrame ?? 'any');
+    const [willingToFollowSlots, setWillingToFollowSlots] = useState<string[]>(
+        [],
+    );
     const [willingToFollowCustom, setWillingToFollowCustom] = useState('');
     const [notes, setNotes] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -52,8 +67,15 @@ export function PostLfwModal({
         if (open) {
             setDate(defaultDate);
             setWillingToFollow(defaultWillingToFollow);
-            setHaveShiftOnDate(defaultWillingToFollowTimeFrame != null && defaultWillingToFollowTimeFrame !== 'any' ? true : null);
-            setWillingToFollowTimeFrame(defaultWillingToFollowTimeFrame ?? 'any');
+            setHaveShiftOnDate(
+                defaultWillingToFollowTimeFrame != null &&
+                    defaultWillingToFollowTimeFrame !== 'any'
+                    ? true
+                    : null,
+            );
+            setWillingToFollowTimeFrame(
+                defaultWillingToFollowTimeFrame ?? 'any',
+            );
             setWillingToFollowSlots([]);
             setWillingToFollowCustom('');
             setDeskTypes([]);
@@ -62,7 +84,12 @@ export function PostLfwModal({
             setNotes('');
             setError(null);
         }
-    }, [open, defaultDate, defaultWillingToFollow, defaultWillingToFollowTimeFrame]);
+    }, [
+        open,
+        defaultDate,
+        defaultWillingToFollow,
+        defaultWillingToFollowTimeFrame,
+    ]);
 
     const deskTypeOptions = useMemo(() => {
         const seen = new Set<string>();
@@ -102,9 +129,24 @@ export function PostLfwModal({
                     seeking_obo: obo,
                     notes: notes.trim() || null,
                     willing_to_follow: willingToFollow,
-                    willing_to_follow_time_frame: willingToFollow && haveShiftOnDate === true ? (willingToFollowTimeFrame === '' ? 'any' : willingToFollowTimeFrame) : null,
-                    willing_to_follow_slots: willingToFollow && haveShiftOnDate === false && willingToFollowSlots.length > 0 ? willingToFollowSlots : null,
-                    willing_to_follow_custom: willingToFollow && haveShiftOnDate === false && willingToFollowCustom.trim() ? willingToFollowCustom.trim() : null,
+                    willing_to_follow_time_frame:
+                        willingToFollow && haveShiftOnDate === true
+                            ? willingToFollowTimeFrame === ''
+                                ? 'any'
+                                : willingToFollowTimeFrame
+                            : null,
+                    willing_to_follow_slots:
+                        willingToFollow &&
+                        haveShiftOnDate === false &&
+                        willingToFollowSlots.length > 0
+                            ? willingToFollowSlots
+                            : null,
+                    willing_to_follow_custom:
+                        willingToFollow &&
+                        haveShiftOnDate === false &&
+                        willingToFollowCustom.trim()
+                            ? willingToFollowCustom.trim()
+                            : null,
                 }),
             });
             const data = await res.json().catch(() => ({}));
@@ -112,7 +154,12 @@ export function PostLfwModal({
                 onSuccess?.();
                 onOpenChange(false);
             } else {
-                setError(data.message || (res.status === 422 ? 'Validation failed.' : 'Failed to create post.'));
+                setError(
+                    data.message ||
+                        (res.status === 422
+                            ? 'Validation failed.'
+                            : 'Failed to create post.'),
+                );
             }
         } finally {
             setSubmitting(false);
@@ -127,7 +174,9 @@ export function PostLfwModal({
                 </DialogHeader>
                 <div className="space-y-4">
                     <div className="space-y-3">
-                        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Full shift</p>
+                        <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                            Full shift
+                        </p>
                         <div>
                             <Label>Date you want to work</Label>
                             <Input
@@ -142,11 +191,23 @@ export function PostLfwModal({
                             <Label>Desk types (optional)</Label>
                             <div className="mt-2 flex flex-wrap gap-2">
                                 {deskTypeOptions.map((dt) => (
-                                    <label key={dt.code} className="flex items-center gap-2 text-sm">
+                                    <label
+                                        key={dt.code}
+                                        className="flex items-center gap-2 text-sm"
+                                    >
                                         <Checkbox
-                                            checked={deskTypes.includes(dt.code)}
+                                            checked={deskTypes.includes(
+                                                dt.code,
+                                            )}
                                             onCheckedChange={(c) =>
-                                                setDeskTypes((prev) => (c ? [...prev, dt.code] : prev.filter((x) => x !== dt.code)))
+                                                setDeskTypes((prev) =>
+                                                    c
+                                                        ? [...prev, dt.code]
+                                                        : prev.filter(
+                                                              (x) =>
+                                                                  x !== dt.code,
+                                                          ),
+                                                )
                                             }
                                         />
                                         {dt.label}
@@ -167,8 +228,12 @@ export function PostLfwModal({
                             />
                         </div>
                         <label className="flex items-center gap-2 text-sm">
-                            <Checkbox checked={obo} onCheckedChange={(c) => setObo(!!c)} />
-                            Or best offer (OBO) — responders can offer more or less
+                            <Checkbox
+                                checked={obo}
+                                onCheckedChange={(c) => setObo(!!c)}
+                            />
+                            Or best offer (OBO) — responders can offer more or
+                            less
                         </label>
                         <div>
                             <Label>Notes (optional)</Label>
@@ -183,99 +248,264 @@ export function PostLfwModal({
                     </div>
 
                     <div className="space-y-3 border-t border-border pt-3">
-                        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Flight following</p>
+                        <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                            Flight following
+                        </p>
                         <div
-                            className={`flex items-start gap-3 rounded-xl border-2 p-3 transition-colors cursor-pointer ${
-                                willingToFollow ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                            className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-colors ${
+                                willingToFollow
+                                    ? 'border-primary bg-primary/5'
+                                    : 'border-border hover:border-primary/50'
                             }`}
                             onClick={(e) => {
-                                if ((e.target as HTMLElement).closest('select, input[type="checkbox"], input[type="text"], textarea')) return;
+                                if (
+                                    (e.target as HTMLElement).closest(
+                                        'select, input[type="checkbox"], input[type="text"], textarea',
+                                    )
+                                )
+                                    return;
                                 setWillingToFollow(!willingToFollow);
                             }}
                         >
                             <input
                                 type="checkbox"
                                 checked={willingToFollow}
-                                onChange={(e) => setWillingToFollow(e.target.checked)}
+                                onChange={(e) =>
+                                    setWillingToFollow(e.target.checked)
+                                }
                                 className="size-4 shrink-0 rounded border border-input"
                                 aria-label="Willing to follow (flight following)"
                             />
-                            <div className="flex-1 min-w-0 space-y-3">
+                            <div className="min-w-0 flex-1 space-y-3">
                                 <div>
                                     <Label className="flex items-center gap-2 font-medium">
-                                        <Plane className="size-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                                        <Plane className="size-4 shrink-0 text-purple-600 dark:text-purple-400" />
                                         Willing to follow
                                     </Label>
-                                    <p className="text-xs text-muted-foreground mt-0.5">You can cover part of a shift. Subject to 10-hour duty day and 8-hour rest before shift start.</p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                        You can cover part of a shift. Subject
+                                        to 10-hour duty day and 8-hour rest
+                                        before shift start.
+                                    </p>
                                 </div>
                                 {willingToFollow && (
-                                    <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+                                    <div
+                                        className="space-y-3"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
                                         <div>
-                                            <Label className="text-xs">Do you have a shift on this date?</Label>
+                                            <Label className="text-xs">
+                                                Do you have a shift on this
+                                                date?
+                                            </Label>
                                             <div className="mt-1.5 flex gap-3">
-                                                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                                    <input type="radio" name="have_shift" checked={haveShiftOnDate === true} onChange={() => setHaveShiftOnDate(true)} className="size-3.5" />
+                                                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                                    <input
+                                                        type="radio"
+                                                        name="have_shift"
+                                                        checked={
+                                                            haveShiftOnDate ===
+                                                            true
+                                                        }
+                                                        onChange={() =>
+                                                            setHaveShiftOnDate(
+                                                                true,
+                                                            )
+                                                        }
+                                                        className="size-3.5"
+                                                    />
                                                     Yes
                                                 </label>
-                                                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                                    <input type="radio" name="have_shift" checked={haveShiftOnDate === false} onChange={() => setHaveShiftOnDate(false)} className="size-3.5" />
+                                                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                                    <input
+                                                        type="radio"
+                                                        name="have_shift"
+                                                        checked={
+                                                            haveShiftOnDate ===
+                                                            false
+                                                        }
+                                                        onChange={() =>
+                                                            setHaveShiftOnDate(
+                                                                false,
+                                                            )
+                                                        }
+                                                        className="size-3.5"
+                                                    />
                                                     No
                                                 </label>
                                             </div>
                                         </div>
                                         {haveShiftOnDate === true && (
                                             <div>
-                                                <Label className="text-xs">When you&apos;re available (up to 10 hours)</Label>
+                                                <Label className="text-xs">
+                                                    When you&apos;re available
+                                                    (up to 10 hours)
+                                                </Label>
                                                 <select
-                                                    value={willingToFollowTimeFrame || 'any'}
-                                                    onChange={(e) => setWillingToFollowTimeFrame((e.target.value || 'any') as 'before' | 'after' | 'any' | '')}
+                                                    value={
+                                                        willingToFollowTimeFrame ||
+                                                        'any'
+                                                    }
+                                                    onChange={(e) =>
+                                                        setWillingToFollowTimeFrame(
+                                                            (e.target.value ||
+                                                                'any') as
+                                                                | 'before'
+                                                                | 'after'
+                                                                | 'any'
+                                                                | '',
+                                                        )
+                                                    }
                                                     className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                                                 >
-                                                    <option value="any">Any</option>
-                                                    <option value="before">Before my shift</option>
-                                                    <option value="after">After my shift</option>
+                                                    <option value="any">
+                                                        Any
+                                                    </option>
+                                                    <option value="before">
+                                                        Before my shift
+                                                    </option>
+                                                    <option value="after">
+                                                        After my shift
+                                                    </option>
                                                 </select>
                                             </div>
                                         )}
                                         {haveShiftOnDate === false && (
                                             <div className="space-y-2">
-                                                <Label className="text-xs">When you&apos;re available to follow (choose all that apply)</Label>
-                                                <p className="text-[11px] text-muted-foreground">e.g. after an AM shift, or before a PM shift</p>
+                                                <Label className="text-xs">
+                                                    When you&apos;re available
+                                                    to follow (choose all that
+                                                    apply)
+                                                </Label>
+                                                <p className="text-[11px] text-muted-foreground">
+                                                    e.g. after an AM shift, or
+                                                    before a PM shift
+                                                </p>
                                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                                                     <div className="space-y-1.5">
-                                                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Before</p>
-                                                        {['before_am', 'before_pm', 'before_mid'].map((slot) => (
-                                                            <label key={slot} className="flex items-center gap-2 text-sm cursor-pointer">
+                                                        <p className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+                                                            Before
+                                                        </p>
+                                                        {[
+                                                            'before_am',
+                                                            'before_pm',
+                                                            'before_mid',
+                                                        ].map((slot) => (
+                                                            <label
+                                                                key={slot}
+                                                                className="flex cursor-pointer items-center gap-2 text-sm"
+                                                            >
                                                                 <input
                                                                     type="checkbox"
-                                                                    checked={willingToFollowSlots.includes(slot)}
-                                                                    onChange={(e) => setWillingToFollowSlots((prev) => (e.target.checked ? [...prev, slot] : prev.filter((s) => s !== slot)))}
+                                                                    checked={willingToFollowSlots.includes(
+                                                                        slot,
+                                                                    )}
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) =>
+                                                                        setWillingToFollowSlots(
+                                                                            (
+                                                                                prev,
+                                                                            ) =>
+                                                                                e
+                                                                                    .target
+                                                                                    .checked
+                                                                                    ? [
+                                                                                          ...prev,
+                                                                                          slot,
+                                                                                      ]
+                                                                                    : prev.filter(
+                                                                                          (
+                                                                                              s,
+                                                                                          ) =>
+                                                                                              s !==
+                                                                                              slot,
+                                                                                      ),
+                                                                        )
+                                                                    }
                                                                     className="size-3.5 rounded border border-input"
                                                                 />
-                                                                {slot.includes('_am') ? 'AM' : slot.includes('_pm') ? 'PM' : 'Mid'}
+                                                                {slot.includes(
+                                                                    '_am',
+                                                                )
+                                                                    ? 'AM'
+                                                                    : slot.includes(
+                                                                            '_pm',
+                                                                        )
+                                                                      ? 'PM'
+                                                                      : 'Mid'}
                                                             </label>
                                                         ))}
                                                     </div>
                                                     <div className="space-y-1.5">
-                                                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">After</p>
-                                                        {['after_am', 'after_pm', 'after_mid'].map((slot) => (
-                                                            <label key={slot} className="flex items-center gap-2 text-sm cursor-pointer">
+                                                        <p className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+                                                            After
+                                                        </p>
+                                                        {[
+                                                            'after_am',
+                                                            'after_pm',
+                                                            'after_mid',
+                                                        ].map((slot) => (
+                                                            <label
+                                                                key={slot}
+                                                                className="flex cursor-pointer items-center gap-2 text-sm"
+                                                            >
                                                                 <input
                                                                     type="checkbox"
-                                                                    checked={willingToFollowSlots.includes(slot)}
-                                                                    onChange={(e) => setWillingToFollowSlots((prev) => (e.target.checked ? [...prev, slot] : prev.filter((s) => s !== slot)))}
+                                                                    checked={willingToFollowSlots.includes(
+                                                                        slot,
+                                                                    )}
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) =>
+                                                                        setWillingToFollowSlots(
+                                                                            (
+                                                                                prev,
+                                                                            ) =>
+                                                                                e
+                                                                                    .target
+                                                                                    .checked
+                                                                                    ? [
+                                                                                          ...prev,
+                                                                                          slot,
+                                                                                      ]
+                                                                                    : prev.filter(
+                                                                                          (
+                                                                                              s,
+                                                                                          ) =>
+                                                                                              s !==
+                                                                                              slot,
+                                                                                      ),
+                                                                        )
+                                                                    }
                                                                     className="size-3.5 rounded border border-input"
                                                                 />
-                                                                {slot.includes('_am') ? 'AM' : slot.includes('_pm') ? 'PM' : 'Mid'}
+                                                                {slot.includes(
+                                                                    '_am',
+                                                                )
+                                                                    ? 'AM'
+                                                                    : slot.includes(
+                                                                            '_pm',
+                                                                        )
+                                                                      ? 'PM'
+                                                                      : 'Mid'}
                                                             </label>
                                                         ))}
                                                     </div>
                                                 </div>
                                                 <div className="mt-2">
-                                                    <Label className="text-xs">Other (describe)</Label>
+                                                    <Label className="text-xs">
+                                                        Other (describe)
+                                                    </Label>
                                                     <Input
-                                                        value={willingToFollowCustom}
-                                                        onChange={(e) => setWillingToFollowCustom(e.target.value)}
+                                                        value={
+                                                            willingToFollowCustom
+                                                        }
+                                                        onChange={(e) =>
+                                                            setWillingToFollowCustom(
+                                                                e.target.value,
+                                                            )
+                                                        }
                                                         placeholder="e.g. flexible 06–14"
                                                         className="mt-0.5 h-8 text-sm"
                                                     />
@@ -287,9 +517,14 @@ export function PostLfwModal({
                             </div>
                         </div>
                     </div>
-                    {error && <p className="text-sm text-destructive">{error}</p>}
+                    {error && (
+                        <p className="text-sm text-destructive">{error}</p>
+                    )}
                     <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => onOpenChange(false)}>
+                        <Button
+                            variant="outline"
+                            onClick={() => onOpenChange(false)}
+                        >
                             Cancel
                         </Button>
                         <Button onClick={handleSubmit} disabled={submitting}>

@@ -29,7 +29,7 @@ trait ProfileValidationRules
                     : Rule::unique(User::class, 'employee_id')->ignore($userId),
             ],
             'phone' => [
-                \Illuminate\Validation\Rule::requiredIf(fn () => in_array($resolvedInput['preferred_contact_method'] ?? null, ['call', 'text'], true)),
+                Rule::requiredIf(fn () => in_array($resolvedInput['preferred_contact_method'] ?? null, ['call', 'text'], true)),
                 'nullable',
                 'string',
                 'max:50',

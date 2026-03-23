@@ -5,7 +5,6 @@ namespace App\Http\Middleware;
 use App\Models\AppNotification;
 use App\Models\ScheduleReconciliation;
 use App\Models\Setting;
-use App\Models\SwapOffer;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Shift extends Model
 {
@@ -44,7 +45,7 @@ class Shift extends Model
         return $this->hasMany(ShiftSegment::class);
     }
 
-    public function swapPost(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function swapPost(): HasOne
     {
         return $this->hasOne(SwapPost::class);
     }

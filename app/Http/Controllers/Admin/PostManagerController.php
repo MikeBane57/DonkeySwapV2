@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\LookingForWorkOffer;
 use App\Models\LookingForWorkPost;
 use App\Models\Shift;
 use App\Models\ShiftActivityLog;
@@ -14,6 +13,7 @@ use App\Models\Workgroup;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -451,7 +451,7 @@ class PostManagerController extends Controller
             $statusOptions[] = ['value' => $s, 'label' => ucfirst(strtolower($s))];
         }
 
-        $postsPaginated = new \Illuminate\Pagination\LengthAwarePaginator(
+        $postsPaginated = new LengthAwarePaginator(
             $rows,
             $paginator->total(),
             $paginator->perPage(),

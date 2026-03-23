@@ -1,0 +1,31 @@
+---
+description: Prevent uncaught exceptions and use-before-define in React/TypeScript frontend
+globs: resources/js/**/*.tsx, resources/js/**/*.ts
+alwaysApply: false
+---
+
+# Frontend error handling and safe patterns
+
+## Declaration order (avoid "Cannot access X before initialization")
+
+- **Declare before use.** Any `const` / `let` or `useMemo` / `useCallback` must be declared *above* the first line that references it.
+- **Derived state first.** When a variable depends on another (e.g. `displayRuns` depends on `filteredRuns`), declare the dependency first: put `filteredRuns = useMemo(...)` above `displayRuns = ...`.
+- ESLint rule `@typescript-eslint/no-use-before-define` is enabled to catch this in CI and locally.
+
+## Async and fetch error handling
+
+- **Try/catch async handlers.** Wrap the body of async event handlers (e.g. `onClick` that calls `async () => { ... }`) in try/catch; set a local error state in catch and show it in the UI instead of letting the rejection be uncaught.
+- **Fetch/API calls.** Use try/catch around `fetch()` and `res.json()`, or attach `.catch()` to promise chains. Handle non-ok responses and invalid JSON so the app doesn’t throw on bad responses.
+- **Logging:** In `catch` blocks, call `logClientError('context.name', error)` from `@/lib/client-logger` so failures appear in the console with a stable prefix; extend that helper later for error reporting (e.g. Sentry).
+- **Optional:** For critical flows, show a user-friendly message (e.g. "Something went wrong. Please try again.") and log the real error.
+
+## React error boundaries
+
+- The root app is wrapped in an `<ErrorBoundary>` so a single component throw doesn’t white-screen the app; users see a fallback and can "Try again".
+- For a major section (e.g. a heavy admin page), you can wrap that section in `<ErrorBoundary>` with an optional custom `fallback` prop.
+
+## Summary
+
+1. Declare all `const`/`let` and `useMemo`/`useCallback` before any code that uses them.
+2. Handle async errors (try/catch or .catch) and non-ok API responses.
+3. Rely on the root Error Boundary; add section-level boundaries for critical or heavy UI.

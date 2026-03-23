@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -12,7 +13,7 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, HasPushSubscriptions, Notifiable, TwoFactorAuthenticatable;
 
     /**
@@ -60,7 +61,7 @@ class User extends Authenticatable
 
     public function workgroups()
     {
-        return $this->belongsToMany(\App\Models\Workgroup::class, 'user_workgroups')
+        return $this->belongsToMany(Workgroup::class, 'user_workgroups')
             ->withPivot('classification_seniority_date', 'red_line_seniority_number')
             ->withTimestamps();
     }
@@ -73,11 +74,11 @@ class User extends Authenticatable
 
     public function shifts()
     {
-        return $this->hasMany(\App\Models\Shift::class);
+        return $this->hasMany(Shift::class);
     }
 
     public function swapPosts()
     {
-        return $this->hasMany(\App\Models\SwapPost::class, 'user_id', 'id');
+        return $this->hasMany(SwapPost::class, 'user_id', 'id');
     }
 }

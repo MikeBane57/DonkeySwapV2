@@ -38,13 +38,22 @@ type Item = {
     warnings: Record<string, unknown> | null;
 };
 
-export default function ImportHistoryShow({ run, items = [] }: { run: Run; items: Item[] }) {
+export default function ImportHistoryShow({
+    run,
+    items = [],
+}: {
+    run: Run;
+    items: Item[];
+}) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Import run #${run.id}`} />
-            <div className="p-4 space-y-4">
+            <div className="space-y-4 p-4">
                 <div className="flex items-center gap-2">
-                    <Link href="/app/admin/import-history" className="text-primary hover:underline text-sm">
+                    <Link
+                        href="/app/admin/import-history"
+                        className="text-sm text-primary hover:underline"
+                    >
                         ← Back to Import History
                     </Link>
                 </div>
@@ -57,25 +66,34 @@ export default function ImportHistoryShow({ run, items = [] }: { run: Run; items
                     <dt className="text-muted-foreground">Target user</dt>
                     <dd>
                         {run.target_user_name ?? '—'}
-                        {run.target_user_employee_id && ` (${run.target_user_employee_id})`}
+                        {run.target_user_employee_id &&
+                            ` (${run.target_user_employee_id})`}
                     </dd>
                     <dt className="text-muted-foreground">Mode</dt>
                     <dd>{run.mode}</dd>
                     <dt className="text-muted-foreground">Status</dt>
                     <dd>{run.status}</dd>
-                    <dt className="text-muted-foreground">Rows / Created / Updated / Skipped / Conflict / Missing</dt>
+                    <dt className="text-muted-foreground">
+                        Rows / Created / Updated / Skipped / Conflict / Missing
+                    </dt>
                     <dd>
-                        {run.row_count} / {run.created_count} / {run.updated_count} / {run.skipped_count} / {run.conflict_count} / {run.missing_count}
+                        {run.row_count} / {run.created_count} /{' '}
+                        {run.updated_count} / {run.skipped_count} /{' '}
+                        {run.conflict_count} / {run.missing_count}
                     </dd>
                 </dl>
-                {run.meta?.missing_shift_ids && Array.isArray(run.meta.missing_shift_ids) && (
-                    <p className="text-sm text-muted-foreground">
-                        Missing shift IDs (on board but not in import): {(run.meta.missing_shift_ids as number[]).join(', ')}
-                    </p>
-                )}
+                {run.meta?.missing_shift_ids &&
+                    Array.isArray(run.meta.missing_shift_ids) && (
+                        <p className="text-sm text-muted-foreground">
+                            Missing shift IDs (on board but not in import):{' '}
+                            {(run.meta.missing_shift_ids as number[]).join(
+                                ', ',
+                            )}
+                        </p>
+                    )}
                 <h2 className="font-medium">Run items (first 500)</h2>
                 <div className="overflow-x-auto rounded-lg border border-border">
-                    <table className="w-full text-sm">
+                    <table className="w-full min-w-max text-sm">
                         <thead>
                             <tr className="border-b bg-muted/50">
                                 <th className="p-2 text-left">Date</th>
@@ -89,19 +107,38 @@ export default function ImportHistoryShow({ run, items = [] }: { run: Run; items
                         <tbody>
                             {items.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="p-4 text-center text-muted-foreground">
+                                    <td
+                                        colSpan={6}
+                                        className="p-4 text-center text-muted-foreground"
+                                    >
                                         No items.
                                     </td>
                                 </tr>
                             ) : (
                                 items.map((item) => (
-                                    <tr key={item.id} className="border-b border-border/70">
-                                        <td className="p-2">{item.shift_date ?? '—'}</td>
-                                        <td className="p-2">{item.time_code ?? '—'}</td>
-                                        <td className="p-2">{item.desk_code ?? '—'}</td>
-                                        <td className="p-2">{item.start_time_utc?.slice(0, 19) ?? '—'}</td>
+                                    <tr
+                                        key={item.id}
+                                        className="border-b border-border/70"
+                                    >
+                                        <td className="p-2">
+                                            {item.shift_date ?? '—'}
+                                        </td>
+                                        <td className="p-2">
+                                            {item.time_code ?? '—'}
+                                        </td>
+                                        <td className="p-2">
+                                            {item.desk_code ?? '—'}
+                                        </td>
+                                        <td className="p-2">
+                                            {item.start_time_utc?.slice(
+                                                0,
+                                                19,
+                                            ) ?? '—'}
+                                        </td>
                                         <td className="p-2">{item.action}</td>
-                                        <td className="p-2">{item.reason ?? '—'}</td>
+                                        <td className="p-2">
+                                            {item.reason ?? '—'}
+                                        </td>
                                     </tr>
                                 ))
                             )}

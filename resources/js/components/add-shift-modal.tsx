@@ -13,8 +13,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getCsrfToken } from '@/lib/csrf';
 
-type AllowedStartTime = { start_time: string; default_duration_minutes: number };
-type PositionOption = { label: string; type?: string; sublocation_type?: string | null; shift_type?: string };
+type AllowedStartTime = {
+    start_time: string;
+    default_duration_minutes: number;
+};
+type PositionOption = {
+    label: string;
+    type?: string;
+    sublocation_type?: string | null;
+    shift_type?: string;
+};
 type DeskTypeOption = { code: string; label: string };
 type WorkgroupOption = {
     id: number;
@@ -69,7 +77,10 @@ export function AddShiftModal({
     onSuccess,
 }: AddShiftModalProps) {
     const [workgroupId, setWorkgroupId] = useState<string>(() => {
-        if (defaultWorkgroupId != null && workgroups.some((wg) => wg.id === defaultWorkgroupId)) {
+        if (
+            defaultWorkgroupId != null &&
+            workgroups.some((wg) => wg.id === defaultWorkgroupId)
+        ) {
             return String(defaultWorkgroupId);
         }
         return '';
@@ -85,13 +96,20 @@ export function AddShiftModal({
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const selectedWorkgroup = workgroupId ? workgroups.find((wg) => wg.id === parseInt(workgroupId, 10)) : null;
-    const allowedStartTimes = useMemo(() => selectedWorkgroup?.allowed_start_times ?? [], [selectedWorkgroup]);
+    const selectedWorkgroup = workgroupId
+        ? workgroups.find((wg) => wg.id === parseInt(workgroupId, 10))
+        : null;
+    const allowedStartTimes = useMemo(
+        () => selectedWorkgroup?.allowed_start_times ?? [],
+        [selectedWorkgroup],
+    );
     const positionOptions = selectedWorkgroup?.positions ?? [];
     const hasPositionOptions = positionOptions.length > 0;
 
     const shiftTypesAvailable = (() => {
-        const fromDeskTypes = selectedWorkgroup?.desk_types?.map((d) => d.code).filter(Boolean) ?? [];
+        const fromDeskTypes =
+            selectedWorkgroup?.desk_types?.map((d) => d.code).filter(Boolean) ??
+            [];
         if (fromDeskTypes.length > 0) return [...new Set(fromDeskTypes)].sort();
         const types = new Set<string>();
         positionOptions.forEach((p) => {
@@ -112,7 +130,10 @@ export function AddShiftModal({
             setNonStandardShift(false);
             setPositionIsCustom(false);
             setShiftType('');
-            if (defaultWorkgroupId != null && workgroups.some((wg) => wg.id === defaultWorkgroupId)) {
+            if (
+                defaultWorkgroupId != null &&
+                workgroups.some((wg) => wg.id === defaultWorkgroupId)
+            ) {
                 setWorkgroupId(String(defaultWorkgroupId));
             }
         }
@@ -125,14 +146,24 @@ export function AddShiftModal({
     }, [workgroupId]);
 
     useEffect(() => {
-        if (shiftType && positionName && !filteredPositionOptions.some((p) => p.label === positionName)) {
+        if (
+            shiftType &&
+            positionName &&
+            !filteredPositionOptions.some((p) => p.label === positionName)
+        ) {
             setPositionName('');
             setPositionIsCustom(false);
         }
     }, [shiftType, filteredPositionOptions, positionName]);
 
     useEffect(() => {
-        if (workgroupId && allowedStartTimes.length > 0 && !allowedStartTimes.some((t) => formatTime24(t.start_time) === formatTime24(startTime))) {
+        if (
+            workgroupId &&
+            allowedStartTimes.length > 0 &&
+            !allowedStartTimes.some(
+                (t) => formatTime24(t.start_time) === formatTime24(startTime),
+            )
+        ) {
             setStartTime(formatTime24(allowedStartTimes[0].start_time));
         }
         if (!workgroupId) {
@@ -144,17 +175,23 @@ export function AddShiftModal({
         e.preventDefault();
         setError(null);
         if (!workgroupId || !positionName.trim() || !startDate || !startTime) {
-            setError('Please fill in workgroup, desk, start date, and start time.');
+            setError(
+                'Please fill in workgroup, desk, start date, and start time.',
+            );
             return;
         }
         if (nonStandardShift && (!endDate || !endTime)) {
-            setError('Please fill in end date and end time for non-standard shift.');
+            setError(
+                'Please fill in end date and end time for non-standard shift.',
+            );
             return;
         }
         setSaving(true);
         try {
             const selectedPosition = !positionIsCustom
-                ? filteredPositionOptions.find((p) => p.label === positionName.trim())
+                ? filteredPositionOptions.find(
+                      (p) => p.label === positionName.trim(),
+                  )
                 : null;
             const body: Record<string, unknown> = {
                 workgroup_id: parseInt(workgroupId, 10),
@@ -167,7 +204,10 @@ export function AddShiftModal({
                 body.desk_type = shiftType;
             } else if (selectedPosition?.shift_type) {
                 body.desk_type = selectedPosition.shift_type;
-            } else if ((positionIsCustom || !hasPositionOptions) && shiftTypesAvailable.includes('extra')) {
+            } else if (
+                (positionIsCustom || !hasPositionOptions) &&
+                shiftTypesAvailable.includes('extra')
+            ) {
                 body.desk_type = 'extra';
             }
             if (nonStandardShift) {
@@ -198,7 +238,12 @@ export function AddShiftModal({
                 setNonStandardShift(false);
                 setRegulatory(false);
             } else {
-                setError(data.message ?? (data.errors ? Object.values(data.errors).flat().join(' ') : 'Failed to add shift.'));
+                setError(
+                    data.message ??
+                        (data.errors
+                            ? Object.values(data.errors).flat().join(' ')
+                            : 'Failed to add shift.'),
+                );
             }
         } finally {
             setSaving(false);
@@ -217,17 +262,22 @@ export function AddShiftModal({
                 <form onSubmit={handleSubmit}>
                     <div className="space-y-4 py-2">
                         {error && (
-                            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+                            <p
+                                className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                                role="alert"
+                            >
                                 {error}
                             </p>
                         )}
                         <div>
-                            <Label htmlFor="add-shift-workgroup">Workgroup</Label>
+                            <Label htmlFor="add-shift-workgroup">
+                                Workgroup
+                            </Label>
                             <select
                                 id="add-shift-workgroup"
                                 value={workgroupId}
                                 onChange={(e) => setWorkgroupId(e.target.value)}
-                                className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                                 required
                             >
                                 <option value="">Select workgroup</option>
@@ -240,56 +290,86 @@ export function AddShiftModal({
                         </div>
                         {showShiftTypeFilter && (
                             <div>
-                                <Label htmlFor="add-shift-type">Type of shift</Label>
+                                <Label htmlFor="add-shift-type">
+                                    Type of shift
+                                </Label>
                                 <select
                                     id="add-shift-type"
                                     value={shiftType}
-                                    onChange={(e) => setShiftType(e.target.value)}
-                                    className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    onChange={(e) =>
+                                        setShiftType(e.target.value)
+                                    }
+                                    className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                                 >
                                     <option value="">All types</option>
                                     {shiftTypesAvailable.map((st) => (
                                         <option key={st} value={st}>
-                                            {selectedWorkgroup?.desk_types?.find((d) => d.code === st)?.label ?? SHIFT_TYPE_LABELS[st] ?? st}
+                                            {selectedWorkgroup?.desk_types?.find(
+                                                (d) => d.code === st,
+                                            )?.label ??
+                                                SHIFT_TYPE_LABELS[st] ??
+                                                st}
                                         </option>
                                     ))}
                                 </select>
                             </div>
                         )}
                         <div>
-                            <Label htmlFor="add-shift-position">Desk / position</Label>
+                            <Label htmlFor="add-shift-position">
+                                Desk / position
+                            </Label>
                             {hasPositionOptions ? (
                                 <div className="mt-1 space-y-2">
                                     <select
                                         id="add-shift-position"
-                                        value={positionIsCustom ? '__custom__' : positionName}
+                                        value={
+                                            positionIsCustom
+                                                ? '__custom__'
+                                                : positionName
+                                        }
                                         onChange={(e) => {
                                             const v = e.target.value;
                                             if (v === '__custom__') {
                                                 setPositionIsCustom(true);
                                                 setPositionName('');
-                                                if (shiftTypesAvailable.includes('extra')) setShiftType('extra');
+                                                if (
+                                                    shiftTypesAvailable.includes(
+                                                        'extra',
+                                                    )
+                                                )
+                                                    setShiftType('extra');
                                             } else {
                                                 setPositionIsCustom(false);
                                                 setPositionName(v);
                                             }
                                         }}
-                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                                         required={!positionIsCustom}
                                     >
-                                        <option value="">Select position</option>
+                                        <option value="">
+                                            Select position
+                                        </option>
                                         {filteredPositionOptions.map((p) => (
-                                            <option key={p.label} value={p.label}>
+                                            <option
+                                                key={p.label}
+                                                value={p.label}
+                                            >
                                                 {p.label}
-                                                {p.sublocation_type ? ` (${p.sublocation_type})` : ''}
+                                                {p.sublocation_type
+                                                    ? ` (${p.sublocation_type})`
+                                                    : ''}
                                             </option>
                                         ))}
-                                        <option value="__custom__">Custom…</option>
+                                        <option value="__custom__">
+                                            Custom…
+                                        </option>
                                     </select>
                                     {positionIsCustom && (
                                         <Input
                                             value={positionName}
-                                            onChange={(e) => setPositionName(e.target.value)}
+                                            onChange={(e) =>
+                                                setPositionName(e.target.value)
+                                            }
                                             placeholder="Enter custom position"
                                             className="mt-1"
                                             required
@@ -300,7 +380,9 @@ export function AddShiftModal({
                                 <Input
                                     id="add-shift-position"
                                     value={positionName}
-                                    onChange={(e) => setPositionName(e.target.value)}
+                                    onChange={(e) =>
+                                        setPositionName(e.target.value)
+                                    }
                                     placeholder="e.g. 06 S2, G1, Desk 1"
                                     className="mt-1"
                                     required
@@ -309,32 +391,51 @@ export function AddShiftModal({
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="add-shift-start-date">Start date</Label>
+                                <Label htmlFor="add-shift-start-date">
+                                    Start date
+                                </Label>
                                 <Input
                                     id="add-shift-start-date"
                                     type="date"
                                     value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
+                                    onChange={(e) =>
+                                        setStartDate(e.target.value)
+                                    }
                                     className="mt-1"
                                     required
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="add-shift-start-time">Start time</Label>
-                                {!nonStandardShift && allowedStartTimes.length > 0 ? (
+                                <Label htmlFor="add-shift-start-time">
+                                    Start time
+                                </Label>
+                                {!nonStandardShift &&
+                                allowedStartTimes.length > 0 ? (
                                     <select
                                         id="add-shift-start-time"
-                                        value={formatTime24(startTime) || startTime}
-                                        onChange={(e) => setStartTime(e.target.value)}
-                                        className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                        value={
+                                            formatTime24(startTime) || startTime
+                                        }
+                                        onChange={(e) =>
+                                            setStartTime(e.target.value)
+                                        }
+                                        className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                                         required
                                     >
-                                        <option value="">Select start time</option>
+                                        <option value="">
+                                            Select start time
+                                        </option>
                                         {allowedStartTimes.map((t) => {
-                                            const t24 = formatTime24(t.start_time);
+                                            const t24 = formatTime24(
+                                                t.start_time,
+                                            );
                                             return (
                                                 <option key={t24} value={t24}>
-                                                    {t24} ({formatDurationMinutes(t.default_duration_minutes)})
+                                                    {t24} (
+                                                    {formatDurationMinutes(
+                                                        t.default_duration_minutes,
+                                                    )}
+                                                    )
                                                 </option>
                                             );
                                         })}
@@ -344,7 +445,9 @@ export function AddShiftModal({
                                         id="add-shift-start-time"
                                         type="time"
                                         value={startTime}
-                                        onChange={(e) => setStartTime(e.target.value)}
+                                        onChange={(e) =>
+                                            setStartTime(e.target.value)
+                                        }
                                         className="mt-1"
                                         required
                                     />
@@ -355,31 +458,44 @@ export function AddShiftModal({
                             <Checkbox
                                 id="add-shift-non-standard"
                                 checked={nonStandardShift}
-                                onCheckedChange={(v) => setNonStandardShift(v === true)}
+                                onCheckedChange={(v) =>
+                                    setNonStandardShift(v === true)
+                                }
                             />
-                            <Label htmlFor="add-shift-non-standard" className="cursor-pointer text-sm font-normal">
+                            <Label
+                                htmlFor="add-shift-non-standard"
+                                className="cursor-pointer text-sm font-normal"
+                            >
                                 Non-standard shift (custom start and end time)
                             </Label>
                         </div>
                         {nonStandardShift && (
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <Label htmlFor="add-shift-end-date">End date</Label>
+                                    <Label htmlFor="add-shift-end-date">
+                                        End date
+                                    </Label>
                                     <Input
                                         id="add-shift-end-date"
                                         type="date"
                                         value={endDate}
-                                        onChange={(e) => setEndDate(e.target.value)}
+                                        onChange={(e) =>
+                                            setEndDate(e.target.value)
+                                        }
                                         className="mt-1"
                                     />
                                 </div>
                                 <div>
-                                    <Label htmlFor="add-shift-end-time">End time</Label>
+                                    <Label htmlFor="add-shift-end-time">
+                                        End time
+                                    </Label>
                                     <Input
                                         id="add-shift-end-time"
                                         type="time"
                                         value={endTime}
-                                        onChange={(e) => setEndTime(e.target.value)}
+                                        onChange={(e) =>
+                                            setEndTime(e.target.value)
+                                        }
                                         className="mt-1"
                                     />
                                 </div>
@@ -389,15 +505,24 @@ export function AddShiftModal({
                             <Checkbox
                                 id="add-shift-regulatory"
                                 checked={regulatory}
-                                onCheckedChange={(v) => setRegulatory(v === true)}
+                                onCheckedChange={(v) =>
+                                    setRegulatory(v === true)
+                                }
                             />
-                            <Label htmlFor="add-shift-regulatory" className="cursor-pointer text-sm font-normal">
+                            <Label
+                                htmlFor="add-shift-regulatory"
+                                className="cursor-pointer text-sm font-normal"
+                            >
                                 Regulatory
                             </Label>
                         </div>
                     </div>
                     <DialogFooter className="gap-2 pt-4">
-                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => onOpenChange(false)}
+                        >
                             Cancel
                         </Button>
                         <Button type="submit" disabled={saving}>

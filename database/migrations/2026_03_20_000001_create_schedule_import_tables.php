@@ -74,4 +74,3 @@ return new class extends Migration
         Schema::dropIfExists('schedule_import_runs');
     }
 };
-

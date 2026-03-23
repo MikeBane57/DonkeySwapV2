@@ -27,7 +27,11 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 type DeskTypeOption = { code: string; label: string; is_regulatory: boolean };
-type WorkgroupDeskTypes = { workgroup_id: number; workgroup_name: string; desk_types: DeskTypeOption[] };
+type WorkgroupDeskTypes = {
+    workgroup_id: number;
+    workgroup_name: string;
+    desk_types: DeskTypeOption[];
+};
 
 type PreviewRow = {
     shift_date: string;
@@ -89,14 +93,20 @@ type HistoryRun = {
 
 function formatDate(iso: string): string {
     try {
-        return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return new Date(iso).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        });
     } catch {
         return iso.slice(0, 10);
     }
 }
 
 export default function ImportSchedule() {
-    const { auth } = usePage().props as { auth: { user: { employee_id?: string | null } } };
+    const { auth } = usePage().props as {
+        auth: { user: { employee_id?: string | null } };
+    };
     const [file, setFile] = useState<File | null>(null);
     const [previewLoading, setPreviewLoading] = useState(false);
     const [applyLoading, setApplyLoading] = useState(false);
@@ -105,19 +115,30 @@ export default function ImportSchedule() {
     const [errors, setErrors] = useState<string[]>([]);
     const [applyResult, setApplyResult] = useState<ApplyResult | null>(null);
     const [historyRuns, setHistoryRuns] = useState<HistoryRun[]>([]);
-    const [editPreviewIndex, setEditPreviewIndex] = useState<number | null>(null);
+    const [editPreviewIndex, setEditPreviewIndex] = useState<number | null>(
+        null,
+    );
     const [editPreviewDate, setEditPreviewDate] = useState('');
     const [editPreviewTimeCode, setEditPreviewTimeCode] = useState('');
     const [pastCountFromPreview, setPastCountFromPreview] = useState(0);
-    const [userDeskTypes, setUserDeskTypes] = useState<WorkgroupDeskTypes[]>([]);
-    const [fileLastModified, setFileLastModified] = useState<number | null>(null);
-    const [reportGeneratedAt, setReportGeneratedAt] = useState<string | null>(null);
+    const [userDeskTypes, setUserDeskTypes] = useState<WorkgroupDeskTypes[]>(
+        [],
+    );
+    const [fileLastModified, setFileLastModified] = useState<number | null>(
+        null,
+    );
+    const [reportGeneratedAt, setReportGeneratedAt] = useState<string | null>(
+        null,
+    );
     const [reconcile, setReconcile] = useState<ReconcileData | null>(null);
     const [reconcileReviewed, setReconcileReviewed] = useState(false);
 
     const fetchHistory = useCallback(() => {
         fetch('/api/schedule-import/history', {
-            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
             credentials: 'include',
         })
             .then((r) => r.json())
@@ -129,78 +150,116 @@ export default function ImportSchedule() {
         if (auth?.user?.employee_id) fetchHistory();
     }, [auth?.user?.employee_id, fetchHistory]);
 
-
-    const sendCsv = useCallback(async (endpoint: 'preview' | 'apply', rowsToApply?: PreviewRow[]) => {
-        if (endpoint === 'preview') {
-            if (!file) return;
-            const form = new FormData();
-            form.append('file', file);
-            form.append('file_last_modified', String(file.lastModified));
-            const res = await fetch('/api/schedule-import/preview', {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-XSRF-TOKEN': getCsrfToken(),
-                },
-                credentials: 'include',
-                body: form,
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                const msg = res.status === 413 ? (data.message || 'File too large. Maximum size is 50 MB.') : (data.message || 'Request failed');
-                setErrors([msg]);
-                setPreview(null);
-                setUnmapped([]);
+    const sendCsv = useCallback(
+        async (endpoint: 'preview' | 'apply', rowsToApply?: PreviewRow[]) => {
+            if (endpoint === 'preview') {
+                if (!file) return;
+                const form = new FormData();
+                form.append('file', file);
+                form.append('file_last_modified', String(file.lastModified));
+                const res = await fetch('/api/schedule-import/preview', {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-XSRF-TOKEN': getCsrfToken(),
+                    },
+                    credentials: 'include',
+                    body: form,
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    const msg =
+                        res.status === 413
+                            ? data.message ||
+                              'File too large. Maximum size is 50 MB.'
+                            : data.message || 'Request failed';
+                    setErrors([msg]);
+                    setPreview(null);
+                    setUnmapped([]);
+                    setApplyResult(null);
+                    return data;
+                }
+                setPreview(data.preview ?? []);
+                setUnmapped(data.unmapped ?? []);
+                setErrors(data.errors ?? []);
+                setPastCountFromPreview(data.past_count ?? 0);
+                setUserDeskTypes(data.user_desk_types ?? []);
+                setReportGeneratedAt(data.report_generated_at ?? null);
+                setReconcile(
+                    data.reconcile ?? {
+                        to_add: [],
+                        to_remove: [],
+                        to_modify: [],
+                    },
+                );
+                setReconcileReviewed(false);
                 setApplyResult(null);
+                setDismissedMissingIds(new Set());
                 return data;
             }
-            setPreview(data.preview ?? []);
-            setUnmapped(data.unmapped ?? []);
-            setErrors(data.errors ?? []);
-            setPastCountFromPreview(data.past_count ?? 0);
-            setUserDeskTypes(data.user_desk_types ?? []);
-            setReportGeneratedAt(data.report_generated_at ?? null);
-            setReconcile(data.reconcile ?? { to_add: [], to_remove: [], to_modify: [] });
-            setReconcileReviewed(false);
-            setApplyResult(null);
-            setDismissedMissingIds(new Set());
-            return data;
-        }
 
-        // apply
-        const headers: Record<string, string> = {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-XSRF-TOKEN': getCsrfToken(),
-        };
-        let body: string;
-        if (rowsToApply != null && rowsToApply.length > 0) {
-            const toApply = rowsToApply
-                .filter((r) => !r.in_past)
-                .map((r) => ({
-                    shift_date: r.shift_date,
-                    time_code: r.time_code,
-                    desk_code: r.desk_code,
-                    workgroup_id: r.workgroup_id,
-                    desk_type: r.desk_type,
-                }));
-            body = JSON.stringify({ rows_to_apply: toApply });
-        } else {
-            if (!file) return;
-            const form = new FormData();
-            form.append('file', file);
-            form.append('file_last_modified', String(file.lastModified));
+            // apply
+            const headers: Record<string, string> = {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-XSRF-TOKEN': getCsrfToken(),
+            };
+            let body: string;
+            if (rowsToApply != null && rowsToApply.length > 0) {
+                const toApply = rowsToApply
+                    .filter((r) => !r.in_past)
+                    .map((r) => ({
+                        shift_date: r.shift_date,
+                        time_code: r.time_code,
+                        desk_code: r.desk_code,
+                        workgroup_id: r.workgroup_id,
+                        desk_type: r.desk_type,
+                    }));
+                body = JSON.stringify({ rows_to_apply: toApply });
+            } else {
+                if (!file) return;
+                const form = new FormData();
+                form.append('file', file);
+                form.append('file_last_modified', String(file.lastModified));
+                const res = await fetch('/api/schedule-import/apply', {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-XSRF-TOKEN': getCsrfToken(),
+                    },
+                    credentials: 'include',
+                    body: form,
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    setErrors([data.message || 'Request failed']);
+                    return data;
+                }
+                setApplyResult({
+                    message: data.message ?? 'Import applied.',
+                    run_id: data.run_id ?? null,
+                    created: data.created ?? 0,
+                    updated: data.updated ?? 0,
+                    skipped: data.skipped ?? 0,
+                    conflict: data.conflict ?? 0,
+                    past_count: data.past_count,
+                    missing_shift_ids: data.missing_shift_ids ?? [],
+                    missing_shifts: data.missing_shifts ?? [],
+                });
+                setPreview(null);
+                setPastCountFromPreview(0);
+                setDismissedMissingIds(new Set());
+                fetchHistory();
+                return data;
+            }
             const res = await fetch('/api/schedule-import/apply', {
                 method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-XSRF-TOKEN': getCsrfToken(),
-                },
+                headers,
                 credentials: 'include',
-                body: form,
+                body,
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
@@ -214,42 +273,16 @@ export default function ImportSchedule() {
                 updated: data.updated ?? 0,
                 skipped: data.skipped ?? 0,
                 conflict: data.conflict ?? 0,
-                past_count: data.past_count,
                 missing_shift_ids: data.missing_shift_ids ?? [],
                 missing_shifts: data.missing_shifts ?? [],
             });
             setPreview(null);
-            setPastCountFromPreview(0);
             setDismissedMissingIds(new Set());
             fetchHistory();
             return data;
-        }
-        const res = await fetch('/api/schedule-import/apply', {
-            method: 'POST',
-            headers,
-            credentials: 'include',
-            body,
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-            setErrors([data.message || 'Request failed']);
-            return data;
-        }
-        setApplyResult({
-            message: data.message ?? 'Import applied.',
-            run_id: data.run_id ?? null,
-            created: data.created ?? 0,
-            updated: data.updated ?? 0,
-            skipped: data.skipped ?? 0,
-            conflict: data.conflict ?? 0,
-            missing_shift_ids: data.missing_shift_ids ?? [],
-            missing_shifts: data.missing_shifts ?? [],
-        });
-        setPreview(null);
-        setDismissedMissingIds(new Set());
-        fetchHistory();
-        return data;
-    }, [file, fetchHistory]);
+        },
+        [file, fetchHistory],
+    );
 
     const onPreview = async () => {
         if (!file) return;
@@ -266,7 +299,10 @@ export default function ImportSchedule() {
         setApplyLoading(true);
         try {
             if (preview && preview.length > 0) {
-                await sendCsv('apply', preview.filter((r) => !r.in_past));
+                await sendCsv(
+                    'apply',
+                    preview.filter((r) => !r.in_past),
+                );
             } else if (file) {
                 await sendCsv('apply');
             }
@@ -276,7 +312,9 @@ export default function ImportSchedule() {
     };
 
     const removePreviewRow = (index: number) => {
-        setPreview((prev) => (prev ? prev.filter((_, i) => i !== index) : null));
+        setPreview((prev) =>
+            prev ? prev.filter((_, i) => i !== index) : null,
+        );
     };
 
     const saveEditPreviewRow = () => {
@@ -286,22 +324,36 @@ export default function ImportSchedule() {
         setPreview((prev) => {
             if (!prev) return null;
             const next = [...prev];
-            next[editPreviewIndex] = { ...row, shift_date: editPreviewDate, time_code: editPreviewTimeCode };
+            next[editPreviewIndex] = {
+                ...row,
+                shift_date: editPreviewDate,
+                time_code: editPreviewTimeCode,
+            };
             return next;
         });
         setEditPreviewIndex(null);
     };
 
     const noEmployeeId = !auth?.user?.employee_id;
-    const hasReconcileChanges = reconcile && (reconcile.to_add.length + reconcile.to_remove.length + reconcile.to_modify.length > 0);
-    const canApply = (file != null || (preview != null && preview.length > 0)) && (!hasReconcileChanges || reconcileReviewed);
+    const hasReconcileChanges =
+        reconcile &&
+        reconcile.to_add.length +
+            reconcile.to_remove.length +
+            reconcile.to_modify.length >
+            0;
+    const canApply =
+        (file != null || (preview != null && preview.length > 0)) &&
+        (!hasReconcileChanges || reconcileReviewed);
 
     const previewCalendarEvents = useMemo(() => {
         if (!preview?.length) return [];
         return preview.map((row, i) => {
             const start = row.start_utc ?? `${row.shift_date}T12:00:00Z`;
             const end = row.end_utc ?? start;
-            const title = `${row.time_code} ${row.desk_code}`.trim() || row.position_name || 'Shift';
+            const title =
+                `${row.time_code} ${row.desk_code}`.trim() ||
+                row.position_name ||
+                'Shift';
             return {
                 id: `preview-${i}`,
                 title: row.in_past ? `(Past) ${title}` : title,
@@ -328,12 +380,16 @@ export default function ImportSchedule() {
 
                     {noEmployeeId && (
                         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                            Set your <strong>Employee ID</strong> in Profile settings so we can match your schedule row in the CSV.
+                            Set your <strong>Employee ID</strong> in Profile
+                            settings so we can match your schedule row in the
+                            CSV.
                         </div>
                     )}
 
                     <div className="space-y-2">
-                        <Label htmlFor="csv-file">CSV file (max {MAX_MB} MB)</Label>
+                        <Label htmlFor="csv-file">
+                            CSV file (max {MAX_MB} MB)
+                        </Label>
                         <Input
                             id="csv-file"
                             type="file"
@@ -373,7 +429,10 @@ export default function ImportSchedule() {
                             {applyLoading ? 'Applying…' : 'Apply import'}
                         </Button>
                         {hasReconcileChanges && !reconcileReviewed && (
-                            <span className="text-sm text-muted-foreground">Review changes below and check &quot;I&apos;ve reviewed&quot; to enable Apply.</span>
+                            <span className="text-sm text-muted-foreground">
+                                Review changes below and check &quot;I&apos;ve
+                                reviewed&quot; to enable Apply.
+                            </span>
                         )}
                     </div>
 
@@ -387,114 +446,271 @@ export default function ImportSchedule() {
 
                     {unmapped.length > 0 && (
                         <p className="text-sm text-muted-foreground">
-                            Unmapped desk codes (imported as generic): {unmapped.join(', ')}
+                            Unmapped desk codes (imported as generic):{' '}
+                            {unmapped.join(', ')}
                         </p>
                     )}
 
                     {pastCountFromPreview > 0 && (
                         <p className="text-sm text-amber-600 dark:text-amber-400">
-                            {pastCountFromPreview} shift{pastCountFromPreview !== 1 ? 's' : ''} in the past were not added.
+                            {pastCountFromPreview} shift
+                            {pastCountFromPreview !== 1 ? 's' : ''} in the past
+                            were not added.
                         </p>
                     )}
 
                     {fileLastModified != null && (
                         <p className="text-sm text-muted-foreground">
-                            File last modified: {new Date(fileLastModified).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                            File last modified:{' '}
+                            {new Date(fileLastModified).toLocaleString(
+                                'en-US',
+                                { dateStyle: 'medium', timeStyle: 'short' },
+                            )}
                         </p>
                     )}
                     {reportGeneratedAt != null && (
                         <p className="text-sm text-muted-foreground">
-                            Report generated: {new Date(reportGeneratedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                            Report generated:{' '}
+                            {new Date(reportGeneratedAt).toLocaleString(
+                                'en-US',
+                                { dateStyle: 'medium', timeStyle: 'short' },
+                            )}
                         </p>
                     )}
 
                     {preview && preview.length > 0 && !applyResult && (
                         <div className="overflow-x-auto rounded-lg border border-border">
                             {(() => {
-                                const willImport = preview.filter((r) => !r.in_past).length;
-                                const pastCount = preview.filter((r) => r.in_past).length;
-                                const unmappedCount = preview.filter((r) => r.unmapped_desk).length;
+                                const willImport = preview.filter(
+                                    (r) => !r.in_past,
+                                ).length;
+                                const pastCount = preview.filter(
+                                    (r) => r.in_past,
+                                ).length;
+                                const unmappedCount = preview.filter(
+                                    (r) => r.unmapped_desk,
+                                ).length;
                                 return (
                                     <div className="border-b border-border bg-muted/30 p-3 text-sm">
-                                        <p className="font-medium text-foreground">Import overview</p>
+                                        <p className="font-medium text-foreground">
+                                            Import overview
+                                        </p>
                                         <ul className="mt-1 list-inside list-disc text-muted-foreground">
-                                            <li><span className="text-foreground">{willImport}</span> shift{willImport !== 1 ? 's' : ''} will be imported</li>
+                                            <li>
+                                                <span className="text-foreground">
+                                                    {willImport}
+                                                </span>{' '}
+                                                shift
+                                                {willImport !== 1 ? 's' : ''}{' '}
+                                                will be imported
+                                            </li>
                                             {pastCount > 0 && (
-                                                <li><span className="text-amber-600 dark:text-amber-400">{pastCount}</span> in the past (not imported)</li>
+                                                <li>
+                                                    <span className="text-amber-600 dark:text-amber-400">
+                                                        {pastCount}
+                                                    </span>{' '}
+                                                    in the past (not imported)
+                                                </li>
                                             )}
                                             {unmappedCount > 0 && (
-                                                <li><span className="text-muted-foreground">{unmappedCount}</span> unmapped desk code{unmappedCount !== 1 ? 's' : ''}</li>
+                                                <li>
+                                                    <span className="text-muted-foreground">
+                                                        {unmappedCount}
+                                                    </span>{' '}
+                                                    unmapped desk code
+                                                    {unmappedCount !== 1
+                                                        ? 's'
+                                                        : ''}
+                                                </li>
                                             )}
                                         </ul>
                                     </div>
                                 );
                             })()}
 
-                            {reconcile && (reconcile.to_add.length > 0 || reconcile.to_remove.length > 0 || reconcile.to_modify.length > 0) && (
-                                <div className="border-b border-border bg-muted/20 p-3">
-                                    <p className="font-medium text-foreground mb-2">Review changes before import</p>
-                                    <div className="grid gap-3 sm:grid-cols-3 text-sm">
-                                        {reconcile.to_add.length > 0 && (
-                                            <div>
-                                                <p className="font-medium text-green-700 dark:text-green-400">Add ({reconcile.to_add.length})</p>
-                                                <ul className="mt-1 list-inside list-disc text-muted-foreground max-h-32 overflow-y-auto">
-                                                    {reconcile.to_add.slice(0, 10).map((r, i) => (
-                                                        <li key={i}>{r.shift_date} {r.time_code} {r.desk_code}</li>
-                                                    ))}
-                                                </ul>
-                                                {reconcile.to_add.length > 10 && <p className="text-xs text-muted-foreground mt-0.5">+{reconcile.to_add.length - 10} more</p>}
-                                            </div>
-                                        )}
-                                        {reconcile.to_remove.length > 0 && (
-                                            <div>
-                                                <p className="font-medium text-destructive">Remove ({reconcile.to_remove.length})</p>
-                                                <ul className="mt-1 list-inside list-disc text-muted-foreground max-h-32 overflow-y-auto">
-                                                    {reconcile.to_remove.slice(0, 10).map((s, i) => (
-                                                        <li key={i}>{formatDate(s.start_time_utc)} — {s.position_name}</li>
-                                                    ))}
-                                                </ul>
-                                                {reconcile.to_remove.length > 10 && <p className="text-xs text-muted-foreground mt-0.5">+{reconcile.to_remove.length - 10} more</p>}
-                                            </div>
-                                        )}
-                                        {reconcile.to_modify.length > 0 && (
-                                            <div>
-                                                <p className="font-medium text-amber-700 dark:text-amber-400">Modified ({reconcile.to_modify.length})</p>
-                                                <ul className="mt-1 space-y-1 text-muted-foreground max-h-32 overflow-y-auto">
-                                                    {reconcile.to_modify.slice(0, 5).map((m, i) => (
-                                                        <li key={i} className="text-xs">
-                                                            {m.position_name} · {formatDate(m.start_time_utc)}: {Object.entries(m.changes).map(([k, v]) => `${k}: ${String(v.old)} → ${String(v.new)}`).join('; ')}
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                                {reconcile.to_modify.length > 5 && <p className="text-xs text-muted-foreground mt-0.5">+{reconcile.to_modify.length - 5} more</p>}
-                                            </div>
-                                        )}
+                            {reconcile &&
+                                (reconcile.to_add.length > 0 ||
+                                    reconcile.to_remove.length > 0 ||
+                                    reconcile.to_modify.length > 0) && (
+                                    <div className="border-b border-border bg-muted/20 p-3">
+                                        <p className="mb-2 font-medium text-foreground">
+                                            Review changes before import
+                                        </p>
+                                        <div className="grid gap-3 text-sm sm:grid-cols-3">
+                                            {reconcile.to_add.length > 0 && (
+                                                <div>
+                                                    <p className="font-medium text-green-700 dark:text-green-400">
+                                                        Add (
+                                                        {
+                                                            reconcile.to_add
+                                                                .length
+                                                        }
+                                                        )
+                                                    </p>
+                                                    <ul className="mt-1 max-h-32 list-inside list-disc overflow-y-auto text-muted-foreground">
+                                                        {reconcile.to_add
+                                                            .slice(0, 10)
+                                                            .map((r, i) => (
+                                                                <li key={i}>
+                                                                    {
+                                                                        r.shift_date
+                                                                    }{' '}
+                                                                    {
+                                                                        r.time_code
+                                                                    }{' '}
+                                                                    {
+                                                                        r.desk_code
+                                                                    }
+                                                                </li>
+                                                            ))}
+                                                    </ul>
+                                                    {reconcile.to_add.length >
+                                                        10 && (
+                                                        <p className="mt-0.5 text-xs text-muted-foreground">
+                                                            +
+                                                            {reconcile.to_add
+                                                                .length -
+                                                                10}{' '}
+                                                            more
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {reconcile.to_remove.length > 0 && (
+                                                <div>
+                                                    <p className="font-medium text-destructive">
+                                                        Remove (
+                                                        {
+                                                            reconcile.to_remove
+                                                                .length
+                                                        }
+                                                        )
+                                                    </p>
+                                                    <ul className="mt-1 max-h-32 list-inside list-disc overflow-y-auto text-muted-foreground">
+                                                        {reconcile.to_remove
+                                                            .slice(0, 10)
+                                                            .map((s, i) => (
+                                                                <li key={i}>
+                                                                    {formatDate(
+                                                                        s.start_time_utc,
+                                                                    )}{' '}
+                                                                    —{' '}
+                                                                    {
+                                                                        s.position_name
+                                                                    }
+                                                                </li>
+                                                            ))}
+                                                    </ul>
+                                                    {reconcile.to_remove
+                                                        .length > 10 && (
+                                                        <p className="mt-0.5 text-xs text-muted-foreground">
+                                                            +
+                                                            {reconcile.to_remove
+                                                                .length -
+                                                                10}{' '}
+                                                            more
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {reconcile.to_modify.length > 0 && (
+                                                <div>
+                                                    <p className="font-medium text-amber-700 dark:text-amber-400">
+                                                        Modified (
+                                                        {
+                                                            reconcile.to_modify
+                                                                .length
+                                                        }
+                                                        )
+                                                    </p>
+                                                    <ul className="mt-1 max-h-32 space-y-1 overflow-y-auto text-muted-foreground">
+                                                        {reconcile.to_modify
+                                                            .slice(0, 5)
+                                                            .map((m, i) => (
+                                                                <li
+                                                                    key={i}
+                                                                    className="text-xs"
+                                                                >
+                                                                    {
+                                                                        m.position_name
+                                                                    }{' '}
+                                                                    ·{' '}
+                                                                    {formatDate(
+                                                                        m.start_time_utc,
+                                                                    )}
+                                                                    :{' '}
+                                                                    {Object.entries(
+                                                                        m.changes,
+                                                                    )
+                                                                        .map(
+                                                                            ([
+                                                                                k,
+                                                                                v,
+                                                                            ]) =>
+                                                                                `${k}: ${String(v.old)} → ${String(v.new)}`,
+                                                                        )
+                                                                        .join(
+                                                                            '; ',
+                                                                        )}
+                                                                </li>
+                                                            ))}
+                                                    </ul>
+                                                    {reconcile.to_modify
+                                                        .length > 5 && (
+                                                        <p className="mt-0.5 text-xs text-muted-foreground">
+                                                            +
+                                                            {reconcile.to_modify
+                                                                .length -
+                                                                5}{' '}
+                                                            more
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <label className="mt-3 flex cursor-pointer items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={reconcileReviewed}
+                                                onChange={(e) =>
+                                                    setReconcileReviewed(
+                                                        e.target.checked,
+                                                    )
+                                                }
+                                                className="rounded border-input"
+                                            />
+                                            <span className="text-sm">
+                                                I&apos;ve reviewed these changes
+                                            </span>
+                                        </label>
                                     </div>
-                                    <label className="mt-3 flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={reconcileReviewed}
-                                            onChange={(e) => setReconcileReviewed(e.target.checked)}
-                                            className="rounded border-input"
-                                        />
-                                        <span className="text-sm">I&apos;ve reviewed these changes</span>
-                                    </label>
-                                </div>
-                            )}
+                                )}
 
                             <p className="p-2 text-xs text-muted-foreground">
-                                Remove or edit rows below; you can change desk type to match your workgroup. Then click Apply import. Only current/future rows are imported.
+                                Remove or edit rows below; you can change desk
+                                type to match your workgroup. Then click Apply
+                                import. Only current/future rows are imported.
                             </p>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-2 border-b border-border/50">
+                            <div className="grid grid-cols-1 gap-4 border-b border-border/50 p-2 lg:grid-cols-2">
                                 <div className="min-h-[280px]">
-                                    <p className="text-xs font-medium text-muted-foreground mb-1">Calendar</p>
+                                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                        Calendar
+                                    </p>
                                     <FullCalendar
-                                        plugins={[dayGridPlugin, interactionPlugin]}
+                                        plugins={[
+                                            dayGridPlugin,
+                                            interactionPlugin,
+                                        ]}
                                         initialView="dayGridMonth"
-                                        headerToolbar={{ left: 'title', right: 'prev,next today' }}
+                                        headerToolbar={{
+                                            left: 'title',
+                                            right: 'prev,next today',
+                                        }}
                                         events={previewCalendarEvents}
                                         eventContent={(arg) => (
-                                            <div className={`truncate px-1 py-0.5 text-xs rounded ${arg.event.extendedProps?.inPast ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200' : 'bg-primary/15 text-primary-foreground'}`}>
+                                            <div
+                                                className={`truncate rounded px-1 py-0.5 text-xs ${arg.event.extendedProps?.inPast ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'bg-primary/15 text-primary-foreground'}`}
+                                            >
                                                 {arg.event.title}
                                             </div>
                                         )}
@@ -504,92 +720,184 @@ export default function ImportSchedule() {
                                     />
                                 </div>
                                 <div className="overflow-x-auto">
-                                    <p className="text-xs font-medium text-muted-foreground mb-1">Table</p>
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b bg-muted/50">
-                                        <th className="p-2 text-left">Date</th>
-                                        <th className="p-2 text-left">Time</th>
-                                        <th className="p-2 text-left">Desk</th>
-                                        <th className="p-2 text-left">Desk type</th>
-                                        <th className="p-2 text-left">Start (UTC)</th>
-                                        <th className="p-2 text-right w-28">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {preview.map((row, i) => {
-                                        const wg = userDeskTypes.find((w) => w.workgroup_id === row.workgroup_id);
-                                        const deskTypeOptions = wg?.desk_types ?? [];
-                                        return (
-                                            <tr key={i} className={`border-b border-border/70 ${row.in_past ? 'bg-muted/20' : ''}`}>
-                                                <td className="p-2">
-                                                    {row.shift_date}
-                                                    {row.in_past && (
-                                                        <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" title="This shift is in the past and will not be imported">
-                                                            Past
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="p-2">{row.time_code}</td>
-                                                <td className="p-2">
-                                                    {row.desk_code}
-                                                    {row.unmapped_desk && (
-                                                        <span className="ml-1 text-muted-foreground" title="Unmapped code">*</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-2">
-                                                    {deskTypeOptions.length > 0 ? (
-                                                        <select
-                                                            className="h-7 min-w-[8rem] rounded border border-input bg-background px-2 text-xs"
-                                                            value={row.desk_type}
-                                                            onChange={(e) => {
-                                                                const code = e.target.value;
-                                                                setPreview((prev) => {
-                                                                    if (!prev) return null;
-                                                                    const next = [...prev];
-                                                                    next[i] = { ...row, desk_type: code, position_name: row.desk_code ?? row.position_name };
-                                                                    return next;
-                                                                });
-                                                            }}
-                                                        >
-                                                            {deskTypeOptions.map((d) => (
-                                                                <option key={d.code} value={d.code}>{d.label}</option>
-                                                            ))}
-                                                        </select>
-                                                    ) : (
-                                                        <span className="text-muted-foreground">{row.desk_type}</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-2">{row.start_utc?.slice(0, 16)}</td>
-                                                <td className="p-2 text-right">
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-7 text-xs mr-0.5"
-                                                        onClick={() => {
-                                                            setEditPreviewIndex(i);
-                                                            setEditPreviewDate(row.shift_date);
-                                                            setEditPreviewTimeCode(row.time_code);
-                                                        }}
-                                                    >
-                                                        Edit
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-7 text-xs text-destructive hover:text-destructive"
-                                                        onClick={() => removePreviewRow(i)}
-                                                    >
-                                                        Remove
-                                                    </Button>
-                                                </td>
+                                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                        Table
+                                    </p>
+                                    <table className="w-full min-w-max text-sm">
+                                        <thead>
+                                            <tr className="border-b bg-muted/50">
+                                                <th className="p-2 text-left">
+                                                    Date
+                                                </th>
+                                                <th className="p-2 text-left">
+                                                    Time
+                                                </th>
+                                                <th className="p-2 text-left">
+                                                    Desk
+                                                </th>
+                                                <th className="p-2 text-left">
+                                                    Desk type
+                                                </th>
+                                                <th className="p-2 text-left">
+                                                    Start (UTC)
+                                                </th>
+                                                <th className="w-28 p-2 text-right">
+                                                    Actions
+                                                </th>
                                             </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                                        </thead>
+                                        <tbody>
+                                            {preview.map((row, i) => {
+                                                const wg = userDeskTypes.find(
+                                                    (w) =>
+                                                        w.workgroup_id ===
+                                                        row.workgroup_id,
+                                                );
+                                                const deskTypeOptions =
+                                                    wg?.desk_types ?? [];
+                                                return (
+                                                    <tr
+                                                        key={i}
+                                                        className={`border-b border-border/70 ${row.in_past ? 'bg-muted/20' : ''}`}
+                                                    >
+                                                        <td className="p-2">
+                                                            {row.shift_date}
+                                                            {row.in_past && (
+                                                                <span
+                                                                    className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/50 dark:text-amber-200"
+                                                                    title="This shift is in the past and will not be imported"
+                                                                >
+                                                                    Past
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-2">
+                                                            {row.time_code}
+                                                        </td>
+                                                        <td className="p-2">
+                                                            {row.desk_code}
+                                                            {row.unmapped_desk && (
+                                                                <span
+                                                                    className="ml-1 text-muted-foreground"
+                                                                    title="Unmapped code"
+                                                                >
+                                                                    *
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-2">
+                                                            {deskTypeOptions.length >
+                                                            0 ? (
+                                                                <select
+                                                                    className="h-7 min-w-[8rem] rounded border border-input bg-background px-2 text-xs"
+                                                                    value={
+                                                                        row.desk_type
+                                                                    }
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) => {
+                                                                        const code =
+                                                                            e
+                                                                                .target
+                                                                                .value;
+                                                                        setPreview(
+                                                                            (
+                                                                                prev,
+                                                                            ) => {
+                                                                                if (
+                                                                                    !prev
+                                                                                )
+                                                                                    return null;
+                                                                                const next =
+                                                                                    [
+                                                                                        ...prev,
+                                                                                    ];
+                                                                                next[
+                                                                                    i
+                                                                                ] =
+                                                                                    {
+                                                                                        ...row,
+                                                                                        desk_type:
+                                                                                            code,
+                                                                                        position_name:
+                                                                                            row.desk_code ??
+                                                                                            row.position_name,
+                                                                                    };
+                                                                                return next;
+                                                                            },
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    {deskTypeOptions.map(
+                                                                        (d) => (
+                                                                            <option
+                                                                                key={
+                                                                                    d.code
+                                                                                }
+                                                                                value={
+                                                                                    d.code
+                                                                                }
+                                                                            >
+                                                                                {
+                                                                                    d.label
+                                                                                }
+                                                                            </option>
+                                                                        ),
+                                                                    )}
+                                                                </select>
+                                                            ) : (
+                                                                <span className="text-muted-foreground">
+                                                                    {
+                                                                        row.desk_type
+                                                                    }
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-2">
+                                                            {row.start_utc?.slice(
+                                                                0,
+                                                                16,
+                                                            )}
+                                                        </td>
+                                                        <td className="p-2 text-right">
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="mr-0.5 h-7 text-xs"
+                                                                onClick={() => {
+                                                                    setEditPreviewIndex(
+                                                                        i,
+                                                                    );
+                                                                    setEditPreviewDate(
+                                                                        row.shift_date,
+                                                                    );
+                                                                    setEditPreviewTimeCode(
+                                                                        row.time_code,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                Edit
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-7 text-xs text-destructive hover:text-destructive"
+                                                                onClick={() =>
+                                                                    removePreviewRow(
+                                                                        i,
+                                                                    )
+                                                                }
+                                                            >
+                                                                Remove
+                                                            </Button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         </div>
@@ -597,41 +905,77 @@ export default function ImportSchedule() {
 
                     {applyResult && (
                         <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950/40">
-                            <p className="font-medium text-green-800 dark:text-green-200">{applyResult.message}</p>
+                            <p className="font-medium text-green-800 dark:text-green-200">
+                                {applyResult.message}
+                            </p>
                             <ul className="mt-2 list-inside list-disc text-sm text-green-700 dark:text-green-300">
                                 <li>Created: {applyResult.created}</li>
                                 <li>Updated: {applyResult.updated}</li>
                                 <li>Skipped: {applyResult.skipped}</li>
                                 {(applyResult.past_count ?? 0) > 0 && (
-                                    <li>{applyResult.past_count} shift{(applyResult.past_count ?? 0) !== 1 ? 's' : ''} in the past were not added</li>
+                                    <li>
+                                        {applyResult.past_count} shift
+                                        {(applyResult.past_count ?? 0) !== 1
+                                            ? 's'
+                                            : ''}{' '}
+                                        in the past were not added
+                                    </li>
                                 )}
-                                {applyResult.conflict > 0 && <li>Conflicts (shift has active post): {applyResult.conflict}</li>}
+                                {applyResult.conflict > 0 && (
+                                    <li>
+                                        Conflicts (shift has active post):{' '}
+                                        {applyResult.conflict}
+                                    </li>
+                                )}
                             </ul>
                         </div>
                     )}
 
                     {historyRuns.length > 0 && (
                         <div className="rounded-lg border border-border p-4">
-                            <h2 className="font-medium mb-2">Recent imports</h2>
+                            <h2 className="mb-2 font-medium">Recent imports</h2>
                             <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
+                                <table className="w-full min-w-max text-sm">
                                     <thead>
                                         <tr className="border-b bg-muted/50">
-                                            <th className="p-2 text-left">Date</th>
-                                            <th className="p-2 text-right">Created</th>
-                                            <th className="p-2 text-right">Updated</th>
-                                            <th className="p-2 text-right">Skipped</th>
-                                            <th className="p-2 text-right">Missing</th>
+                                            <th className="p-2 text-left">
+                                                Date
+                                            </th>
+                                            <th className="p-2 text-right">
+                                                Created
+                                            </th>
+                                            <th className="p-2 text-right">
+                                                Updated
+                                            </th>
+                                            <th className="p-2 text-right">
+                                                Skipped
+                                            </th>
+                                            <th className="p-2 text-right">
+                                                Missing
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {historyRuns.map((r) => (
-                                            <tr key={r.id} className="border-b border-border/70">
-                                                <td className="p-2">{formatDate(r.created_at)}</td>
-                                                <td className="p-2 text-right">{r.created_count}</td>
-                                                <td className="p-2 text-right">{r.updated_count}</td>
-                                                <td className="p-2 text-right">{r.skipped_count}</td>
-                                                <td className="p-2 text-right">{r.missing_count}</td>
+                                            <tr
+                                                key={r.id}
+                                                className="border-b border-border/70"
+                                            >
+                                                <td className="p-2">
+                                                    {formatDate(r.created_at)}
+                                                </td>
+                                                <td className="p-2 text-right">
+                                                    {r.created_count}
+                                                </td>
+                                                <td className="p-2 text-right">
+                                                    {r.updated_count}
+                                                </td>
+                                                <td className="p-2 text-right">
+                                                    {r.skipped_count}
+                                                </td>
+                                                <td className="p-2 text-right">
+                                                    {r.missing_count}
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -642,41 +986,61 @@ export default function ImportSchedule() {
                 </div>
             </SettingsLayout>
 
-            <Dialog open={editPreviewIndex != null} onOpenChange={(open) => !open && setEditPreviewIndex(null)}>
+            <Dialog
+                open={editPreviewIndex != null}
+                onOpenChange={(open) => !open && setEditPreviewIndex(null)}
+            >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Edit shift</DialogTitle>
                     </DialogHeader>
-                    {editPreviewIndex != null && preview?.[editPreviewIndex] && (
-                        <>
-                            <div className="grid gap-2">
-                                <Label>Date</Label>
-                                <Input
-                                    type="date"
-                                    value={editPreviewDate}
-                                    onChange={(e) => setEditPreviewDate(e.target.value)}
-                                />
-                                <Label>Time code (e.g. 06, 14)</Label>
-                                <Input
-                                    type="text"
-                                    value={editPreviewTimeCode}
-                                    onChange={(e) => setEditPreviewTimeCode(e.target.value)}
-                                    placeholder="06"
-                                />
-                            </div>
-                            <DialogFooter>
-                                <Button variant="ghost" onClick={() => setEditPreviewIndex(null)}>
-                                    Cancel
-                                </Button>
-                                <Button onClick={saveEditPreviewRow} disabled={!editPreviewDate.trim() || !editPreviewTimeCode.trim()}>
-                                    Save
-                                </Button>
-                            </DialogFooter>
-                        </>
-                    )}
+                    {editPreviewIndex != null &&
+                        preview?.[editPreviewIndex] && (
+                            <>
+                                <div className="grid gap-2">
+                                    <Label>Date</Label>
+                                    <Input
+                                        type="date"
+                                        value={editPreviewDate}
+                                        onChange={(e) =>
+                                            setEditPreviewDate(e.target.value)
+                                        }
+                                    />
+                                    <Label>Time code (e.g. 06, 14)</Label>
+                                    <Input
+                                        type="text"
+                                        value={editPreviewTimeCode}
+                                        onChange={(e) =>
+                                            setEditPreviewTimeCode(
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="06"
+                                    />
+                                </div>
+                                <DialogFooter>
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() =>
+                                            setEditPreviewIndex(null)
+                                        }
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        onClick={saveEditPreviewRow}
+                                        disabled={
+                                            !editPreviewDate.trim() ||
+                                            !editPreviewTimeCode.trim()
+                                        }
+                                    >
+                                        Save
+                                    </Button>
+                                </DialogFooter>
+                            </>
+                        )}
                 </DialogContent>
             </Dialog>
-
         </AppLayout>
     );
 }

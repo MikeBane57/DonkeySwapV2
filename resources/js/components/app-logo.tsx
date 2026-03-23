@@ -4,7 +4,9 @@ const DEFAULT_LOGO = '/images/donkey-swap-logo.png';
 const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? '2.1.33a';
 
 export default function AppLogo() {
-    const logoUrl = (usePage().props as { app_icon_url?: string }).app_icon_url ?? DEFAULT_LOGO;
+    const logoUrl =
+        (usePage().props as { app_icon_url?: string }).app_icon_url ??
+        DEFAULT_LOGO;
     return (
         <div className="flex items-start gap-3">
             <div className="flex aspect-square size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white dark:bg-white/10">

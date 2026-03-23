@@ -1,6 +1,9 @@
 import { usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isLikelyTransientNetworkError, logClientError } from '@/lib/client-logger';
+import {
+    isLikelyTransientNetworkError,
+    logClientError,
+} from '@/lib/client-logger';
 import { getCsrfToken } from '@/lib/csrf';
 
 /**
@@ -8,7 +11,9 @@ import { getCsrfToken } from '@/lib/csrf';
  */
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
     const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const base64 = (base64String + padding)
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
     const rawData = atob(base64);
     const output = new Uint8Array(rawData.length);
     for (let i = 0; i < rawData.length; i++) {
@@ -29,10 +34,23 @@ declare global {
 
 export function usePushSubscription() {
     const page = usePage();
-    const props = page.props as { auth?: { user?: unknown }; vapid_public_key?: string | null };
-    const vapidKey = props.vapid_public_key ?? (typeof window !== 'undefined' ? window.__VAPID_PUBLIC_KEY__ : null) ?? null;
+    const props = page.props as {
+        auth?: { user?: unknown };
+        vapid_public_key?: string | null;
+    };
+    const vapidKey =
+        props.vapid_public_key ??
+        (typeof window !== 'undefined' ? window.__VAPID_PUBLIC_KEY__ : null) ??
+        null;
     const isAuth = !!props.auth?.user;
-    const [status, setStatus] = useState<'idle' | 'registering' | 'subscribed' | 'unsupported' | 'permission-denied' | 'error'>('idle');
+    const [status, setStatus] = useState<
+        | 'idle'
+        | 'registering'
+        | 'subscribed'
+        | 'unsupported'
+        | 'permission-denied'
+        | 'error'
+    >('idle');
     const attempted = useRef(false);
 
     const subscribe = useCallback(async () => {
@@ -45,7 +63,9 @@ export function usePushSubscription() {
         attempted.current = true;
         setStatus('registering');
         try {
-            const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+            const reg = await navigator.serviceWorker.register('/sw.js', {
+                scope: '/',
+            });
             await reg.update();
             if (Notification.permission === 'denied') {
                 setStatus('permission-denied');
@@ -62,14 +82,18 @@ export function usePushSubscription() {
                 return;
             }
             const existing = await reg.pushManager.getSubscription();
-            const subscription = existing ?? await reg.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(vapidKey),
-            });
+            const subscription =
+                existing ??
+                (await reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vapidKey),
+                }));
             const payload = subscription.toJSON();
             const body = {
                 endpoint: payload.endpoint,
-                keys: payload.keys ? { p256dh: payload.keys.p256dh, auth: payload.keys.auth } : undefined,
+                keys: payload.keys
+                    ? { p256dh: payload.keys.p256dh, auth: payload.keys.auth }
+                    : undefined,
             };
             if (!body.keys?.p256dh || !body.keys?.auth) {
                 setStatus('error');
@@ -77,7 +101,10 @@ export function usePushSubscription() {
                 return;
             }
             const controller = new AbortController();
-            const pushTimeout = window.setTimeout(() => controller.abort(), 25000);
+            const pushTimeout = window.setTimeout(
+                () => controller.abort(),
+                25000,
+            );
             let res: Response;
             try {
                 res = await fetch('/api/push-subscription', {
@@ -111,7 +138,9 @@ export function usePushSubscription() {
     }, [vapidKey, isAuth]);
 
     useEffect(() => {
-        const run = () => { if (isAuth && vapidKey) subscribe(); };
+        const run = () => {
+            if (isAuth && vapidKey) subscribe();
+        };
         const t = setTimeout(run, 0);
         return () => clearTimeout(t);
     }, [isAuth, vapidKey, subscribe]);
@@ -123,7 +152,11 @@ export function usePushSubscription() {
             subscribe();
         };
         window.addEventListener('notification-permission-granted', retry);
-        return () => window.removeEventListener('notification-permission-granted', retry);
+        return () =>
+            window.removeEventListener(
+                'notification-permission-granted',
+                retry,
+            );
     }, [isAuth, vapidKey, subscribe]);
 
     return { status, subscribe };

@@ -1,5 +1,5 @@
-import { Component   } from 'react';
-import type {ErrorInfo, ReactNode} from 'react';
+import { Component } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
 
 type Props = {
     children: ReactNode;
@@ -36,14 +36,19 @@ export class ErrorBoundary extends Component<Props, State> {
             }
             return (
                 <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-lg border border-destructive/50 bg-destructive/5 p-6 text-center">
-                    <p className="font-medium text-destructive">Something went wrong</p>
+                    <p className="font-medium text-destructive">
+                        Something went wrong
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                        {this.state.error.message || 'An unexpected error occurred.'}
+                        {this.state.error.message ||
+                            'An unexpected error occurred.'}
                     </p>
                     <button
                         type="button"
                         className="text-sm text-primary underline hover:no-underline"
-                        onClick={() => this.setState({ hasError: false, error: null })}
+                        onClick={() =>
+                            this.setState({ hasError: false, error: null })
+                        }
                     >
                         Try again
                     </button>

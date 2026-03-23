@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateUserRequest extends FormRequest
@@ -14,7 +15,7 @@ class UpdateUserRequest extends FormRequest
     public function rules(): array
     {
         $user = $this->route('user');
-        $userId = $user instanceof \App\Models\User ? $user->id : (is_numeric($user) ? $user : 0);
+        $userId = $user instanceof User ? $user->id : (is_numeric($user) ? $user : 0);
 
         return [
             'name' => ['sometimes', 'string', 'max:255'],

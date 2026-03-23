@@ -58,4 +58,3 @@ class ScheduleImportRun extends Model
         return $this->hasMany(ScheduleImportRunItem::class);
     }
 }
-

@@ -6,6 +6,9 @@ import '../css/app.css';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { initializeTheme } from '@/hooks/use-appearance';
 import { isLikelyTransientNetworkError } from '@/lib/client-logger';
+import { initClientSessionTelemetry } from '@/lib/client-session-telemetry';
+
+initClientSessionTelemetry();
 
 function getAppDisplayName(): string {
     if (typeof window !== 'undefined') {

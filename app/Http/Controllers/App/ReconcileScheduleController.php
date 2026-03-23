@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\App;
 
 use App\Http\Controllers\Controller;
+use App\Models\AppNotification;
 use App\Models\ScheduleReconciliation;
-use App\Models\ScheduleReconciliationItem;
 use App\Models\Shift;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -121,11 +121,11 @@ class ReconcileScheduleController extends Controller
 
         $reconcile_schedule->update(['status' => 'completed', 'completed_at' => now()]);
 
-        \App\Models\AppNotification::where('user_id', $user->id)
+        AppNotification::where('user_id', $user->id)
             ->whereNull('read_at')
             ->where('type', 'admin_message')
             ->get()
-            ->each(function (\App\Models\AppNotification $n) use ($reconcile_schedule) {
+            ->each(function (AppNotification $n) use ($reconcile_schedule) {
                 if (($n->data['reconciliation_id'] ?? null) == $reconcile_schedule->id) {
                     $n->update(['read_at' => now()]);
                 }

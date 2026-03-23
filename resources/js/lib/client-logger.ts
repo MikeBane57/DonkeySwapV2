@@ -14,7 +14,11 @@ export function isLikelyTransientNetworkError(error: unknown): boolean {
         if (o.message === 'Network Error') return true;
         if (o.code === 'ECONNABORTED') return true;
         if (o.code === 'ERR_NETWORK') return true;
-        if (typeof o.message === 'string' && o.message.toLowerCase().includes('timeout')) return true;
+        if (
+            typeof o.message === 'string' &&
+            o.message.toLowerCase().includes('timeout')
+        )
+            return true;
     }
     if (error instanceof Error) {
         if (error.name === 'AbortError') return true;

@@ -471,8 +471,17 @@ class ScheduleImportController extends Controller
         $parser = new ArisExpandedScheduleCsvParser;
         $parsed = $parser->parse($content);
         $messageUsers = $request->boolean('message_users');
+        $onlyUserIds = null;
+        if ($request->has('user_ids')) {
+            $raw = $request->input('user_ids');
+            $ids = is_array($raw) ? $raw : explode(',', (string) $raw);
+            $onlyUserIds = array_values(array_unique(array_filter(array_map('intval', $ids))));
+            if (count($onlyUserIds) === 0) {
+                return response()->json(['message' => 'Select at least one user to push, or clear the selection to apply to everyone in the file.'], 422);
+            }
+        }
         $service = new ScheduleImportService;
-        $result = $service->applyMasterCsv($parsed['rows'], $request->user(), $messageUsers);
+        $result = $service->applyMasterCsv($parsed['rows'], $request->user(), $messageUsers, $onlyUserIds);
 
         return response()->json($result);
     }

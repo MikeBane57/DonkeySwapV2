@@ -33,7 +33,11 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Looking for work', href: '/app/looking-for-work' },
 ];
 
-type Workgroup = { id: number; name: string; desk_types?: { code: string; label: string }[] };
+type Workgroup = {
+    id: number;
+    name: string;
+    desk_types?: { code: string; label: string }[];
+};
 type ShiftSummary = {
     id: number;
     position_name: string;
@@ -86,7 +90,10 @@ function formatTime(iso: string): string {
     try {
         const d = new Date(iso);
         if (Number.isNaN(d.getTime())) return iso;
-        return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        return d.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+        });
     } catch {
         return iso;
     }
@@ -99,7 +106,14 @@ export default function LookingForWorkPage() {
         posts: PostItem[];
         workgroups: Workgroup[];
         myShiftsByDate: Record<string, ShiftSummary[]>;
-        filters: { date_from?: string; date_to?: string; workgroup_id?: string; desk_type?: string; min_cash?: string; willing?: string };
+        filters: {
+            date_from?: string;
+            date_to?: string;
+            workgroup_id?: string;
+            desk_type?: string;
+            min_cash?: string;
+            willing?: string;
+        };
     };
     const { posts, workgroups, myShiftsByDate = {}, filters = {} } = props;
     const [filtersOpen, setFiltersOpen] = useState(false);
@@ -112,14 +126,20 @@ export default function LookingForWorkPage() {
     const [createObo, setCreateObo] = useState(false);
     const [createNotes, setCreateNotes] = useState('');
     const [createWillingToFollow, setCreateWillingToFollow] = useState(false);
-    const [createHaveShiftOnDate, setCreateHaveShiftOnDate] = useState<boolean | null>(null);
-    const [createWillingToFollowTimeFrame, setCreateWillingToFollowTimeFrame] = useState<'before' | 'after' | 'any'>('any');
-    const [createWillingToFollowSlots, setCreateWillingToFollowSlots] = useState<string[]>([]);
-    const [createWillingToFollowCustom, setCreateWillingToFollowCustom] = useState('');
+    const [createHaveShiftOnDate, setCreateHaveShiftOnDate] = useState<
+        boolean | null
+    >(null);
+    const [createWillingToFollowTimeFrame, setCreateWillingToFollowTimeFrame] =
+        useState<'before' | 'after' | 'any'>('any');
+    const [createWillingToFollowSlots, setCreateWillingToFollowSlots] =
+        useState<string[]>([]);
+    const [createWillingToFollowCustom, setCreateWillingToFollowCustom] =
+        useState('');
     const [createSubmitting, setCreateSubmitting] = useState(false);
     const [createError, setCreateError] = useState<string | null>(null);
 
-    const openCreateWithWilling = filters.willing === '1' || filters.willing === 'true';
+    const openCreateWithWilling =
+        filters.willing === '1' || filters.willing === 'true';
     useEffect(() => {
         setMinCashLocal(filters.min_cash ?? '');
     }, [filters.min_cash]);
@@ -139,9 +159,17 @@ export default function LookingForWorkPage() {
     const [offerNotes, setOfferNotes] = useState('');
     const [offerSubmitting, setOfferSubmitting] = useState(false);
     const [offerError, setOfferError] = useState<string | null>(null);
-    const [editOfferContext, setEditOfferContext] = useState<{ post: PostItem; offerId: number; shiftId: number; cash: string; notes: string } | null>(null);
+    const [editOfferContext, setEditOfferContext] = useState<{
+        post: PostItem;
+        offerId: number;
+        shiftId: number;
+        cash: string;
+        notes: string;
+    } | null>(null);
     const [editOfferSubmitting, setEditOfferSubmitting] = useState(false);
-    const [withdrawingOfferId, setWithdrawingOfferId] = useState<number | null>(null);
+    const [withdrawingOfferId, setWithdrawingOfferId] = useState<number | null>(
+        null,
+    );
 
     const deskTypeOptions = useMemo(() => {
         const seen = new Set<string>();
@@ -157,9 +185,16 @@ export default function LookingForWorkPage() {
         return out;
     }, [workgroups]);
 
-    const applyFilters = useCallback((next: Record<string, string | undefined>) => {
-        router.get('/app/looking-for-work', { ...filters, ...next }, { preserveState: true });
-    }, [filters]);
+    const applyFilters = useCallback(
+        (next: Record<string, string | undefined>) => {
+            router.get(
+                '/app/looking-for-work',
+                { ...filters, ...next },
+                { preserveState: true },
+            );
+        },
+        [filters],
+    );
 
     const postsFiltered = useMemo(() => {
         if (!onlyDaysWithShifts) return posts;
@@ -192,14 +227,29 @@ export default function LookingForWorkPage() {
                 credentials: 'include',
                 body: JSON.stringify({
                     seeking_date: createDate,
-                    seeking_desk_types: createDeskTypes.length ? createDeskTypes : null,
+                    seeking_desk_types: createDeskTypes.length
+                        ? createDeskTypes
+                        : null,
                     seeking_cash: Number(createCash),
                     seeking_obo: createObo,
                     notes: createNotes.trim() || null,
                     willing_to_follow: createWillingToFollow,
-                    willing_to_follow_time_frame: createWillingToFollow && createHaveShiftOnDate === true ? createWillingToFollowTimeFrame : null,
-                    willing_to_follow_slots: createWillingToFollow && createHaveShiftOnDate === false && createWillingToFollowSlots.length > 0 ? createWillingToFollowSlots : null,
-                    willing_to_follow_custom: createWillingToFollow && createHaveShiftOnDate === false && createWillingToFollowCustom.trim() ? createWillingToFollowCustom.trim() : null,
+                    willing_to_follow_time_frame:
+                        createWillingToFollow && createHaveShiftOnDate === true
+                            ? createWillingToFollowTimeFrame
+                            : null,
+                    willing_to_follow_slots:
+                        createWillingToFollow &&
+                        createHaveShiftOnDate === false &&
+                        createWillingToFollowSlots.length > 0
+                            ? createWillingToFollowSlots
+                            : null,
+                    willing_to_follow_custom:
+                        createWillingToFollow &&
+                        createHaveShiftOnDate === false &&
+                        createWillingToFollowCustom.trim()
+                            ? createWillingToFollowCustom.trim()
+                            : null,
                 }),
             });
             const data = await res.json().catch(() => ({}));
@@ -217,103 +267,169 @@ export default function LookingForWorkPage() {
                 setCreateWillingToFollowCustom('');
                 refresh();
             } else {
-                setCreateError(data.message || (res.status === 422 ? 'Validation failed.' : 'Failed to create post.'));
+                setCreateError(
+                    data.message ||
+                        (res.status === 422
+                            ? 'Validation failed.'
+                            : 'Failed to create post.'),
+                );
             }
         } finally {
             setCreateSubmitting(false);
         }
-    }, [createDate, createCash, createDeskTypes, createObo, createNotes, createWillingToFollow, createHaveShiftOnDate, createWillingToFollowTimeFrame, createWillingToFollowSlots, createWillingToFollowCustom, refresh]);
+    }, [
+        createDate,
+        createCash,
+        createDeskTypes,
+        createObo,
+        createNotes,
+        createWillingToFollow,
+        createHaveShiftOnDate,
+        createWillingToFollowTimeFrame,
+        createWillingToFollowSlots,
+        createWillingToFollowCustom,
+        refresh,
+    ]);
 
-    const handleOffer = useCallback(async (post: PostItem) => {
-        if (!offerShiftId) {
-            setOfferError('Select a shift to offer.');
-            return;
-        }
-        setOfferError(null);
-        setOfferSubmitting(true);
-        try {
-            const res = await fetch(`/api/looking-for-work/posts/${post.id}/offers`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-XSRF-TOKEN': getCsrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    offered_shift_id: offerShiftId,
-                    offered_cash: post.seeking_obo && offerCash.trim() !== '' ? Number(offerCash) : null,
-                    response_notes: offerNotes.trim() || null,
-                }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (res.ok && data.ok) {
-                setOfferPostId(null);
-                setOfferShiftId(null);
-                setOfferCash('');
-                setOfferNotes('');
-                refresh();
-            } else {
-                setOfferError(data.message || 'Failed to submit offer.');
+    const handleOffer = useCallback(
+        async (post: PostItem) => {
+            if (!offerShiftId) {
+                setOfferError('Select a shift to offer.');
+                return;
             }
-        } finally {
-            setOfferSubmitting(false);
-        }
-    }, [offerShiftId, offerCash, offerNotes, refresh]);
+            setOfferError(null);
+            setOfferSubmitting(true);
+            try {
+                const res = await fetch(
+                    `/api/looking-for-work/posts/${post.id}/offers`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                            'X-XSRF-TOKEN': getCsrfToken(),
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            offered_shift_id: offerShiftId,
+                            offered_cash:
+                                post.seeking_obo && offerCash.trim() !== ''
+                                    ? Number(offerCash)
+                                    : null,
+                            response_notes: offerNotes.trim() || null,
+                        }),
+                    },
+                );
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.ok) {
+                    setOfferPostId(null);
+                    setOfferShiftId(null);
+                    setOfferCash('');
+                    setOfferNotes('');
+                    refresh();
+                } else {
+                    setOfferError(data.message || 'Failed to submit offer.');
+                }
+            } finally {
+                setOfferSubmitting(false);
+            }
+        },
+        [offerShiftId, offerCash, offerNotes, refresh],
+    );
 
-    const allDeskTypes = workgroups.flatMap((wg) => (wg.desk_types ?? []).map((d) => ({ ...d, workgroup: wg.name })));
-    const postForOffer = offerPostId ? posts.find((p) => p.id === offerPostId) : null;
-    const shiftsForOffer = postForOffer && myShiftsByDate[postForOffer.seeking_date] ? myShiftsByDate[postForOffer.seeking_date] : [];
+    const allDeskTypes = workgroups.flatMap((wg) =>
+        (wg.desk_types ?? []).map((d) => ({ ...d, workgroup: wg.name })),
+    );
+    const postForOffer = offerPostId
+        ? posts.find((p) => p.id === offerPostId)
+        : null;
+    const shiftsForOffer =
+        postForOffer && myShiftsByDate[postForOffer.seeking_date]
+            ? myShiftsByDate[postForOffer.seeking_date]
+            : [];
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Looking for work" />
-            <div className="p-4 space-y-4">
+            <div className="space-y-4 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
-                        <h1 className="text-2xl font-semibold">Looking for work</h1>
-                        <p className="text-muted-foreground text-sm mt-0.5">
-                            Post when you want to pick up a shift and the cash you&apos;ll pay. Others with a shift that day can offer their shift.
+                        <h1 className="text-2xl font-semibold">
+                            Looking for work
+                        </h1>
+                        <p className="mt-0.5 text-sm text-muted-foreground">
+                            Post when you want to pick up a shift and the cash
+                            you&apos;ll pay. Others with a shift that day can
+                            offer their shift.
                         </p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                        <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
+                    <div className="flex shrink-0 items-center gap-2">
+                        <Button
+                            onClick={() => setCreateOpen(true)}
+                            className="gap-1.5"
+                        >
                             <Plus className="h-4 w-4" />
                             Create post
                         </Button>
-                        <Button variant="outline" size="sm" onClick={refresh} className="gap-1.5">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={refresh}
+                            className="gap-1.5"
+                        >
                             <RefreshCw className="h-4 w-4" />
                             Refresh
                         </Button>
                     </div>
                 </div>
 
-                <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="rounded-lg border border-sidebar-border/70 bg-muted/30 dark:border-sidebar-border">
+                <Collapsible
+                    open={filtersOpen}
+                    onOpenChange={setFiltersOpen}
+                    className="rounded-lg border border-sidebar-border/70 bg-muted/30 dark:border-sidebar-border"
+                >
                     <div className="flex w-full items-center gap-2 px-3 py-2">
                         <CollapsibleTrigger asChild>
-                            <button type="button" className="flex items-center gap-2 text-left text-sm font-medium hover:bg-muted/50 transition-colors rounded-lg -m-1 p-1">
-                                <ChevronRight className={`h-4 w-4 shrink-0 transition-transform ${filtersOpen ? 'rotate-90' : ''}`} />
+                            <button
+                                type="button"
+                                className="-m-1 flex items-center gap-2 rounded-lg p-1 text-left text-sm font-medium transition-colors hover:bg-muted/50"
+                            >
+                                <ChevronRight
+                                    className={`h-4 w-4 shrink-0 transition-transform ${filtersOpen ? 'rotate-90' : ''}`}
+                                />
                                 Filters
                             </button>
                         </CollapsibleTrigger>
                     </div>
                     <CollapsibleContent>
-                        <div className="space-y-3 px-3 pb-3 pt-0">
+                        <div className="space-y-3 px-3 pt-0 pb-3">
                             <div className="flex flex-wrap items-end gap-3">
                                 <div>
                                     <Label className="text-xs">Workgroup</Label>
                                     <Select
                                         value={filters.workgroup_id ?? 'all'}
-                                        onValueChange={(v) => applyFilters({ workgroup_id: v === 'all' ? undefined : v })}
+                                        onValueChange={(v) =>
+                                            applyFilters({
+                                                workgroup_id:
+                                                    v === 'all' ? undefined : v,
+                                            })
+                                        }
                                     >
-                                        <SelectTrigger className="h-9 w-40 mt-0.5">
+                                        <SelectTrigger className="mt-0.5 h-9 w-40">
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">All</SelectItem>
+                                            <SelectItem value="all">
+                                                All
+                                            </SelectItem>
                                             {workgroups.map((wg) => (
-                                                <SelectItem key={wg.id} value={String(wg.id)}>{wg.name}</SelectItem>
+                                                <SelectItem
+                                                    key={wg.id}
+                                                    value={String(wg.id)}
+                                                >
+                                                    {wg.name}
+                                                </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
@@ -322,15 +438,27 @@ export default function LookingForWorkPage() {
                                     <Label className="text-xs">Desk type</Label>
                                     <Select
                                         value={filters.desk_type ?? 'all'}
-                                        onValueChange={(v) => applyFilters({ desk_type: v === 'all' ? undefined : v })}
+                                        onValueChange={(v) =>
+                                            applyFilters({
+                                                desk_type:
+                                                    v === 'all' ? undefined : v,
+                                            })
+                                        }
                                     >
-                                        <SelectTrigger className="h-9 w-40 mt-0.5">
+                                        <SelectTrigger className="mt-0.5 h-9 w-40">
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">All</SelectItem>
+                                            <SelectItem value="all">
+                                                All
+                                            </SelectItem>
                                             {deskTypeOptions.map((opt) => (
-                                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                <SelectItem
+                                                    key={opt.value}
+                                                    value={opt.value}
+                                                >
+                                                    {opt.label}
+                                                </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
@@ -340,8 +468,13 @@ export default function LookingForWorkPage() {
                                     <Input
                                         type="date"
                                         value={filters.date_from ?? ''}
-                                        onChange={(e) => applyFilters({ date_from: e.target.value || undefined })}
-                                        className="h-9 w-40 mt-0.5"
+                                        onChange={(e) =>
+                                            applyFilters({
+                                                date_from:
+                                                    e.target.value || undefined,
+                                            })
+                                        }
+                                        className="mt-0.5 h-9 w-40"
                                     />
                                 </div>
                                 <div>
@@ -349,43 +482,75 @@ export default function LookingForWorkPage() {
                                     <Input
                                         type="date"
                                         value={filters.date_to ?? ''}
-                                        onChange={(e) => applyFilters({ date_to: e.target.value || undefined })}
-                                        className="h-9 w-40 mt-0.5"
+                                        onChange={(e) =>
+                                            applyFilters({
+                                                date_to:
+                                                    e.target.value || undefined,
+                                            })
+                                        }
+                                        className="mt-0.5 h-9 w-40"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-xs">Min cash ($)</Label>
+                                    <Label className="text-xs">
+                                        Min cash ($)
+                                    </Label>
                                     <Input
                                         type="number"
                                         min={0}
                                         step={1}
-                                        className="h-9 w-24 mt-0.5"
+                                        className="mt-0.5 h-9 w-24"
                                         placeholder="0"
                                         value={minCashLocal}
-                                        onChange={(e) => setMinCashLocal(e.target.value)}
-                                        onBlur={() => applyFilters({ min_cash: minCashLocal.trim() || undefined })}
-                                        onKeyDown={(e) => e.key === 'Enter' && applyFilters({ min_cash: minCashLocal.trim() || undefined })}
+                                        onChange={(e) =>
+                                            setMinCashLocal(e.target.value)
+                                        }
+                                        onBlur={() =>
+                                            applyFilters({
+                                                min_cash:
+                                                    minCashLocal.trim() ||
+                                                    undefined,
+                                            })
+                                        }
+                                        onKeyDown={(e) =>
+                                            e.key === 'Enter' &&
+                                            applyFilters({
+                                                min_cash:
+                                                    minCashLocal.trim() ||
+                                                    undefined,
+                                            })
+                                        }
                                     />
                                 </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-6">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm text-muted-foreground">Posts:</span>
+                                    <span className="text-sm text-muted-foreground">
+                                        Posts:
+                                    </span>
                                     <div className="inline-flex rounded-md border border-sidebar-border/70 bg-muted/50 p-0.5 dark:border-sidebar-border">
                                         <button
                                             type="button"
-                                            onClick={() => setOnlyDaysWithShifts(false)}
+                                            onClick={() =>
+                                                setOnlyDaysWithShifts(false)
+                                            }
                                             className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                                                !onlyDaysWithShifts ? 'bg-background text-foreground shadow' : 'text-muted-foreground hover:text-foreground'
+                                                !onlyDaysWithShifts
+                                                    ? 'bg-background text-foreground shadow'
+                                                    : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                         >
                                             All posts
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setOnlyDaysWithShifts(true)}
+                                            onClick={() =>
+                                                setOnlyDaysWithShifts(true)
+                                            }
                                             className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                                                onlyDaysWithShifts ? 'bg-background text-foreground shadow' : 'text-muted-foreground hover:text-foreground'
+                                                onlyDaysWithShifts
+                                                    ? 'bg-background text-foreground shadow'
+                                                    : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                         >
                                             Only days I have shifts
@@ -400,7 +565,9 @@ export default function LookingForWorkPage() {
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {postsFiltered.length === 0 ? (
                         <p className="col-span-full py-8 text-center text-sm text-muted-foreground">
-                            {posts.length === 0 ? 'No posts match. Create one or adjust filters.' : 'No posts on days you have shifts. Try "All posts" or adjust filters.'}
+                            {posts.length === 0
+                                ? 'No posts match. Create one or adjust filters.'
+                                : 'No posts on days you have shifts. Try "All posts" or adjust filters.'}
                         </p>
                     ) : (
                         postsFiltered.map((post) => {
@@ -409,42 +576,105 @@ export default function LookingForWorkPage() {
                                 <div
                                     key={post.id}
                                     className={`flex flex-col rounded-lg border bg-card p-2.5 dark:border-sidebar-border ${
-                                        hasMyOffer ? 'border-2 border-primary dark:border-primary' : 'border border-sidebar-border/70'
+                                        hasMyOffer
+                                            ? 'border-2 border-primary dark:border-primary'
+                                            : 'border border-sidebar-border/70'
                                     }`}
                                 >
                                     <div className="flex flex-1 flex-wrap items-start justify-between gap-1.5">
                                         <div className="min-w-0 flex-1 space-y-2">
                                             <div className="flex flex-wrap items-center gap-1.5">
-                                                <span className="truncate text-sm font-medium">{post.poster_name ?? 'Someone'}</span>
-                                                {post.pending_offer_count > 0 && (
+                                                <span className="truncate text-sm font-medium">
+                                                    {post.poster_name ??
+                                                        'Someone'}
+                                                </span>
+                                                {post.pending_offer_count >
+                                                    0 && (
                                                     <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
-                                                        {post.pending_offer_count === 1 ? '1 offer' : `${post.pending_offer_count} offers`}
+                                                        {post.pending_offer_count ===
+                                                        1
+                                                            ? '1 offer'
+                                                            : `${post.pending_offer_count} offers`}
                                                     </span>
                                                 )}
                                             </div>
                                             <div className="rounded-lg border border-border/70 bg-muted/20 px-2 py-1.5">
-                                                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Full shift</p>
-                                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                                <p className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+                                                    Full shift
+                                                </p>
+                                                <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                                                     <span className="rounded bg-green-500/20 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">
-                                                        <DollarSign className="inline h-3 w-3" /> ${Number(post.seeking_cash).toFixed(0)}
-                                                        {post.seeking_obo && ' OBO'}
+                                                        <DollarSign className="inline h-3 w-3" />{' '}
+                                                        $
+                                                        {Number(
+                                                            post.seeking_cash,
+                                                        ).toFixed(0)}
+                                                        {post.seeking_obo &&
+                                                            ' OBO'}
                                                     </span>
-                                                    <span className="text-xs text-muted-foreground">{post.seeking_date}</span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {post.seeking_date}
+                                                    </span>
                                                 </div>
-                                                {post.seeking_desk_types?.length > 0 && (
-                                                    <p className="text-xs text-muted-foreground mt-0.5">Desk types: {post.seeking_desk_types.join(', ')}</p>
+                                                {post.seeking_desk_types
+                                                    ?.length > 0 && (
+                                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                                        Desk types:{' '}
+                                                        {post.seeking_desk_types.join(
+                                                            ', ',
+                                                        )}
+                                                    </p>
                                                 )}
                                             </div>
                                             {post.willing_to_follow && (
                                                 <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-2 py-1.5">
-                                                    <p className="text-[10px] font-medium uppercase tracking-wider text-purple-700 dark:text-purple-300">Flight following</p>
-                                                    <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mt-0.5 inline-flex items-center gap-1 flex-wrap">
+                                                    <p className="text-[10px] font-medium tracking-wider text-purple-700 uppercase dark:text-purple-300">
+                                                        Flight following
+                                                    </p>
+                                                    <p className="mt-0.5 inline-flex flex-wrap items-center gap-1 text-xs font-medium text-purple-700 dark:text-purple-300">
                                                         <Plane className="size-3 shrink-0" />
                                                         {post.willing_to_follow_time_frame
-                                                            ? (post.willing_to_follow_time_frame === 'before' ? 'Before my shift' : post.willing_to_follow_time_frame === 'after' ? 'After my shift' : 'Any')
-                                                            : (post.willing_to_follow_slots?.length
-                                                                ? post.willing_to_follow_slots.map((s) => s.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())).join(', ')
-                                                                : '') + (post.willing_to_follow_custom ? (post.willing_to_follow_slots?.length ? ' · ' : '') + post.willing_to_follow_custom : '') || 'Any'}
+                                                            ? post.willing_to_follow_time_frame ===
+                                                              'before'
+                                                                ? 'Before my shift'
+                                                                : post.willing_to_follow_time_frame ===
+                                                                    'after'
+                                                                  ? 'After my shift'
+                                                                  : 'Any'
+                                                            : (post
+                                                                  .willing_to_follow_slots
+                                                                  ?.length
+                                                                  ? post.willing_to_follow_slots
+                                                                        .map(
+                                                                            (
+                                                                                s,
+                                                                            ) =>
+                                                                                s
+                                                                                    .replace(
+                                                                                        '_',
+                                                                                        ' ',
+                                                                                    )
+                                                                                    .replace(
+                                                                                        /\b\w/g,
+                                                                                        (
+                                                                                            c,
+                                                                                        ) =>
+                                                                                            c.toUpperCase(),
+                                                                                    ),
+                                                                        )
+                                                                        .join(
+                                                                            ', ',
+                                                                        )
+                                                                  : '') +
+                                                                  (post.willing_to_follow_custom
+                                                                      ? (post
+                                                                            .willing_to_follow_slots
+                                                                            ?.length
+                                                                            ? ' · '
+                                                                            : '') +
+                                                                        post.willing_to_follow_custom
+                                                                      : '') ||
+                                                              'Any'}
                                                     </p>
                                                 </div>
                                             )}
@@ -452,13 +682,43 @@ export default function LookingForWorkPage() {
                                         <div className="flex shrink-0 flex-wrap items-center gap-1">
                                             {hasMyOffer ? (
                                                 <>
-                                                    <span className="text-xs text-muted-foreground">You offered</span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        You offered
+                                                    </span>
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
                                                         className="h-7 text-xs"
                                                         onClick={() => {
-                                                            setEditOfferContext({ post, offerId: post.my_offer!.id, shiftId: post.my_offer!.offered_shift_id, cash: post.my_offer!.offered_cash != null ? String(post.my_offer!.offered_cash) : '', notes: post.my_offer!.response_notes ?? '' });
+                                                            setEditOfferContext(
+                                                                {
+                                                                    post,
+                                                                    offerId:
+                                                                        post
+                                                                            .my_offer!
+                                                                            .id,
+                                                                    shiftId:
+                                                                        post
+                                                                            .my_offer!
+                                                                            .offered_shift_id,
+                                                                    cash:
+                                                                        post
+                                                                            .my_offer!
+                                                                            .offered_cash !=
+                                                                        null
+                                                                            ? String(
+                                                                                  post
+                                                                                      .my_offer!
+                                                                                      .offered_cash,
+                                                                              )
+                                                                            : '',
+                                                                    notes:
+                                                                        post
+                                                                            .my_offer!
+                                                                            .response_notes ??
+                                                                        '',
+                                                                },
+                                                            );
                                                         }}
                                                     >
                                                         Edit offer
@@ -467,23 +727,52 @@ export default function LookingForWorkPage() {
                                                         size="sm"
                                                         variant="ghost"
                                                         className="h-7 text-xs text-destructive hover:text-destructive"
-                                                        disabled={withdrawingOfferId === post.my_offer!.id}
+                                                        disabled={
+                                                            withdrawingOfferId ===
+                                                            post.my_offer!.id
+                                                        }
                                                         onClick={async () => {
-                                                            if (!window.confirm('Withdraw your offer? The poster will no longer see it.')) return;
-                                                            setWithdrawingOfferId(post.my_offer!.id);
+                                                            if (
+                                                                !window.confirm(
+                                                                    'Withdraw your offer? The poster will no longer see it.',
+                                                                )
+                                                            )
+                                                                return;
+                                                            setWithdrawingOfferId(
+                                                                post.my_offer!
+                                                                    .id,
+                                                            );
                                                             try {
-                                                                const res = await fetch(`/api/looking-for-work/offers/${post.my_offer!.id}/withdraw`, {
-                                                                    method: 'POST',
-                                                                    headers: { Accept: 'application/json', 'X-XSRF-TOKEN': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
-                                                                    credentials: 'include',
-                                                                });
-                                                                if (res.ok) router.reload();
+                                                                const res =
+                                                                    await fetch(
+                                                                        `/api/looking-for-work/offers/${post.my_offer!.id}/withdraw`,
+                                                                        {
+                                                                            method: 'POST',
+                                                                            headers:
+                                                                                {
+                                                                                    Accept: 'application/json',
+                                                                                    'X-XSRF-TOKEN':
+                                                                                        getCsrfToken(),
+                                                                                    'X-Requested-With':
+                                                                                        'XMLHttpRequest',
+                                                                                },
+                                                                            credentials:
+                                                                                'include',
+                                                                        },
+                                                                    );
+                                                                if (res.ok)
+                                                                    router.reload();
                                                             } finally {
-                                                                setWithdrawingOfferId(null);
+                                                                setWithdrawingOfferId(
+                                                                    null,
+                                                                );
                                                             }
                                                         }}
                                                     >
-                                                        {withdrawingOfferId === post.my_offer!.id ? '…' : 'Cancel offer'}
+                                                        {withdrawingOfferId ===
+                                                        post.my_offer!.id
+                                                            ? '…'
+                                                            : 'Cancel offer'}
                                                     </Button>
                                                 </>
                                             ) : (
@@ -505,12 +794,17 @@ export default function LookingForWorkPage() {
                                         </div>
                                     </div>
                                     {post.notes && (
-                                        <p className="mt-1 text-xs text-muted-foreground" title={post.notes}>
+                                        <p
+                                            className="mt-1 text-xs text-muted-foreground"
+                                            title={post.notes}
+                                        >
                                             {post.notes}
                                         </p>
                                     )}
                                     <div className="mt-2 flex flex-wrap items-center justify-between gap-1 border-t border-sidebar-border/50 pt-2 dark:border-sidebar-border">
-                                        <span className="text-xs text-muted-foreground">by {post.poster_name ?? 'Someone'}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                            by {post.poster_name ?? 'Someone'}
+                                        </span>
                                     </div>
                                 </div>
                             );
@@ -523,23 +817,54 @@ export default function LookingForWorkPage() {
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Create &quot;Looking for work&quot; post</DialogTitle>
+                        <DialogTitle>
+                            Create &quot;Looking for work&quot; post
+                        </DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
                         <div className="space-y-3">
-                            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Full shift</p>
+                            <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                                Full shift
+                            </p>
                             <div>
                                 <Label>Date you want to work</Label>
-                                <Input type="date" value={createDate} onChange={(e) => setCreateDate(e.target.value)} className="mt-1" min={new Date().toISOString().slice(0, 10)} />
+                                <Input
+                                    type="date"
+                                    value={createDate}
+                                    onChange={(e) =>
+                                        setCreateDate(e.target.value)
+                                    }
+                                    className="mt-1"
+                                    min={new Date().toISOString().slice(0, 10)}
+                                />
                             </div>
                             <div>
                                 <Label>Desk types (optional)</Label>
                                 <div className="mt-2 flex flex-wrap gap-2">
                                     {allDeskTypes.map((dt) => (
-                                        <label key={dt.code} className="flex items-center gap-2 text-sm">
+                                        <label
+                                            key={dt.code}
+                                            className="flex items-center gap-2 text-sm"
+                                        >
                                             <Checkbox
-                                                checked={createDeskTypes.includes(dt.code)}
-                                                onCheckedChange={(c) => setCreateDeskTypes((prev) => (c ? [...prev, dt.code] : prev.filter((x) => x !== dt.code)))}
+                                                checked={createDeskTypes.includes(
+                                                    dt.code,
+                                                )}
+                                                onCheckedChange={(c) =>
+                                                    setCreateDeskTypes(
+                                                        (prev) =>
+                                                            c
+                                                                ? [
+                                                                      ...prev,
+                                                                      dt.code,
+                                                                  ]
+                                                                : prev.filter(
+                                                                      (x) =>
+                                                                          x !==
+                                                                          dt.code,
+                                                                  ),
+                                                    )
+                                                }
                                             />
                                             {dt.label}
                                         </label>
@@ -548,106 +873,292 @@ export default function LookingForWorkPage() {
                             </div>
                             <div>
                                 <Label>Cash amount ($)</Label>
-                                <Input type="number" min={0} step={1} value={createCash} onChange={(e) => setCreateCash(e.target.value)} className="mt-1" placeholder="e.g. 500" />
+                                <Input
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    value={createCash}
+                                    onChange={(e) =>
+                                        setCreateCash(e.target.value)
+                                    }
+                                    className="mt-1"
+                                    placeholder="e.g. 500"
+                                />
                             </div>
                             <label className="flex items-center gap-2 text-sm">
-                                <Checkbox checked={createObo} onCheckedChange={(c) => setCreateObo(!!c)} />
-                                Or best offer (OBO) — responders can offer more or less
+                                <Checkbox
+                                    checked={createObo}
+                                    onCheckedChange={(c) => setCreateObo(!!c)}
+                                />
+                                Or best offer (OBO) — responders can offer more
+                                or less
                             </label>
                             <div>
                                 <Label>Notes (optional)</Label>
-                                <Textarea value={createNotes} onChange={(e) => setCreateNotes(e.target.value)} className="mt-1" rows={2} placeholder="e.g. Prefer morning" />
+                                <Textarea
+                                    value={createNotes}
+                                    onChange={(e) =>
+                                        setCreateNotes(e.target.value)
+                                    }
+                                    className="mt-1"
+                                    rows={2}
+                                    placeholder="e.g. Prefer morning"
+                                />
                             </div>
                         </div>
 
                         <div className="space-y-3 border-t border-border pt-3">
-                            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Flight following</p>
+                            <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                                Flight following
+                            </p>
                             <div
-                                className={`flex items-start gap-3 rounded-xl border-2 p-3 transition-colors cursor-pointer ${
-                                    createWillingToFollow ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                                className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-colors ${
+                                    createWillingToFollow
+                                        ? 'border-primary bg-primary/5'
+                                        : 'border-border hover:border-primary/50'
                                 }`}
                                 onClick={(e) => {
-                                    if ((e.target as HTMLElement).closest('select, input, textarea') !== null) return;
-                                    setCreateWillingToFollow(!createWillingToFollow);
+                                    if (
+                                        (e.target as HTMLElement).closest(
+                                            'select, input, textarea',
+                                        ) !== null
+                                    )
+                                        return;
+                                    setCreateWillingToFollow(
+                                        !createWillingToFollow,
+                                    );
                                 }}
                             >
                                 <Checkbox
                                     checked={createWillingToFollow}
-                                    onCheckedChange={(c) => setCreateWillingToFollow(!!c)}
+                                    onCheckedChange={(c) =>
+                                        setCreateWillingToFollow(!!c)
+                                    }
                                     onClick={(e) => e.stopPropagation()}
                                 />
-                                <div className="flex-1 min-w-0 space-y-3">
+                                <div className="min-w-0 flex-1 space-y-3">
                                     <div>
                                         <Label className="flex items-center gap-2 font-medium">
-                                            <Plane className="size-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                                            <Plane className="size-4 shrink-0 text-purple-600 dark:text-purple-400" />
                                             Willing to follow
                                         </Label>
-                                        <p className="text-xs text-muted-foreground mt-0.5">Subject to 10-hour duty day and 8-hour rest before shift start.</p>
+                                        <p className="mt-0.5 text-xs text-muted-foreground">
+                                            Subject to 10-hour duty day and
+                                            8-hour rest before shift start.
+                                        </p>
                                     </div>
                                     {createWillingToFollow && (
-                                        <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+                                        <div
+                                            className="space-y-3"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
                                             <div>
-                                                <Label className="text-xs">Do you have a shift on this date?</Label>
+                                                <Label className="text-xs">
+                                                    Do you have a shift on this
+                                                    date?
+                                                </Label>
                                                 <div className="mt-1.5 flex gap-3">
-                                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                                        <input type="radio" name="create_have_shift" checked={createHaveShiftOnDate === true} onChange={() => setCreateHaveShiftOnDate(true)} className="size-3.5" />
+                                                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                                        <input
+                                                            type="radio"
+                                                            name="create_have_shift"
+                                                            checked={
+                                                                createHaveShiftOnDate ===
+                                                                true
+                                                            }
+                                                            onChange={() =>
+                                                                setCreateHaveShiftOnDate(
+                                                                    true,
+                                                                )
+                                                            }
+                                                            className="size-3.5"
+                                                        />
                                                         Yes
                                                     </label>
-                                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                                        <input type="radio" name="create_have_shift" checked={createHaveShiftOnDate === false} onChange={() => setCreateHaveShiftOnDate(false)} className="size-3.5" />
+                                                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                                        <input
+                                                            type="radio"
+                                                            name="create_have_shift"
+                                                            checked={
+                                                                createHaveShiftOnDate ===
+                                                                false
+                                                            }
+                                                            onChange={() =>
+                                                                setCreateHaveShiftOnDate(
+                                                                    false,
+                                                                )
+                                                            }
+                                                            className="size-3.5"
+                                                        />
                                                         No
                                                     </label>
                                                 </div>
                                             </div>
                                             {createHaveShiftOnDate === true && (
                                                 <div>
-                                                    <Label className="text-xs">When you&apos;re available (up to 10 hours)</Label>
+                                                    <Label className="text-xs">
+                                                        When you&apos;re
+                                                        available (up to 10
+                                                        hours)
+                                                    </Label>
                                                     <select
-                                                        value={createWillingToFollowTimeFrame}
-                                                        onChange={(e) => setCreateWillingToFollowTimeFrame((e.target.value || 'any') as 'before' | 'after' | 'any')}
+                                                        value={
+                                                            createWillingToFollowTimeFrame
+                                                        }
+                                                        onChange={(e) =>
+                                                            setCreateWillingToFollowTimeFrame(
+                                                                (e.target
+                                                                    .value ||
+                                                                    'any') as
+                                                                    | 'before'
+                                                                    | 'after'
+                                                                    | 'any',
+                                                            )
+                                                        }
                                                         className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                                                     >
-                                                        <option value="any">Any</option>
-                                                        <option value="before">Before my shift</option>
-                                                        <option value="after">After my shift</option>
+                                                        <option value="any">
+                                                            Any
+                                                        </option>
+                                                        <option value="before">
+                                                            Before my shift
+                                                        </option>
+                                                        <option value="after">
+                                                            After my shift
+                                                        </option>
                                                     </select>
                                                 </div>
                                             )}
-                                            {createHaveShiftOnDate === false && (
+                                            {createHaveShiftOnDate ===
+                                                false && (
                                                 <div className="space-y-2">
-                                                    <Label className="text-xs">When you&apos;re available to follow (choose all that apply)</Label>
-                                                    <p className="text-[11px] text-muted-foreground">e.g. after an AM shift, or before a PM shift</p>
+                                                    <Label className="text-xs">
+                                                        When you&apos;re
+                                                        available to follow
+                                                        (choose all that apply)
+                                                    </Label>
+                                                    <p className="text-[11px] text-muted-foreground">
+                                                        e.g. after an AM shift,
+                                                        or before a PM shift
+                                                    </p>
                                                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                                                         <div className="space-y-1.5">
-                                                            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Before</p>
-                                                            {['before_am', 'before_pm', 'before_mid'].map((slot) => (
-                                                                <label key={slot} className="flex items-center gap-2 text-sm cursor-pointer">
+                                                            <p className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+                                                                Before
+                                                            </p>
+                                                            {[
+                                                                'before_am',
+                                                                'before_pm',
+                                                                'before_mid',
+                                                            ].map((slot) => (
+                                                                <label
+                                                                    key={slot}
+                                                                    className="flex cursor-pointer items-center gap-2 text-sm"
+                                                                >
                                                                     <Checkbox
-                                                                        checked={createWillingToFollowSlots.includes(slot)}
-                                                                        onCheckedChange={(c) => setCreateWillingToFollowSlots((prev) => (c ? [...prev, slot] : prev.filter((s) => s !== slot)))}
+                                                                        checked={createWillingToFollowSlots.includes(
+                                                                            slot,
+                                                                        )}
+                                                                        onCheckedChange={(
+                                                                            c,
+                                                                        ) =>
+                                                                            setCreateWillingToFollowSlots(
+                                                                                (
+                                                                                    prev,
+                                                                                ) =>
+                                                                                    c
+                                                                                        ? [
+                                                                                              ...prev,
+                                                                                              slot,
+                                                                                          ]
+                                                                                        : prev.filter(
+                                                                                              (
+                                                                                                  s,
+                                                                                              ) =>
+                                                                                                  s !==
+                                                                                                  slot,
+                                                                                          ),
+                                                                            )
+                                                                        }
                                                                     />
-                                                                    {slot.includes('_am') ? 'AM' : slot.includes('_pm') ? 'PM' : 'Mid'}
+                                                                    {slot.includes(
+                                                                        '_am',
+                                                                    )
+                                                                        ? 'AM'
+                                                                        : slot.includes(
+                                                                                '_pm',
+                                                                            )
+                                                                          ? 'PM'
+                                                                          : 'Mid'}
                                                                 </label>
                                                             ))}
                                                         </div>
                                                         <div className="space-y-1.5">
-                                                            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">After</p>
-                                                            {['after_am', 'after_pm', 'after_mid'].map((slot) => (
-                                                                <label key={slot} className="flex items-center gap-2 text-sm cursor-pointer">
+                                                            <p className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+                                                                After
+                                                            </p>
+                                                            {[
+                                                                'after_am',
+                                                                'after_pm',
+                                                                'after_mid',
+                                                            ].map((slot) => (
+                                                                <label
+                                                                    key={slot}
+                                                                    className="flex cursor-pointer items-center gap-2 text-sm"
+                                                                >
                                                                     <Checkbox
-                                                                        checked={createWillingToFollowSlots.includes(slot)}
-                                                                        onCheckedChange={(c) => setCreateWillingToFollowSlots((prev) => (c ? [...prev, slot] : prev.filter((s) => s !== slot)))}
+                                                                        checked={createWillingToFollowSlots.includes(
+                                                                            slot,
+                                                                        )}
+                                                                        onCheckedChange={(
+                                                                            c,
+                                                                        ) =>
+                                                                            setCreateWillingToFollowSlots(
+                                                                                (
+                                                                                    prev,
+                                                                                ) =>
+                                                                                    c
+                                                                                        ? [
+                                                                                              ...prev,
+                                                                                              slot,
+                                                                                          ]
+                                                                                        : prev.filter(
+                                                                                              (
+                                                                                                  s,
+                                                                                              ) =>
+                                                                                                  s !==
+                                                                                                  slot,
+                                                                                          ),
+                                                                            )
+                                                                        }
                                                                     />
-                                                                    {slot.includes('_am') ? 'AM' : slot.includes('_pm') ? 'PM' : 'Mid'}
+                                                                    {slot.includes(
+                                                                        '_am',
+                                                                    )
+                                                                        ? 'AM'
+                                                                        : slot.includes(
+                                                                                '_pm',
+                                                                            )
+                                                                          ? 'PM'
+                                                                          : 'Mid'}
                                                                 </label>
                                                             ))}
                                                         </div>
                                                     </div>
                                                     <div className="mt-2">
-                                                        <Label className="text-xs">Other (describe)</Label>
+                                                        <Label className="text-xs">
+                                                            Other (describe)
+                                                        </Label>
                                                         <Input
-                                                            value={createWillingToFollowCustom}
-                                                            onChange={(e) => setCreateWillingToFollowCustom(e.target.value)}
+                                                            value={
+                                                                createWillingToFollowCustom
+                                                            }
+                                                            onChange={(e) =>
+                                                                setCreateWillingToFollowCustom(
+                                                                    e.target
+                                                                        .value,
+                                                                )
+                                                            }
                                                             placeholder="e.g. flexible 06–14"
                                                             className="mt-0.5 h-8 text-sm"
                                                         />
@@ -659,17 +1170,34 @@ export default function LookingForWorkPage() {
                                 </div>
                             </div>
                         </div>
-                        {createError && <p className="text-sm text-destructive">{createError}</p>}
+                        {createError && (
+                            <p className="text-sm text-destructive">
+                                {createError}
+                            </p>
+                        )}
                         <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-                            <Button onClick={handleCreate} disabled={createSubmitting}>{createSubmitting ? '…' : 'Create'}</Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => setCreateOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleCreate}
+                                disabled={createSubmitting}
+                            >
+                                {createSubmitting ? '…' : 'Create'}
+                            </Button>
                         </div>
                     </div>
                 </DialogContent>
             </Dialog>
 
             {/* Offer shift modal */}
-            <Dialog open={!!offerPostId} onOpenChange={(open) => !open && setOfferPostId(null)}>
+            <Dialog
+                open={!!offerPostId}
+                onOpenChange={(open) => !open && setOfferPostId(null)}
+            >
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Offer your shift</DialogTitle>
@@ -677,19 +1205,36 @@ export default function LookingForWorkPage() {
                     {postForOffer && (
                         <div className="space-y-4">
                             <p className="text-sm text-muted-foreground">
-                                {postForOffer.poster_name} is looking for a shift on {postForOffer.seeking_date} for ${Number(postForOffer.seeking_cash).toFixed(0)}
+                                {postForOffer.poster_name} is looking for a
+                                shift on {postForOffer.seeking_date} for $
+                                {Number(postForOffer.seeking_cash).toFixed(0)}
                                 {postForOffer.seeking_obo && ' (OBO)'}.
                             </p>
                             <div>
                                 <Label>Your shift on that date</Label>
-                                <Select value={offerShiftId ? String(offerShiftId) : ''} onValueChange={(v) => setOfferShiftId(v ? Number(v) : null)}>
+                                <Select
+                                    value={
+                                        offerShiftId ? String(offerShiftId) : ''
+                                    }
+                                    onValueChange={(v) =>
+                                        setOfferShiftId(v ? Number(v) : null)
+                                    }
+                                >
                                     <SelectTrigger className="mt-1">
                                         <SelectValue placeholder="Select shift" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {shiftsForOffer.map((s) => (
-                                            <SelectItem key={s.id} value={String(s.id)}>
-                                                {s.position_name}{s.desk_type ? ` · ${s.desk_type}` : ''} · {formatTime(s.start_time_utc)}–{formatTime(s.end_time_utc)}
+                                            <SelectItem
+                                                key={s.id}
+                                                value={String(s.id)}
+                                            >
+                                                {s.position_name}
+                                                {s.desk_type
+                                                    ? ` · ${s.desk_type}`
+                                                    : ''}{' '}
+                                                · {formatTime(s.start_time_utc)}
+                                                –{formatTime(s.end_time_utc)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -698,17 +1243,48 @@ export default function LookingForWorkPage() {
                             {postForOffer.seeking_obo && (
                                 <div>
                                     <Label>Your cash offer ($, optional)</Label>
-                                    <Input type="number" min={0} step={1} value={offerCash} onChange={(e) => setOfferCash(e.target.value)} className="mt-1" placeholder="e.g. 450" />
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        step={1}
+                                        value={offerCash}
+                                        onChange={(e) =>
+                                            setOfferCash(e.target.value)
+                                        }
+                                        className="mt-1"
+                                        placeholder="e.g. 450"
+                                    />
                                 </div>
                             )}
                             <div>
                                 <Label>Notes (optional)</Label>
-                                <Textarea value={offerNotes} onChange={(e) => setOfferNotes(e.target.value)} className="mt-1" rows={2} />
+                                <Textarea
+                                    value={offerNotes}
+                                    onChange={(e) =>
+                                        setOfferNotes(e.target.value)
+                                    }
+                                    className="mt-1"
+                                    rows={2}
+                                />
                             </div>
-                            {offerError && <p className="text-sm text-destructive">{offerError}</p>}
+                            {offerError && (
+                                <p className="text-sm text-destructive">
+                                    {offerError}
+                                </p>
+                            )}
                             <div className="flex justify-end gap-2">
-                                <Button variant="outline" onClick={() => setOfferPostId(null)}>Cancel</Button>
-                                <Button onClick={() => handleOffer(postForOffer)} disabled={offerSubmitting}>{offerSubmitting ? '…' : 'Submit offer'}</Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setOfferPostId(null)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={() => handleOffer(postForOffer)}
+                                    disabled={offerSubmitting}
+                                >
+                                    {offerSubmitting ? '…' : 'Submit offer'}
+                                </Button>
                             </div>
                         </div>
                     )}
@@ -716,96 +1292,187 @@ export default function LookingForWorkPage() {
             </Dialog>
 
             {/* Edit my offer modal */}
-            <Dialog open={!!editOfferContext} onOpenChange={(open) => !open && setEditOfferContext(null)}>
+            <Dialog
+                open={!!editOfferContext}
+                onOpenChange={(open) => !open && setEditOfferContext(null)}
+            >
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Edit your offer</DialogTitle>
                     </DialogHeader>
-                    {editOfferContext && (() => {
-                        const post = editOfferContext.post;
-                        const shiftsOnDate = myShiftsByDate[post.seeking_date] ?? [];
-                        return (
-                            <div className="space-y-4">
-                                <p className="text-sm text-muted-foreground">
-                                    Shift date: {post.seeking_date}. Choose which shift to offer and optional cash/notes.
-                                </p>
-                                <div>
-                                    <Label>Your shift on that date</Label>
-                                    <Select
-                                        value={String(editOfferContext.shiftId)}
-                                        onValueChange={(v) => setEditOfferContext((prev) => prev ? { ...prev, shiftId: Number(v) } : null)}
-                                    >
-                                        <SelectTrigger className="mt-1">
-                                            <SelectValue placeholder="Select shift" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {shiftsOnDate.map((s) => (
-                                                <SelectItem key={s.id} value={String(s.id)}>
-                                                    {s.position_name}{s.desk_type ? ` · ${s.desk_type}` : ''} · {formatTime(s.start_time_utc)}–{formatTime(s.end_time_utc)}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                {post.seeking_obo && (
+                    {editOfferContext &&
+                        (() => {
+                            const post = editOfferContext.post;
+                            const shiftsOnDate =
+                                myShiftsByDate[post.seeking_date] ?? [];
+                            return (
+                                <div className="space-y-4">
+                                    <p className="text-sm text-muted-foreground">
+                                        Shift date: {post.seeking_date}. Choose
+                                        which shift to offer and optional
+                                        cash/notes.
+                                    </p>
                                     <div>
-                                        <Label>Your cash offer ($, optional)</Label>
-                                        <Input
-                                            type="number"
-                                            min={0}
-                                            step={1}
-                                            value={editOfferContext.cash}
-                                            onChange={(e) => setEditOfferContext((prev) => prev ? { ...prev, cash: e.target.value } : null)}
+                                        <Label>Your shift on that date</Label>
+                                        <Select
+                                            value={String(
+                                                editOfferContext.shiftId,
+                                            )}
+                                            onValueChange={(v) =>
+                                                setEditOfferContext((prev) =>
+                                                    prev
+                                                        ? {
+                                                              ...prev,
+                                                              shiftId:
+                                                                  Number(v),
+                                                          }
+                                                        : null,
+                                                )
+                                            }
+                                        >
+                                            <SelectTrigger className="mt-1">
+                                                <SelectValue placeholder="Select shift" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {shiftsOnDate.map((s) => (
+                                                    <SelectItem
+                                                        key={s.id}
+                                                        value={String(s.id)}
+                                                    >
+                                                        {s.position_name}
+                                                        {s.desk_type
+                                                            ? ` · ${s.desk_type}`
+                                                            : ''}{' '}
+                                                        ·{' '}
+                                                        {formatTime(
+                                                            s.start_time_utc,
+                                                        )}
+                                                        –
+                                                        {formatTime(
+                                                            s.end_time_utc,
+                                                        )}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    {post.seeking_obo && (
+                                        <div>
+                                            <Label>
+                                                Your cash offer ($, optional)
+                                            </Label>
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                step={1}
+                                                value={editOfferContext.cash}
+                                                onChange={(e) =>
+                                                    setEditOfferContext(
+                                                        (prev) =>
+                                                            prev
+                                                                ? {
+                                                                      ...prev,
+                                                                      cash: e
+                                                                          .target
+                                                                          .value,
+                                                                  }
+                                                                : null,
+                                                    )
+                                                }
+                                                className="mt-1"
+                                            />
+                                        </div>
+                                    )}
+                                    <div>
+                                        <Label>Notes (optional)</Label>
+                                        <Textarea
+                                            value={editOfferContext.notes}
+                                            onChange={(e) =>
+                                                setEditOfferContext((prev) =>
+                                                    prev
+                                                        ? {
+                                                              ...prev,
+                                                              notes: e.target
+                                                                  .value,
+                                                          }
+                                                        : null,
+                                                )
+                                            }
                                             className="mt-1"
+                                            rows={2}
                                         />
                                     </div>
-                                )}
-                                <div>
-                                    <Label>Notes (optional)</Label>
-                                    <Textarea
-                                        value={editOfferContext.notes}
-                                        onChange={(e) => setEditOfferContext((prev) => prev ? { ...prev, notes: e.target.value } : null)}
-                                        className="mt-1"
-                                        rows={2}
-                                    />
-                                </div>
-                                <div className="flex justify-end gap-2">
-                                    <Button variant="outline" onClick={() => setEditOfferContext(null)} disabled={editOfferSubmitting}>Cancel</Button>
-                                    <Button
-                                        disabled={editOfferSubmitting}
-                                        onClick={async () => {
-                                            setEditOfferSubmitting(true);
-                                            try {
-                                                const res = await fetch(`/api/looking-for-work/offers/${editOfferContext.offerId}`, {
-                                                    method: 'PUT',
-                                                    headers: {
-                                                        'Content-Type': 'application/json',
-                                                        Accept: 'application/json',
-                                                        'X-XSRF-TOKEN': getCsrfToken(),
-                                                        'X-Requested-With': 'XMLHttpRequest',
-                                                    },
-                                                    credentials: 'include',
-                                                    body: JSON.stringify({
-                                                        offered_shift_id: editOfferContext.shiftId,
-                                                        offered_cash: post.seeking_obo && editOfferContext.cash !== '' ? Number(editOfferContext.cash) || null : null,
-                                                        response_notes: editOfferContext.notes || null,
-                                                    }),
-                                                });
-                                                if (res.ok) {
-                                                    setEditOfferContext(null);
-                                                    router.reload();
-                                                }
-                                            } finally {
-                                                setEditOfferSubmitting(false);
+                                    <div className="flex justify-end gap-2">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() =>
+                                                setEditOfferContext(null)
                                             }
-                                        }}
-                                    >
-                                        {editOfferSubmitting ? 'Saving…' : 'Save'}
-                                    </Button>
+                                            disabled={editOfferSubmitting}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            disabled={editOfferSubmitting}
+                                            onClick={async () => {
+                                                setEditOfferSubmitting(true);
+                                                try {
+                                                    const res = await fetch(
+                                                        `/api/looking-for-work/offers/${editOfferContext.offerId}`,
+                                                        {
+                                                            method: 'PUT',
+                                                            headers: {
+                                                                'Content-Type':
+                                                                    'application/json',
+                                                                Accept: 'application/json',
+                                                                'X-XSRF-TOKEN':
+                                                                    getCsrfToken(),
+                                                                'X-Requested-With':
+                                                                    'XMLHttpRequest',
+                                                            },
+                                                            credentials:
+                                                                'include',
+                                                            body: JSON.stringify(
+                                                                {
+                                                                    offered_shift_id:
+                                                                        editOfferContext.shiftId,
+                                                                    offered_cash:
+                                                                        post.seeking_obo &&
+                                                                        editOfferContext.cash !==
+                                                                            ''
+                                                                            ? Number(
+                                                                                  editOfferContext.cash,
+                                                                              ) ||
+                                                                              null
+                                                                            : null,
+                                                                    response_notes:
+                                                                        editOfferContext.notes ||
+                                                                        null,
+                                                                },
+                                                            ),
+                                                        },
+                                                    );
+                                                    if (res.ok) {
+                                                        setEditOfferContext(
+                                                            null,
+                                                        );
+                                                        router.reload();
+                                                    }
+                                                } finally {
+                                                    setEditOfferSubmitting(
+                                                        false,
+                                                    );
+                                                }
+                                            }}
+                                        >
+                                            {editOfferSubmitting
+                                                ? 'Saving…'
+                                                : 'Save'}
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })()}
+                            );
+                        })()}
                 </DialogContent>
             </Dialog>
         </AppLayout>

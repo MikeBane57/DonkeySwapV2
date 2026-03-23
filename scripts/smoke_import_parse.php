@@ -11,11 +11,10 @@ if (! $path || ! file_exists($path)) {
 }
 
 $csv = file_get_contents($path);
-$parser = new ArisExpandedScheduleCsvParser();
+$parser = new ArisExpandedScheduleCsvParser;
 $parsed = $parser->parse($csv);
 $rows = $parsed['rows'];
 $pastCount = $parsed['past_count'];
 
-echo "rows: ".count($rows).", past_count: ".$pastCount.PHP_EOL;
+echo 'rows: '.count($rows).', past_count: '.$pastCount.PHP_EOL;
 echo json_encode(array_slice($rows, 0, 5), JSON_PRETTY_PRINT).PHP_EOL;
-

@@ -12,7 +12,10 @@ const STANDALONE_KEY = 'badge-permission-banner-dismissed';
  */
 export function BadgePermissionBanner() {
     const props = usePage().props as { badge_count?: number };
-    const badgeCount = Math.min(99, Math.max(0, Number(props.badge_count) || 0));
+    const badgeCount = Math.min(
+        99,
+        Math.max(0, Number(props.badge_count) || 0),
+    );
     const [dismissed, setDismissed] = useState(() => {
         if (typeof window === 'undefined') return true;
         try {
@@ -29,7 +32,9 @@ export function BadgePermissionBanner() {
             (navigator as { standalone?: boolean }).standalone === true);
 
     const permission =
-        typeof Notification !== 'undefined' ? Notification.permission : 'denied';
+        typeof Notification !== 'undefined'
+            ? Notification.permission
+            : 'denied';
     const show = isStandalone && permission !== 'granted' && !dismissed;
 
     const handleEnable = useCallback(() => {
@@ -39,11 +44,17 @@ export function BadgePermissionBanner() {
             .then((result) => {
                 if (result === 'granted') {
                     const count = badgeCount;
-                    if ('setAppBadge' in navigator && typeof navigator.setAppBadge === 'function') {
-                        if (count > 0) navigator.setAppBadge(count).catch(() => {});
+                    if (
+                        'setAppBadge' in navigator &&
+                        typeof navigator.setAppBadge === 'function'
+                    ) {
+                        if (count > 0)
+                            navigator.setAppBadge(count).catch(() => {});
                         else navigator.clearAppBadge?.().catch(() => {});
                     }
-                    window.dispatchEvent(new Event('notification-permission-granted'));
+                    window.dispatchEvent(
+                        new Event('notification-permission-granted'),
+                    );
                 }
                 setDismissed(true);
                 try {
@@ -70,7 +81,8 @@ export function BadgePermissionBanner() {
         <div className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-50/90 px-3 py-2 text-sm dark:border-amber-500/30 dark:bg-amber-950/40">
             <Bell className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <p className="min-w-0 flex-1 text-amber-800 dark:text-amber-200">
-                To show the count on your home screen icon, enable notifications.
+                To show the count on your home screen icon, enable
+                notifications.
             </p>
             <div className="flex shrink-0 items-center gap-1">
                 <Button

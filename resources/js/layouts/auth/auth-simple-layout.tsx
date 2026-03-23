@@ -16,7 +16,11 @@ export default function AuthSimpleLayout({
                             href={home()}
                             className="flex flex-col items-center gap-2 font-medium"
                         >
-                            <img src="/images/donkey-swap-logo.png" alt="DonkeySwap" className="mb-1 h-14 w-auto object-contain" />
+                            <img
+                                src="/images/donkey-swap-logo.png"
+                                alt="DonkeySwap"
+                                className="mb-1 h-14 w-auto object-contain"
+                            />
                             <span className="sr-only">{title}</span>
                         </Link>
 

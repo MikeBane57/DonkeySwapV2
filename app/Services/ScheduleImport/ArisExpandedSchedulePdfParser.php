@@ -2,6 +2,8 @@
 
 namespace App\Services\ScheduleImport;
 
+use Smalot\PdfParser\Document;
+use Smalot\PdfParser\Page;
 use Smalot\PdfParser\Parser;
 
 /**
@@ -108,13 +110,14 @@ class ArisExpandedSchedulePdfParser
         if ($withDiagnostics) {
             $result['diagnostics'] = $diagnostics;
         }
+
         return $result;
     }
 
     /**
      * Try to extract report created/generated date and time from PDF text for "most recent report" display.
      */
-    private function extractReportGeneratedAt(\Smalot\PdfParser\Document $pdf): ?string
+    private function extractReportGeneratedAt(Document $pdf): ?string
     {
         try {
             $text = $pdf->getText();
@@ -145,6 +148,7 @@ class ArisExpandedSchedulePdfParser
         } catch (\Throwable $e) {
             return null;
         }
+
         return null;
     }
 
@@ -154,7 +158,7 @@ class ArisExpandedSchedulePdfParser
      *
      * @return array<int, array<int, string>>
      */
-    private function buildGridFromPage(\Smalot\PdfParser\Page $page): array
+    private function buildGridFromPage(Page $page): array
     {
         $data = $page->getDataTm();
         if (! is_array($data)) {
@@ -227,6 +231,7 @@ class ArisExpandedSchedulePdfParser
             $groups[$groupKey] = $groups[$groupKey] ?? [];
             $groups[$groupKey][] = $p;
         }
+
         return $groups;
     }
 
@@ -345,6 +350,7 @@ class ArisExpandedSchedulePdfParser
                 return $dateColumns;
             }
         }
+
         return [];
     }
 
@@ -356,12 +362,15 @@ class ArisExpandedSchedulePdfParser
         }
         if (preg_match('/^\d{1,2}$/', $cell)) {
             $n = (int) $cell;
+
             return $n >= 1 && $n <= 31;
         }
         if (preg_match('/^(\d{1,2})\b/', $cell, $m)) {
             $n = (int) $m[1];
+
             return $n >= 1 && $n <= 31;
         }
+
         return false;
     }
 
@@ -373,12 +382,15 @@ class ArisExpandedSchedulePdfParser
         }
         if (preg_match('/^\d{1,2}$/', $cell)) {
             $n = (int) $cell;
+
             return ($n >= 1 && $n <= 31) ? $n : null;
         }
         if (preg_match('/^(\d{1,2})\b/', $cell, $m)) {
             $n = (int) $m[1];
+
             return ($n >= 1 && $n <= 31) ? $n : null;
         }
+
         return null;
     }
 
@@ -421,6 +433,7 @@ class ArisExpandedSchedulePdfParser
                     }
                     $dateColumns[$c] = $candidate;
                 }
+
                 return $dateColumns;
             }
         }
@@ -435,6 +448,7 @@ class ArisExpandedSchedulePdfParser
             'Jul' => 7, 'Aug' => 8, 'Sep' => 9, 'Oct' => 10, 'Nov' => 11, 'Dec' => 12,
         ];
         $abbr = ucfirst(strtolower($abbr));
+
         return $map[$abbr] ?? null;
     }
 
@@ -470,6 +484,7 @@ class ArisExpandedSchedulePdfParser
                     $currentRows = [];
                 }
                 $skipHeader = true;
+
                 continue;
             }
 
@@ -488,6 +503,7 @@ class ArisExpandedSchedulePdfParser
                 $currentQuals = $this->parseQualsFromNameCol($fullRow);
                 $currentRows[] = $row;
                 $skipHeader = false;
+
                 continue;
             }
 
@@ -517,6 +533,7 @@ class ArisExpandedSchedulePdfParser
     {
         $s = preg_replace('/^.*\\)\\s*/', '', $nameCol) ?? '';
         $parts = array_map('trim', explode(',', $s));
+
         return array_values(array_filter($parts, fn ($p) => $p !== ''));
     }
 
@@ -532,6 +549,7 @@ class ArisExpandedSchedulePdfParser
         if (str_contains($s, '(') || str_contains($s, ')') || str_contains($s, ',')) {
             return false;
         }
+
         return (bool) preg_match('/^\d{1,2}$/', $s);
     }
 
@@ -547,6 +565,7 @@ class ArisExpandedSchedulePdfParser
         if (str_contains($s, '(') || str_contains($s, ')') || str_contains($s, ',')) {
             return false;
         }
+
         return (bool) preg_match('/^[A-Za-z0-9\-]+$/i', $s);
     }
 
@@ -568,6 +587,7 @@ class ArisExpandedSchedulePdfParser
             $next = trim($row[$colIndex + 1] ?? '');
             if ($next !== '' && strcasecmp($next, 'OFF') !== 0) {
                 $pairs[] = [$cell, $next];
+
                 continue;
             }
             if (preg_match('/^(\d{1,2})\s+([A-Z0-9]+)$/i', $cell, $m)) {
@@ -576,6 +596,7 @@ class ArisExpandedSchedulePdfParser
                 $pairs[] = ['', $cell];
             }
         }
+
         return $pairs;
     }
 }

@@ -15,15 +15,18 @@ import { useEffect } from 'react';
  * leaves the app and sees the icon on their home screen.
  */
 export function AppBadge() {
-    const { badge_count: badgeCount = 0, name: appName = 'Donkey Swap' } = (
-        usePage().props as { badge_count?: number; name?: string }
-    );
+    const { badge_count: badgeCount = 0, name: appName = 'Donkey Swap' } =
+        usePage().props as { badge_count?: number; name?: string };
 
     useEffect(() => {
         const count = Math.min(99, Math.max(0, Number(badgeCount) || 0));
 
         const setBadge = () => {
-            if (!('setAppBadge' in navigator) || typeof navigator.setAppBadge !== 'function') return;
+            if (
+                !('setAppBadge' in navigator) ||
+                typeof navigator.setAppBadge !== 'function'
+            )
+                return;
             if (count > 0) {
                 navigator.setAppBadge(count).catch(() => {});
             } else {
@@ -31,8 +34,13 @@ export function AppBadge() {
             }
         };
 
-        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-            Notification.requestPermission().then(setBadge).catch(() => setBadge());
+        if (
+            typeof Notification !== 'undefined' &&
+            Notification.permission === 'default'
+        ) {
+            Notification.requestPermission()
+                .then(setBadge)
+                .catch(() => setBadge());
         } else {
             setBadge();
         }

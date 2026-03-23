@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Models\Setting;
 use Illuminate\Notifications\Notification;
 use NotificationChannels\WebPush\WebPushChannel;
 use NotificationChannels\WebPush\WebPushMessage;
@@ -35,7 +36,7 @@ class WebPushSwapNotification extends Notification
             $data['badgeCount'] = min(99, $this->badgeCount);
         }
         // Android requires icon/badge to be absolute HTTPS URLs; build from app URL if path-only.
-        $iconPath = \App\Models\Setting::appIconUrl();
+        $iconPath = Setting::appIconUrl();
         $iconUrl = (str_starts_with($iconPath, 'http://') || str_starts_with($iconPath, 'https://'))
             ? $iconPath
             : rtrim(config('app.url'), '/').'/'.ltrim($iconPath, '/');

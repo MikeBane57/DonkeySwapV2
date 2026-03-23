@@ -12,7 +12,7 @@ class AppNotification extends Model
 
     protected $fillable = ['user_id', 'type', 'data', 'read_at', 'admin_notification_batch_id'];
 
-    public function batch(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function batch(): BelongsTo
     {
         return $this->belongsTo(AdminNotificationBatch::class, 'admin_notification_batch_id');
     }
@@ -84,6 +84,7 @@ class AppNotification extends Model
         if (in_array($this->type, ['looking_for_work_offer', 'looking_for_work_accepted', 'looking_for_work_not_selected'], true)) {
             $title = config('app.name', 'Donkey Swap');
             $body = (string) ($data['message'] ?? $this->defaultPushMessage($this->type));
+
             return [$title, $body];
         }
         $title = config('app.name', 'Donkey Swap');
@@ -100,7 +101,7 @@ class AppNotification extends Model
         if ($this->type === 'new_offer') {
             $offerId = $this->data['swap_offer_id'] ?? null;
             if ($offerId !== null) {
-                return url('/app?open_offer=' . (int) $offerId);
+                return url('/app?open_offer='.(int) $offerId);
             }
         }
         if ($this->type === 'looking_for_work_offer') {
@@ -109,6 +110,7 @@ class AppNotification extends Model
         if ($this->type === 'admin_message' && ! empty($this->data['reconciliation_id'] ?? null)) {
             return url('/app/reconcile-schedule');
         }
+
         return url('/app');
     }
 
@@ -140,6 +142,7 @@ class AppNotification extends Model
             if ($shiftLabel !== null) {
                 return "Your response for {$shiftLabel} was accepted.";
             }
+
             return 'Your response was accepted.';
         }
         if ($this->type === 'swap_rejected') {
@@ -147,6 +150,7 @@ class AppNotification extends Model
             if ($shiftLabel !== null) {
                 return "Your offer for {$shiftLabel} was declined.";
             }
+
             return 'Your offer was declined.';
         }
 
@@ -167,12 +171,13 @@ class AppNotification extends Model
             return null;
         }
         $start = $post->shift->start_time_utc;
-        if ($start instanceof \Carbon\Carbon) {
-            return 'shift on ' . $start->format('M j');
+        if ($start instanceof Carbon) {
+            return 'shift on '.$start->format('M j');
         }
         if (is_string($start)) {
-            return 'shift on ' . \Carbon\Carbon::parse($start)->format('M j');
+            return 'shift on '.Carbon::parse($start)->format('M j');
         }
+
         return null;
     }
 

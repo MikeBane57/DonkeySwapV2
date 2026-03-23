@@ -20,12 +20,14 @@ class ShiftsController extends Controller
     {
         $query = Shift::with(['user:id,name,email', 'workgroup:id,name']);
 
-        if ($request->filled('user_id')) {
-            $query->where('user_id', $request->input('user_id'));
-        }
         if ($request->filled('user_ids')) {
-            $ids = is_array($request->input('user_ids')) ? $request->input('user_ids') : explode(',', $request->input('user_ids'));
-            $query->whereIn('user_id', array_map('intval', $ids));
+            $ids = is_array($request->input('user_ids')) ? $request->input('user_ids') : explode(',', (string) $request->input('user_ids'));
+            $ids = array_values(array_filter(array_map('intval', $ids)));
+            if ($ids !== []) {
+                $query->whereIn('user_id', $ids);
+            }
+        } elseif ($request->filled('user_id')) {
+            $query->where('user_id', $request->input('user_id'));
         }
         if ($request->filled('date_from')) {
             $query->where('end_time_utc', '>=', Carbon::parse($request->input('date_from'))->startOfDay()->utc());
@@ -77,11 +79,36 @@ class ShiftsController extends Controller
             ];
         });
 
+        $userIdsFilter = null;
+        if ($request->filled('user_ids')) {
+            $raw = is_array($request->input('user_ids')) ? $request->input('user_ids') : explode(',', (string) $request->input('user_ids'));
+            $userIdsFilter = array_values(array_filter(array_map('intval', $raw)));
+            if ($userIdsFilter === []) {
+                $userIdsFilter = null;
+            }
+        }
+
+        $filtersOut = [];
+        if ($userIdsFilter !== null && count($userIdsFilter) > 0) {
+            $filtersOut['user_ids'] = $userIdsFilter;
+        } elseif ($request->filled('user_id')) {
+            $filtersOut['user_id'] = (string) $request->input('user_id');
+        }
+        if ($request->filled('date_from')) {
+            $filtersOut['date_from'] = (string) $request->input('date_from');
+        }
+        if ($request->filled('date_to')) {
+            $filtersOut['date_to'] = (string) $request->input('date_to');
+        }
+        if ($request->filled('workgroup_id')) {
+            $filtersOut['workgroup_id'] = (string) $request->input('workgroup_id');
+        }
+
         return Inertia::render('admin/shifts', [
             'shifts' => $shifts,
             'users' => $users,
             'workgroups' => $workgroups,
-            'filters' => $request->only(['user_id', 'user_ids', 'date_from', 'date_to', 'workgroup_id']),
+            'filters' => $filtersOut,
         ]);
     }
 

@@ -18,8 +18,8 @@ class ComplianceValidator
      * Validate that assigning a set of shifts (and optional segments) to a user would comply with rules.
      * All times are in UTC.
      *
-     * @param  array<int, array{start_time_utc: string|\Carbon\Carbon, end_time_utc: string|\Carbon\Carbon, regulatory?: bool}>  $shifts  Main shifts (with start_time_utc, end_time_utc, regulatory)
-     * @param  array<int, array{start_time_utc: string|\Carbon\Carbon, end_time_utc: string|\Carbon\Carbon}>  $segments  Optional flight-follow segments to include in totals
+     * @param  array<int, array{start_time_utc: string|Carbon, end_time_utc: string|Carbon, regulatory?: bool}>  $shifts  Main shifts (with start_time_utc, end_time_utc, regulatory)
+     * @param  array<int, array{start_time_utc: string|Carbon, end_time_utc: string|Carbon}>  $segments  Optional flight-follow segments to include in totals
      * @return array{valid: bool, errors: array<int, string>, audit?: array}
      */
     public function validateForUser(
@@ -140,8 +140,8 @@ class ComplianceValidator
     }
 
     /**
-     * @param  array<int, array{start_time_utc: string|\Carbon\Carbon, end_time_utc: string|\Carbon\Carbon, regulatory?: bool}>  $shifts
-     * @param  array<int, array{start_time_utc: string|\Carbon\Carbon, end_time_utc: string|\Carbon\Carbon}>  $segments
+     * @param  array<int, array{start_time_utc: string|Carbon, end_time_utc: string|Carbon, regulatory?: bool}>  $shifts
+     * @param  array<int, array{start_time_utc: string|Carbon, end_time_utc: string|Carbon}>  $segments
      */
     private function collectBlocks(array $shifts, array $segments): Collection
     {

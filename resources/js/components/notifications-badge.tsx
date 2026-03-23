@@ -15,7 +15,10 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { isLikelyTransientNetworkError, logClientError } from '@/lib/client-logger';
+import {
+    isLikelyTransientNetworkError,
+    logClientError,
+} from '@/lib/client-logger';
 import { getCsrfToken } from '@/lib/csrf';
 const POLL_VISIBLE_MS = 5000;
 const POLL_HIDDEN_MS = 30000;
@@ -36,9 +39,17 @@ function formatTime(iso: string): string {
         const now = new Date();
         const isToday = d.toDateString() === now.toDateString();
         if (isToday) {
-            return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            return d.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+            });
         }
-        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        return d.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+        });
     } catch (e) {
         logClientError('notifications.formatTime', e);
         return '';
@@ -48,29 +59,54 @@ function formatTime(iso: string): string {
 function notificationSummary(n: NotificationRecord): string {
     const data = n.data ?? {};
     if (n.type === 'admin_message') {
-        return (data.title as string) ?? (data.body as string) ?? (data.message as string) ?? 'Message';
+        return (
+            (data.title as string) ??
+            (data.body as string) ??
+            (data.message as string) ??
+            'Message'
+        );
     }
     if (n.type === 'new_offer') {
-        return (data.message as string) ?? 'Someone responded to your post — action required.';
+        return (
+            (data.message as string) ??
+            'Someone responded to your post — action required.'
+        );
     }
     if (n.type === 'swap_accepted') return 'Your response was accepted.';
     if (n.type === 'swap_rejected') return 'Your offer was declined.';
-    if (n.type === 'looking_for_work_offer') return (data.message as string) ?? 'Someone offered a shift on your looking-for-work post.';
-    if (n.type === 'looking_for_work_accepted') return 'Your offer was accepted. The shift has been transferred to you.';
-    if (n.type === 'looking_for_work_not_selected') return 'Another offer was accepted on the post you responded to.';
-    if (n.type === 'offer_outside_payback') return (data.message as string) ?? 'Offered shift is outside your payback date ranges.';
+    if (n.type === 'looking_for_work_offer')
+        return (
+            (data.message as string) ??
+            'Someone offered a shift on your looking-for-work post.'
+        );
+    if (n.type === 'looking_for_work_accepted')
+        return 'Your offer was accepted. The shift has been transferred to you.';
+    if (n.type === 'looking_for_work_not_selected')
+        return 'Another offer was accepted on the post you responded to.';
+    if (n.type === 'offer_outside_payback')
+        return (
+            (data.message as string) ??
+            'Offered shift is outside your payback date ranges.'
+        );
     return (data.message as string) ?? 'New notification';
 }
 
 function basePollMs(): number {
-    return document.visibilityState === 'visible' ? POLL_VISIBLE_MS : POLL_HIDDEN_MS;
+    return document.visibilityState === 'visible'
+        ? POLL_VISIBLE_MS
+        : POLL_HIDDEN_MS;
 }
 
 export function NotificationsBadge() {
     const [unreadCount, setUnreadCount] = useState(0);
-    const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
+    const [notifications, setNotifications] = useState<NotificationRecord[]>(
+        [],
+    );
     const [open, setOpen] = useState(false);
-    const [messagePopup, setMessagePopup] = useState<{ title: string; body: string } | null>(null);
+    const [messagePopup, setMessagePopup] = useState<{
+        title: string;
+        body: string;
+    } | null>(null);
     const [markingId, setMarkingId] = useState<number | null>(null);
     const [markingAll, setMarkingAll] = useState(false);
     const [pollIntervalMs, setPollIntervalMs] = useState(POLL_VISIBLE_MS);
@@ -81,21 +117,33 @@ export function NotificationsBadge() {
         try {
             const res = await fetch('/api/notifications/unread', {
                 signal: controller.signal,
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
                 credentials: 'include',
             });
             window.clearTimeout(timeoutId);
             if (res.ok) {
                 const data = await res.json();
                 setUnreadCount(data.unread_count ?? 0);
-                setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+                setNotifications(
+                    Array.isArray(data.notifications) ? data.notifications : [],
+                );
                 setPollIntervalMs(basePollMs());
             } else {
-                setPollIntervalMs((m) => Math.min(Math.max(m, POLL_VISIBLE_MS) * 2, POLL_BACKOFF_MAX_MS));
+                setPollIntervalMs((m) =>
+                    Math.min(
+                        Math.max(m, POLL_VISIBLE_MS) * 2,
+                        POLL_BACKOFF_MAX_MS,
+                    ),
+                );
             }
         } catch (e) {
             window.clearTimeout(timeoutId);
-            setPollIntervalMs((m) => Math.min(Math.max(m, POLL_VISIBLE_MS) * 2, POLL_BACKOFF_MAX_MS));
+            setPollIntervalMs((m) =>
+                Math.min(Math.max(m, POLL_VISIBLE_MS) * 2, POLL_BACKOFF_MAX_MS),
+            );
             if (!isLikelyTransientNetworkError(e)) {
                 logClientError('notifications.fetchUnread', e);
             }
@@ -113,13 +161,22 @@ export function NotificationsBadge() {
             if (document.visibilityState === 'visible') run();
         };
         const handleNotificationsUpdated = () => run();
-        window.addEventListener('notifications-updated', handleNotificationsUpdated);
+        window.addEventListener(
+            'notifications-updated',
+            handleNotificationsUpdated,
+        );
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => {
             clearTimeout(t);
             clearInterval(intervalId);
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('notifications-updated', handleNotificationsUpdated);
+            document.removeEventListener(
+                'visibilitychange',
+                handleVisibilityChange,
+            );
+            window.removeEventListener(
+                'notifications-updated',
+                handleNotificationsUpdated,
+            );
         };
     }, [fetchUnread, pollIntervalMs]);
 
@@ -180,7 +237,8 @@ export function NotificationsBadge() {
             if (n.type === 'admin_message') {
                 const data = n.data ?? {};
                 const title = (data.title as string) ?? 'Message';
-                const body = (data.body as string) ?? (data.message as string) ?? '';
+                const body =
+                    (data.body as string) ?? (data.message as string) ?? '';
                 setMessagePopup({ title, body });
                 await markRead(n.id);
                 setOpen(false);
@@ -199,7 +257,7 @@ export function NotificationsBadge() {
             setOpen(false);
             router.visit('/app');
         },
-        [markRead]
+        [markRead],
     );
 
     return (
@@ -209,11 +267,15 @@ export function NotificationsBadge() {
                     <button
                         type="button"
                         className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        aria-label={unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'Notifications'}
+                        aria-label={
+                            unreadCount > 0
+                                ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}`
+                                : 'Notifications'
+                        }
                     >
                         <Bell className="size-5" />
                         {unreadCount > 0 && (
-                            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+                            <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
                                 {unreadCount > 99 ? '99+' : unreadCount}
                             </span>
                         )}
@@ -221,7 +283,9 @@ export function NotificationsBadge() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-80 p-0">
                     <div className="flex items-center justify-between border-b px-3 py-2">
-                        <span className="text-sm font-medium">Notifications</span>
+                        <span className="text-sm font-medium">
+                            Notifications
+                        </span>
                         {unreadCount > 0 && (
                             <Button
                                 variant="ghost"
@@ -237,7 +301,9 @@ export function NotificationsBadge() {
                     </div>
                     <div className="max-h-[min(60vh,320px)] overflow-y-auto">
                         {notifications.length === 0 ? (
-                            <div className="px-3 py-6 text-center text-sm text-muted-foreground">No unread notifications</div>
+                            <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                                No unread notifications
+                            </div>
                         ) : (
                             <ul className="py-1">
                                 {notifications.map((n) => (
@@ -250,11 +316,17 @@ export function NotificationsBadge() {
                                         }}
                                     >
                                         <div className="flex w-full items-start justify-between gap-2">
-                                            <span className="line-clamp-2 text-left text-sm">{notificationSummary(n)}</span>
+                                            <span className="line-clamp-2 text-left text-sm">
+                                                {notificationSummary(n)}
+                                            </span>
                                             {markingId === n.id ? (
-                                                <span className="shrink-0 text-xs text-muted-foreground">…</span>
+                                                <span className="shrink-0 text-xs text-muted-foreground">
+                                                    …
+                                                </span>
                                             ) : (
-                                                <span className="shrink-0 text-xs text-muted-foreground">{formatTime(n.created_at)}</span>
+                                                <span className="shrink-0 text-xs text-muted-foreground">
+                                                    {formatTime(n.created_at)}
+                                                </span>
                                             )}
                                         </div>
                                         {n.type === 'admin_message' && (
@@ -285,12 +357,19 @@ export function NotificationsBadge() {
                 </DropdownMenuContent>
             </DropdownMenu>
 
-            <Dialog open={!!messagePopup} onOpenChange={(open) => !open && setMessagePopup(null)}>
+            <Dialog
+                open={!!messagePopup}
+                onOpenChange={(open) => !open && setMessagePopup(null)}
+            >
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>{messagePopup?.title ?? 'Message'}</DialogTitle>
+                        <DialogTitle>
+                            {messagePopup?.title ?? 'Message'}
+                        </DialogTitle>
                     </DialogHeader>
-                    <div className="whitespace-pre-wrap text-sm text-muted-foreground">{messagePopup?.body ?? ''}</div>
+                    <div className="text-sm whitespace-pre-wrap text-muted-foreground">
+                        {messagePopup?.body ?? ''}
+                    </div>
                 </DialogContent>
             </Dialog>
         </>

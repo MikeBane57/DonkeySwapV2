@@ -61,7 +61,9 @@ export default function Qualifications({
 
                     {workgroups.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                            You are not in any workgroups yet. Contact an admin to be assigned to a workgroup; then you can manage your qualifications here.
+                            You are not in any workgroups yet. Contact an admin
+                            to be assigned to a workgroup; then you can manage
+                            your qualifications here.
                         </p>
                     ) : (
                         <form
@@ -77,7 +79,9 @@ export default function Qualifications({
                                 </p>
                             )}
                             {errors.qualification_ids && (
-                                <p className="text-sm text-destructive">{errors.qualification_ids}</p>
+                                <p className="text-sm text-destructive">
+                                    {errors.qualification_ids}
+                                </p>
                             )}
                             <div className="space-y-6">
                                 {workgroups.map((wg) => (
@@ -85,7 +89,9 @@ export default function Qualifications({
                                         key={wg.id}
                                         className="rounded-xl border border-sidebar-border/70 bg-card p-4 dark:border-sidebar-border"
                                     >
-                                        <h2 className="mb-3 text-sm font-semibold">{wg.name}</h2>
+                                        <h2 className="mb-3 text-sm font-semibold">
+                                            {wg.name}
+                                        </h2>
                                         <div className="flex flex-wrap gap-x-6 gap-y-2">
                                             {wg.qualifications.map((q) => (
                                                 <label
@@ -93,8 +99,14 @@ export default function Qualifications({
                                                     className="flex cursor-pointer items-center gap-2 text-sm"
                                                 >
                                                     <Checkbox
-                                                        checked={data.qualification_ids.includes(q.id)}
-                                                        onCheckedChange={() => toggleQualification(q.id)}
+                                                        checked={data.qualification_ids.includes(
+                                                            q.id,
+                                                        )}
+                                                        onCheckedChange={() =>
+                                                            toggleQualification(
+                                                                q.id,
+                                                            )
+                                                        }
                                                         aria-label={q.label}
                                                     />
                                                     <span>
@@ -110,7 +122,8 @@ export default function Qualifications({
                                         </div>
                                         {wg.qualifications.length === 0 && (
                                             <p className="text-xs text-muted-foreground">
-                                                No qualifications defined for this workgroup.
+                                                No qualifications defined for
+                                                this workgroup.
                                             </p>
                                         )}
                                     </div>

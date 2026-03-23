@@ -147,7 +147,7 @@
     }
 }
 
-[data-sidebar="menu-button"][data-active="true"] {
+[data-sidebar='menu-button'][data-active='true'] {
     background: var(--sidebar-accent);
     color: var(--sidebar-accent-foreground);
     border-radius: 0 0.5rem 0.5rem 0;
@@ -206,14 +206,38 @@
     background: oklch(0.32 0.03 260);
     border-color: oklch(0.5 0.02 260);
 }
-.fc .fc-toolbar-title { font-size: 1.125rem; font-weight: 700; color: oklch(0.2 0.02 260); }
-.fc .fc-button { border-radius: 0.5rem; font-weight: 500; }
-.fc .fc-scrollgrid { border-radius: 0.5rem; overflow: hidden; }
-.fc .fc-daygrid-day { border-radius: 0.375rem; }
-.fc .fc-daygrid-day-frame { border-radius: 0.375rem; min-height: 4rem; }
-.fc .fc-day-today .fc-daygrid-day-frame { background: oklch(0.92 0.04 250); }
-.fc .fc-col-header-cell { font-weight: 600; color: oklch(0.35 0.03 260); }
-.fc .fc-daygrid-day-number { font-weight: 500; color: oklch(0.5 0.01 260); padding: 0.25rem 0.5rem; }
+.fc .fc-toolbar-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: oklch(0.2 0.02 260);
+}
+.fc .fc-button {
+    border-radius: 0.5rem;
+    font-weight: 500;
+}
+.fc .fc-scrollgrid {
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+.fc .fc-daygrid-day {
+    border-radius: 0.375rem;
+}
+.fc .fc-daygrid-day-frame {
+    border-radius: 0.375rem;
+    min-height: 4rem;
+}
+.fc .fc-day-today .fc-daygrid-day-frame {
+    background: oklch(0.92 0.04 250);
+}
+.fc .fc-col-header-cell {
+    font-weight: 600;
+    color: oklch(0.35 0.03 260);
+}
+.fc .fc-daygrid-day-number {
+    font-weight: 500;
+    color: oklch(0.5 0.01 260);
+    padding: 0.25rem 0.5rem;
+}
 /* Day cell: eligible giveaway (green $) and/or eligible flight follow (purple FF) */
 .fc .fc-daygrid-day.has-eligible-giveaway .fc-daygrid-day-number::after {
     content: ' $';
@@ -235,17 +259,31 @@
 .dark .fc .fc-daygrid-day.has-eligible-ff .fc-daygrid-day-number::after {
     color: oklch(0.65 0.15 300);
 }
-.fc .fc-daygrid-day.has-eligible-giveaway.has-eligible-ff .fc-daygrid-day-number::after {
+.fc
+    .fc-daygrid-day.has-eligible-giveaway.has-eligible-ff
+    .fc-daygrid-day-number::after {
     content: ' $ FF';
     font-size: 0.6rem;
     color: oklch(0.45 0.12 200);
 }
-.dark .fc .fc-daygrid-day.has-eligible-giveaway.has-eligible-ff .fc-daygrid-day-number::after {
+.dark
+    .fc
+    .fc-daygrid-day.has-eligible-giveaway.has-eligible-ff
+    .fc-daygrid-day-number::after {
     color: oklch(0.6 0.12 200);
 }
-.fc-theme-standard td, .fc-theme-standard th { border-color: var(--fc-border-color); }
-.fc .fc-event { border-radius: 0.5rem; border: none; }
-.fc .fc-event.fc-event-past { cursor: not-allowed; pointer-events: none; }
+.fc-theme-standard td,
+.fc-theme-standard th {
+    border-color: var(--fc-border-color);
+}
+.fc .fc-event {
+    border-radius: 0.5rem;
+    border: none;
+}
+.fc .fc-event.fc-event-past {
+    cursor: not-allowed;
+    pointer-events: none;
+}
 
 /* FullCalendar — mobile readability (touch targets, spacing, list view) */
 @media (max-width: 639px) {

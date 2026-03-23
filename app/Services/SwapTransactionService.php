@@ -8,6 +8,7 @@ use App\Models\Shift;
 use App\Models\ShiftActivityLog;
 use App\Models\SwapOffer;
 use App\Models\SwapPost;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class SwapTransactionService
@@ -228,7 +229,7 @@ class SwapTransactionService
     }
 
     /**
-     * @return array<int, array{start_time_utc: \Carbon\Carbon, end_time_utc: \Carbon\Carbon, regulatory: bool}>
+     * @return array<int, array{start_time_utc: Carbon, end_time_utc: Carbon, regulatory: bool}>
      */
     private function userShiftBlocksExcluding(int $userId, int $excludeShiftId): array
     {

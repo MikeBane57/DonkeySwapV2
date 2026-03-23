@@ -38,9 +38,15 @@ export default defineConfig({
     server: {
         host: true,
         port: 5173,
+        strictPort: true,
         cors: true,
+        // When you open the app via LAN IP (e.g. http://192.168.0.80), set VITE_DEV_SERVER_HOST to that IP
+        // in .env so HMR WebSocket matches. If unset, Vite infers from the dev server (avoids ws://localhost
+        // while the page is served from another host).
         hmr: {
-            host: process.env.VITE_DEV_SERVER_HOST ?? 'localhost',
+            ...(process.env.VITE_DEV_SERVER_HOST
+                ? { host: process.env.VITE_DEV_SERVER_HOST }
+                : {}),
             port: 5173,
         },
     },

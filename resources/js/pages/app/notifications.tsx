@@ -50,7 +50,10 @@ type NotificationItem = {
     outcome_summary?: OutcomeSummary | null;
 };
 
-function getOverviewLines(data: Record<string, unknown>, type: string): string[] {
+function getOverviewLines(
+    data: Record<string, unknown>,
+    type: string,
+): string[] {
     const lines: string[] = [];
     if (data.message && typeof data.message === 'string') {
         lines.push(data.message);
@@ -74,7 +77,10 @@ function formatDate(iso: string | null | undefined): string {
         const now = new Date();
         const isToday = d.toDateString() === now.toDateString();
         if (isToday) {
-            return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            return d.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+            });
         }
         return d.toLocaleDateString('en-US', {
             month: 'short',
@@ -112,7 +118,8 @@ export default function NotificationsPage() {
         ? (pageProps.notifications as NotificationItem[])
         : [];
     const [notifications, setNotifications] = useState(initialNotifications);
-    const [detailNotification, setDetailNotification] = useState<NotificationItem | null>(null);
+    const [detailNotification, setDetailNotification] =
+        useState<NotificationItem | null>(null);
     const [dismissingId, setDismissingId] = useState<number | null>(null);
     const [dismissingAll, setDismissingAll] = useState(false);
 
@@ -131,7 +138,9 @@ export default function NotificationsPage() {
             });
             if (res.ok) {
                 setNotifications((prev) => prev.filter((n) => n.id !== id));
-                setDetailNotification((prev) => (prev?.id === id ? null : prev));
+                setDetailNotification((prev) =>
+                    prev?.id === id ? null : prev,
+                );
                 window.dispatchEvent(new CustomEvent('notifications-updated'));
                 router.reload({ only: ['badge_count'] });
             }
@@ -171,9 +180,12 @@ export default function NotificationsPage() {
                 <div className="mx-auto max-w-2xl">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <h1 className="text-xl font-semibold tracking-tight">Notifications</h1>
+                            <h1 className="text-xl font-semibold tracking-tight">
+                                Notifications
+                            </h1>
                             <p className="mt-1 text-sm text-muted-foreground">
-                                Unread notifications. Open one for details or dismiss.
+                                Unread notifications. Open one for details or
+                                dismiss.
                             </p>
                         </div>
                         {notifications.length > 0 && (
@@ -185,15 +197,19 @@ export default function NotificationsPage() {
                                 className="shrink-0"
                             >
                                 <CheckCheck className="mr-1.5 size-4" />
-                                {dismissingAll ? 'Dismissing…' : 'Mark all as read'}
+                                {dismissingAll
+                                    ? 'Dismissing…'
+                                    : 'Mark all as read'}
                             </Button>
                         )}
                     </div>
 
                     {notifications.length === 0 ? (
-                        <div className="mt-6 flex flex-col items-center justify-center rounded-xl border border-sidebar-border/70 bg-card py-12 px-4 dark:border-sidebar-border">
+                        <div className="mt-6 flex flex-col items-center justify-center rounded-xl border border-sidebar-border/70 bg-card px-4 py-12 dark:border-sidebar-border">
                             <Bell className="size-10 text-muted-foreground/60" />
-                            <p className="mt-3 text-sm font-medium text-muted-foreground">No unread notifications</p>
+                            <p className="mt-3 text-sm font-medium text-muted-foreground">
+                                No unread notifications
+                            </p>
                             <Button variant="outline" className="mt-4" asChild>
                                 <Link href="/app">Go to Dashboard</Link>
                             </Button>
@@ -205,22 +221,36 @@ export default function NotificationsPage() {
                                     <div className="flex items-start gap-2 rounded-xl border border-sidebar-border/70 bg-card transition-colors dark:border-sidebar-border">
                                         <button
                                             type="button"
-                                            onClick={() => setDetailNotification(n)}
+                                            onClick={() =>
+                                                setDetailNotification(n)
+                                            }
                                             className="min-w-0 flex-1 rounded-xl p-4 text-left transition-colors hover:bg-muted/50 dark:hover:bg-muted/30"
                                         >
-                                            <p className="text-sm font-medium">{n.message}</p>
-                                            <p className="mt-1 text-xs text-muted-foreground">{formatDate(n.created_at)}</p>
-                                            {n.type === 'admin_message' && (n.data?.reconciliation_id ?? n.data?.reconcile_url) && (
-                                                <p className="mt-1.5">
-                                                    <Link
-                                                        href={(n.data?.reconcile_url as string) || '/app/reconcile-schedule'}
-                                                        className="text-sm font-medium text-primary hover:underline"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                    >
-                                                        Review changes →
-                                                    </Link>
-                                                </p>
-                                            )}
+                                            <p className="text-sm font-medium">
+                                                {n.message}
+                                            </p>
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                {formatDate(n.created_at)}
+                                            </p>
+                                            {n.type === 'admin_message' &&
+                                                (n.data?.reconciliation_id ??
+                                                    n.data?.reconcile_url) && (
+                                                    <p className="mt-1.5">
+                                                        <Link
+                                                            href={
+                                                                (n.data
+                                                                    ?.reconcile_url as string) ||
+                                                                '/app/reconcile-schedule'
+                                                            }
+                                                            className="text-sm font-medium text-primary hover:underline"
+                                                            onClick={(e) =>
+                                                                e.stopPropagation()
+                                                            }
+                                                        >
+                                                            Review changes →
+                                                        </Link>
+                                                    </p>
+                                                )}
                                         </button>
                                         <div className="flex shrink-0 items-center p-2">
                                             <Button
@@ -235,7 +265,9 @@ export default function NotificationsPage() {
                                                 title="Dismiss"
                                             >
                                                 {dismissingId === n.id ? (
-                                                    <span className="text-xs">…</span>
+                                                    <span className="text-xs">
+                                                        …
+                                                    </span>
                                                 ) : (
                                                     <Check className="size-4" />
                                                 )}
@@ -249,14 +281,19 @@ export default function NotificationsPage() {
                 </div>
             </div>
 
-            <Dialog open={!!detailNotification} onOpenChange={(open) => !open && setDetailNotification(null)}>
+            <Dialog
+                open={!!detailNotification}
+                onOpenChange={(open) => !open && setDetailNotification(null)}
+            >
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Notification details</DialogTitle>
                     </DialogHeader>
                     {detailNotification && (
                         <div className="space-y-4">
-                            <p className="text-sm font-medium">{detailNotification.message}</p>
+                            <p className="text-sm font-medium">
+                                {detailNotification.message}
+                            </p>
                             <p className="text-xs text-muted-foreground">
                                 {formatDateFull(detailNotification.created_at)}
                             </p>
@@ -264,12 +301,20 @@ export default function NotificationsPage() {
                             {detailNotification.post_summary && (
                                 <div className="rounded-lg border border-sidebar-border/70 bg-muted/30 p-3 dark:border-sidebar-border">
                                     <p className="text-sm font-medium">
-                                        {POST_TYPE_LABELS[detailNotification.post_summary.post_type] ??
-                                            detailNotification.post_summary.post_type}
+                                        {POST_TYPE_LABELS[
+                                            detailNotification.post_summary
+                                                .post_type
+                                        ] ??
+                                            detailNotification.post_summary
+                                                .post_type}
                                     </p>
                                     <p className="mt-1 text-sm text-muted-foreground">
-                                        {detailNotification.post_summary.position_name}
-                                        {detailNotification.post_summary.formatted_range
+                                        {
+                                            detailNotification.post_summary
+                                                .position_name
+                                        }
+                                        {detailNotification.post_summary
+                                            .formatted_range
                                             ? ` · ${detailNotification.post_summary.formatted_range}`
                                             : ''}
                                     </p>
@@ -277,56 +322,109 @@ export default function NotificationsPage() {
                             )}
 
                             <div className="rounded-lg border border-sidebar-border/70 bg-muted/30 p-3 dark:border-sidebar-border">
-                                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                                     What happened
                                 </p>
                                 {detailNotification.outcome_summary ? (
                                     <>
                                         <p className="text-sm">
-                                            {detailNotification.type === 'swap_accepted' &&
-                                                (['cash', 'flight_follow'].includes(
-                                                    detailNotification.post_summary?.post_type ?? '',
+                                            {detailNotification.type ===
+                                                'swap_accepted' &&
+                                                ([
+                                                    'cash',
+                                                    'flight_follow',
+                                                ].includes(
+                                                    detailNotification
+                                                        .post_summary
+                                                        ?.post_type ?? '',
                                                 ) ? (
                                                     <>
                                                         <strong>
-                                                            {detailNotification.post_summary?.poster_name ??
+                                                            {detailNotification
+                                                                .post_summary
+                                                                ?.poster_name ??
                                                                 'The posting user'}
                                                         </strong>{' '}
                                                         gave you the shift.
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <strong>{detailNotification.outcome_summary.other_user_name}</strong>{' '}
-                                                        offered {detailNotification.outcome_summary.offered_shift_label}. Your
-                                                        trade was accepted.
+                                                        <strong>
+                                                            {
+                                                                detailNotification
+                                                                    .outcome_summary
+                                                                    .other_user_name
+                                                            }
+                                                        </strong>{' '}
+                                                        offered{' '}
+                                                        {
+                                                            detailNotification
+                                                                .outcome_summary
+                                                                .offered_shift_label
+                                                        }
+                                                        . Your trade was
+                                                        accepted.
                                                     </>
                                                 ))}
-                                            {detailNotification.type === 'swap_rejected' && (
+                                            {detailNotification.type ===
+                                                'swap_rejected' && (
                                                 <>
                                                     An offer from{' '}
-                                                    <strong>{detailNotification.outcome_summary.other_user_name}</strong>{' '}
-                                                    ({detailNotification.outcome_summary.offered_shift_label}) on this post
-                                                    was declined.
+                                                    <strong>
+                                                        {
+                                                            detailNotification
+                                                                .outcome_summary
+                                                                .other_user_name
+                                                        }
+                                                    </strong>{' '}
+                                                    (
+                                                    {
+                                                        detailNotification
+                                                            .outcome_summary
+                                                            .offered_shift_label
+                                                    }
+                                                    ) on this post was declined.
                                                 </>
                                             )}
-                                            {!['swap_accepted', 'swap_rejected'].includes(
+                                            {![
+                                                'swap_accepted',
+                                                'swap_rejected',
+                                            ].includes(
                                                 detailNotification.type,
                                             ) && (
                                                 <>
-                                                    <strong>{detailNotification.outcome_summary.other_user_name}</strong>{' '}
-                                                    offered {detailNotification.outcome_summary.offered_shift_label}.
-                                                    {detailNotification.type === 'offer_outside_payback' &&
+                                                    <strong>
+                                                        {
+                                                            detailNotification
+                                                                .outcome_summary
+                                                                .other_user_name
+                                                        }
+                                                    </strong>{' '}
+                                                    offered{' '}
+                                                    {
+                                                        detailNotification
+                                                            .outcome_summary
+                                                            .offered_shift_label
+                                                    }
+                                                    .
+                                                    {detailNotification.type ===
+                                                        'offer_outside_payback' &&
                                                         detailNotification.message && (
                                                             <span className="mt-2 block font-medium text-amber-600 dark:text-amber-400">
-                                                                {detailNotification.message}
+                                                                {
+                                                                    detailNotification.message
+                                                                }
                                                             </span>
                                                         )}
                                                 </>
                                             )}
                                         </p>
-                                        {detailNotification.type === 'swap_accepted' && (
+                                        {detailNotification.type ===
+                                            'swap_accepted' && (
                                             <p className="mt-2 text-sm font-medium text-muted-foreground">
-                                                Please check workzone to ensure the change has been made properly.
+                                                Please check workzone to ensure
+                                                the change has been made
+                                                properly.
                                             </p>
                                         )}
                                     </>
@@ -342,11 +440,19 @@ export default function NotificationsPage() {
                                 )}
                             </div>
                             <div className="flex flex-wrap gap-2">
-                                {detailNotification.type === 'admin_message' && (detailNotification.data?.reconciliation_id ?? detailNotification.data?.reconcile_url) ? (
+                                {detailNotification.type === 'admin_message' &&
+                                (detailNotification.data?.reconciliation_id ??
+                                    detailNotification.data?.reconcile_url) ? (
                                     <Button size="sm" asChild>
                                         <Link
-                                            href={(detailNotification.data?.reconcile_url as string) || '/app/reconcile-schedule'}
-                                            onClick={() => setDetailNotification(null)}
+                                            href={
+                                                (detailNotification.data
+                                                    ?.reconcile_url as string) ||
+                                                '/app/reconcile-schedule'
+                                            }
+                                            onClick={() =>
+                                                setDetailNotification(null)
+                                            }
                                         >
                                             Review changes
                                         </Link>
@@ -359,13 +465,20 @@ export default function NotificationsPage() {
                                         setDetailNotification(null);
                                         dismissOne(detailNotification.id);
                                     }}
-                                    disabled={dismissingId === detailNotification.id}
+                                    disabled={
+                                        dismissingId === detailNotification.id
+                                    }
                                 >
                                     <Check className="mr-1.5 size-4" />
                                     Dismiss
                                 </Button>
                                 <Button variant="outline" size="sm" asChild>
-                                    <Link href="/app" onClick={() => setDetailNotification(null)}>
+                                    <Link
+                                        href="/app"
+                                        onClick={() =>
+                                            setDetailNotification(null)
+                                        }
+                                    >
                                         Go to Dashboard
                                     </Link>
                                 </Button>

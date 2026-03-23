@@ -34,6 +34,7 @@ class ArisExpandedScheduleCsvParser
             // Find header trio: "Name (ID) Qualification" can be in any column (file has embedded headers).
             if (! $this->rowContainsHeader($rows[$i] ?? [], 'Name (ID) Qualification')) {
                 $i++;
+
                 continue;
             }
 
@@ -56,6 +57,7 @@ class ArisExpandedScheduleCsvParser
                 }
                 if ($this->rowContainsHeader($r, 'Report version')) {
                     $i++;
+
                     continue;
                 }
                 $first = (string) ($r[0] ?? '');
@@ -136,13 +138,16 @@ class ArisExpandedScheduleCsvParser
     /** @return array<int, array<int, string>> */
     private function readCsv(string $contents): array
     {
-        $lines = preg_split("/\\r\\n|\\n|\\r/", $contents) ?: [];
+        $lines = preg_split('/\\r\\n|\\n|\\r/', $contents) ?: [];
         $rows = [];
         foreach ($lines as $line) {
-            if ($line === '') continue;
+            if ($line === '') {
+                continue;
+            }
             // Explicit escape parameter to avoid PHP 8.4 deprecation warnings.
             $rows[] = str_getcsv($line, ',', '"', '\\');
         }
+
         return $rows;
     }
 
@@ -195,6 +200,7 @@ class ArisExpandedScheduleCsvParser
                 return true;
             }
         }
+
         return false;
     }
 
@@ -205,6 +211,7 @@ class ArisExpandedScheduleCsvParser
         if ($t === '') {
             return false;
         }
+
         return preg_match('/^\d{1,2}$/', $t) === 1
             || preg_match('/^\d{1,2}:\d{2}/', $t) === 1
             || preg_match('/^\d{3}$/', $t) === 1
@@ -218,6 +225,7 @@ class ArisExpandedScheduleCsvParser
             'Jul' => 7, 'Aug' => 8, 'Sep' => 9, 'Oct' => 10, 'Nov' => 11, 'Dec' => 12,
         ];
         $abbr = ucfirst(strtolower($abbr));
+
         return $map[$abbr] ?? null;
     }
 
@@ -229,7 +237,7 @@ class ArisExpandedScheduleCsvParser
         $s = preg_replace('/^.*\\)\\s*/', '', $nameCol) ?? '';
         $parts = array_map('trim', explode(',', $s));
         $parts = array_values(array_filter($parts, fn ($p) => $p !== ''));
+
         return $parts;
     }
 }
-

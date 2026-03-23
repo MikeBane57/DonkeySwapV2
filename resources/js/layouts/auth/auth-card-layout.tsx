@@ -25,7 +25,11 @@ export default function AuthCardLayout({
                     href={home()}
                     className="flex items-center gap-2 self-center font-medium"
                 >
-                    <img src="/images/donkey-swap-logo.png" alt="DonkeySwap" className="h-12 w-auto object-contain" />
+                    <img
+                        src="/images/donkey-swap-logo.png"
+                        alt="DonkeySwap"
+                        className="h-12 w-auto object-contain"
+                    />
                 </Link>
 
                 <div className="flex flex-col gap-6">

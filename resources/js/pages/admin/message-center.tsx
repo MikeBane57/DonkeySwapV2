@@ -1,5 +1,13 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { MessageSquare, Bell, Send, Trash2, ChevronDown, ChevronRight, Search } from 'lucide-react';
+import {
+    MessageSquare,
+    Bell,
+    Send,
+    Trash2,
+    ChevronDown,
+    ChevronRight,
+    Search,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -75,7 +83,13 @@ type UserNotification = {
 function formatDateTime(iso: string | null): string {
     if (!iso) return '—';
     try {
-        return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+        return new Date(iso).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+        });
     } catch {
         return iso;
     }
@@ -114,8 +128,12 @@ export default function AdminMessageCenter() {
     const flash = props.flash;
     const errors = props.errors ?? {};
 
-    const [delivery, setDelivery] = useState<'banner' | 'notification'>('banner');
-    const [targetType, setTargetType] = useState<'all' | 'workgroup' | 'individual'>('all');
+    const [delivery, setDelivery] = useState<'banner' | 'notification'>(
+        'banner',
+    );
+    const [targetType, setTargetType] = useState<
+        'all' | 'workgroup' | 'individual'
+    >('all');
     const [targetWorkgroupId, setTargetWorkgroupId] = useState<string>('');
     const [targetUserIds, setTargetUserIds] = useState<number[]>([]);
     const [title, setTitle] = useState('');
@@ -124,26 +142,43 @@ export default function AdminMessageCenter() {
     const [activeAtEnd, setActiveAtEnd] = useState('');
     const [userSearch, setUserSearch] = useState('');
     const [sending, setSending] = useState(false);
-    const [deletingBannerId, setDeletingBannerId] = useState<number | null>(null);
+    const [deletingBannerId, setDeletingBannerId] = useState<number | null>(
+        null,
+    );
     const [deletingBatchId, setDeletingBatchId] = useState<number | null>(null);
     const [selectedBannerIds, setSelectedBannerIds] = useState<number[]>([]);
     const [selectedBatchIds, setSelectedBatchIds] = useState<number[]>([]);
     const [bulkDeletingBanners, setBulkDeletingBanners] = useState(false);
     const [bulkDeletingBatches, setBulkDeletingBatches] = useState(false);
-    const [expandedBannerId, setExpandedBannerId] = useState<number | null>(null);
+    const [expandedBannerId, setExpandedBannerId] = useState<number | null>(
+        null,
+    );
     const [expandedBatchId, setExpandedBatchId] = useState<number | null>(null);
     const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-    const [userNotifications, setUserNotifications] = useState<UserNotification[]>([]);
-    const [userNotificationsLoading, setUserNotificationsLoading] = useState(false);
+    const [userNotifications, setUserNotifications] = useState<
+        UserNotification[]
+    >([]);
+    const [userNotificationsLoading, setUserNotificationsLoading] =
+        useState(false);
     const [userNotificationSearch, setUserNotificationSearch] = useState('');
-    const [clearingBadgeUserId, setClearingBadgeUserId] = useState<number | null>(null);
-    const [pushingNotificationId, setPushingNotificationId] = useState<number | null>(null);
-    const [deletingNotificationId, setDeletingNotificationId] = useState<number | null>(null);
+    const [clearingBadgeUserId, setClearingBadgeUserId] = useState<
+        number | null
+    >(null);
+    const [pushingNotificationId, setPushingNotificationId] = useState<
+        number | null
+    >(null);
+    const [deletingNotificationId, setDeletingNotificationId] = useState<
+        number | null
+    >(null);
 
     const filteredUsers = useMemo(() => {
         if (!userSearch.trim()) return users;
         const q = userSearch.trim().toLowerCase();
-        return users.filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
+        return users.filter(
+            (u) =>
+                u.name.toLowerCase().includes(q) ||
+                u.email.toLowerCase().includes(q),
+        );
     }, [users, userSearch]);
 
     const filteredUserNotifications = useMemo(() => {
@@ -181,7 +216,9 @@ export default function AdminMessageCenter() {
     };
 
     const toggleUser = (id: number) => {
-        setTargetUserIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+        setTargetUserIds((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+        );
     };
 
     const loadUserNotifications = async (userId: number) => {
@@ -190,13 +227,21 @@ export default function AdminMessageCenter() {
         setUserNotificationSearch('');
         setUserNotificationsLoading(true);
         try {
-            const res = await fetch(`/app/admin/message-center/users/${userId}/notifications`, {
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'include',
-            });
+            const res = await fetch(
+                `/app/admin/message-center/users/${userId}/notifications`,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'include',
+                },
+            );
             if (res.ok) {
                 const data = await res.json();
-                setUserNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+                setUserNotifications(
+                    Array.isArray(data.notifications) ? data.notifications : [],
+                );
             }
         } finally {
             setUserNotificationsLoading(false);
@@ -204,14 +249,26 @@ export default function AdminMessageCenter() {
     };
 
     const clearBadgeForUser = async (userId: number) => {
-        if (!confirm('Send a badge-clear push for this user? This will attempt to clear their app icon badge.')) return;
+        if (
+            !confirm(
+                'Send a badge-clear push for this user? This will attempt to clear their app icon badge.',
+            )
+        )
+            return;
         setClearingBadgeUserId(userId);
         try {
-            await fetch(`/app/admin/message-center/users/${userId}/notifications/clear-badge`, {
-                method: 'POST',
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-XSRF-TOKEN': getCsrfToken() },
-                credentials: 'include',
-            });
+            await fetch(
+                `/app/admin/message-center/users/${userId}/notifications/clear-badge`,
+                {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-XSRF-TOKEN': getCsrfToken(),
+                    },
+                    credentials: 'include',
+                },
+            );
         } finally {
             setClearingBadgeUserId(null);
         }
@@ -220,11 +277,18 @@ export default function AdminMessageCenter() {
     const pushNotification = async (notificationId: number) => {
         setPushingNotificationId(notificationId);
         try {
-            await fetch(`/app/admin/message-center/notifications/${notificationId}/push`, {
-                method: 'POST',
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-XSRF-TOKEN': getCsrfToken() },
-                credentials: 'include',
-            });
+            await fetch(
+                `/app/admin/message-center/notifications/${notificationId}/push`,
+                {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-XSRF-TOKEN': getCsrfToken(),
+                    },
+                    credentials: 'include',
+                },
+            );
         } finally {
             setPushingNotificationId(null);
         }
@@ -234,13 +298,22 @@ export default function AdminMessageCenter() {
         if (!confirm('Delete this notification for the user?')) return;
         setDeletingNotificationId(notificationId);
         try {
-            const res = await fetch(`/app/admin/message-center/notifications/${notificationId}`, {
-                method: 'DELETE',
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-XSRF-TOKEN': getCsrfToken() },
-                credentials: 'include',
-            });
+            const res = await fetch(
+                `/app/admin/message-center/notifications/${notificationId}`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-XSRF-TOKEN': getCsrfToken(),
+                    },
+                    credentials: 'include',
+                },
+            );
             if (res.ok) {
-                setUserNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+                setUserNotifications((prev) =>
+                    prev.filter((n) => n.id !== notificationId),
+                );
             }
         } finally {
             setDeletingNotificationId(null);
@@ -248,7 +321,12 @@ export default function AdminMessageCenter() {
     };
 
     const deleteBanner = (id: number) => {
-        if (!confirm('Delete this banner message? Recipients will no longer see it.')) return;
+        if (
+            !confirm(
+                'Delete this banner message? Recipients will no longer see it.',
+            )
+        )
+            return;
         setDeletingBannerId(id);
         router.delete(`/app/admin/message-center/banners/${id}`, {
             preserveScroll: true,
@@ -257,7 +335,12 @@ export default function AdminMessageCenter() {
     };
 
     const deleteNotificationBatch = (id: number) => {
-        if (!confirm('Delete this notification batch? Notifications will be removed for all recipients.')) return;
+        if (
+            !confirm(
+                'Delete this notification batch? Notifications will be removed for all recipients.',
+            )
+        )
+            return;
         setDeletingBatchId(id);
         router.delete(`/app/admin/message-center/notification-batches/${id}`, {
             preserveScroll: true,
@@ -265,14 +348,21 @@ export default function AdminMessageCenter() {
         });
     };
 
-    const allBannersSelected = banners.length > 0 && selectedBannerIds.length === banners.length;
-    const allBatchesSelected = notificationBatches.length > 0 && selectedBatchIds.length === notificationBatches.length;
+    const allBannersSelected =
+        banners.length > 0 && selectedBannerIds.length === banners.length;
+    const allBatchesSelected =
+        notificationBatches.length > 0 &&
+        selectedBatchIds.length === notificationBatches.length;
 
     const toggleBannerSelect = (id: number) => {
-        setSelectedBannerIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+        setSelectedBannerIds((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+        );
     };
     const toggleBatchSelect = (id: number) => {
-        setSelectedBatchIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+        setSelectedBatchIds((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+        );
     };
     const toggleSelectAllBanners = () => {
         if (allBannersSelected) setSelectedBannerIds([]);
@@ -330,11 +420,14 @@ export default function AdminMessageCenter() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Message Center - Admin" />
-            <div className="p-4 space-y-8">
+            <div className="space-y-8 p-4">
                 <div>
                     <h1 className="text-2xl font-semibold">Message Center</h1>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        Send a <strong>banner</strong> (shown at top of dashboard until acknowledged) or a <strong>notification</strong> (appears in the bell only).
+                        Send a <strong>banner</strong> (shown at top of
+                        dashboard until acknowledged) or a{' '}
+                        <strong>notification</strong> (appears in the bell
+                        only).
                     </p>
                 </div>
 
@@ -349,11 +442,14 @@ export default function AdminMessageCenter() {
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="rounded-xl border border-sidebar-border/70 bg-card p-6 space-y-6 dark:border-sidebar-border">
+                <form
+                    onSubmit={handleSubmit}
+                    className="space-y-6 rounded-xl border border-sidebar-border/70 bg-card p-6 dark:border-sidebar-border"
+                >
                     <div className="space-y-2">
                         <Label>Delivery type</Label>
                         <div className="flex gap-4">
-                            <label className="flex items-center gap-2 cursor-pointer">
+                            <label className="flex cursor-pointer items-center gap-2">
                                 <input
                                     type="radio"
                                     name="delivery"
@@ -362,9 +458,12 @@ export default function AdminMessageCenter() {
                                     className="rounded-full border-sidebar-border"
                                 />
                                 <MessageSquare className="size-4 text-amber-600" />
-                                <span>Banner — shown at top of dashboard until user dismisses</span>
+                                <span>
+                                    Banner — shown at top of dashboard until
+                                    user dismisses
+                                </span>
                             </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
+                            <label className="flex cursor-pointer items-center gap-2">
                                 <input
                                     type="radio"
                                     name="delivery"
@@ -373,7 +472,10 @@ export default function AdminMessageCenter() {
                                     className="rounded-full border-sidebar-border"
                                 />
                                 <Bell className="size-4 text-blue-600" />
-                                <span>Notification — appears in notification bell only</span>
+                                <span>
+                                    Notification — appears in notification bell
+                                    only
+                                </span>
                             </label>
                         </div>
                     </div>
@@ -381,7 +483,7 @@ export default function AdminMessageCenter() {
                     <div className="space-y-2">
                         <Label>Recipients</Label>
                         <div className="flex flex-wrap gap-4">
-                            <label className="flex items-center gap-2 cursor-pointer">
+                            <label className="flex cursor-pointer items-center gap-2">
                                 <input
                                     type="radio"
                                     name="target"
@@ -391,7 +493,7 @@ export default function AdminMessageCenter() {
                                 />
                                 All users
                             </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
+                            <label className="flex cursor-pointer items-center gap-2">
                                 <input
                                     type="radio"
                                     name="target"
@@ -401,7 +503,7 @@ export default function AdminMessageCenter() {
                                 />
                                 Workgroup
                             </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
+                            <label className="flex cursor-pointer items-center gap-2">
                                 <input
                                     type="radio"
                                     name="target"
@@ -413,13 +515,19 @@ export default function AdminMessageCenter() {
                             </label>
                         </div>
                         {targetType === 'workgroup' && (
-                            <Select value={targetWorkgroupId || undefined} onValueChange={setTargetWorkgroupId}>
-                                <SelectTrigger className="max-w-xs mt-2">
+                            <Select
+                                value={targetWorkgroupId || undefined}
+                                onValueChange={setTargetWorkgroupId}
+                            >
+                                <SelectTrigger className="mt-2 max-w-xs">
                                     <SelectValue placeholder="Select workgroup" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {workgroups.map((wg) => (
-                                        <SelectItem key={wg.id} value={String(wg.id)}>
+                                        <SelectItem
+                                            key={wg.id}
+                                            value={String(wg.id)}
+                                        >
                                             {wg.name}
                                         </SelectItem>
                                     ))}
@@ -429,27 +537,40 @@ export default function AdminMessageCenter() {
                         {targetType === 'individual' && (
                             <div className="mt-2 space-y-2">
                                 <div className="relative max-w-xs">
-                                    <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                    <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                     <Input
                                         type="text"
                                         placeholder="Search by name or email…"
                                         value={userSearch}
-                                        onChange={(e) => setUserSearch(e.target.value)}
-                                        className="pl-8 h-9"
+                                        onChange={(e) =>
+                                            setUserSearch(e.target.value)
+                                        }
+                                        className="h-9 pl-8"
                                     />
                                 </div>
-                                <div className="max-h-48 overflow-y-auto rounded-lg border border-sidebar-border/70 p-2 space-y-1 dark:border-sidebar-border">
+                                <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-sidebar-border/70 p-2 dark:border-sidebar-border">
                                     {filteredUsers.length === 0 ? (
-                                        <p className="text-sm text-muted-foreground py-1">No users match your search.</p>
+                                        <p className="py-1 text-sm text-muted-foreground">
+                                            No users match your search.
+                                        </p>
                                     ) : (
                                         filteredUsers.map((u) => (
-                                            <label key={u.id} className="flex items-center gap-2 cursor-pointer text-sm">
+                                            <label
+                                                key={u.id}
+                                                className="flex cursor-pointer items-center gap-2 text-sm"
+                                            >
                                                 <Checkbox
-                                                    checked={targetUserIds.includes(u.id)}
-                                                    onCheckedChange={() => toggleUser(u.id)}
+                                                    checked={targetUserIds.includes(
+                                                        u.id,
+                                                    )}
+                                                    onCheckedChange={() =>
+                                                        toggleUser(u.id)
+                                                    }
                                                 />
                                                 <span>{u.name}</span>
-                                                <span className="text-muted-foreground">({u.email})</span>
+                                                <span className="text-muted-foreground">
+                                                    ({u.email})
+                                                </span>
                                             </label>
                                         ))
                                     )}
@@ -457,7 +578,9 @@ export default function AdminMessageCenter() {
                             </div>
                         )}
                         {errors.target && (
-                            <p className="text-sm text-destructive">{errors.target}</p>
+                            <p className="text-sm text-destructive">
+                                {errors.target}
+                            </p>
                         )}
                     </div>
 
@@ -471,7 +594,11 @@ export default function AdminMessageCenter() {
                             maxLength={255}
                             className="max-w-md"
                         />
-                        {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
+                        {errors.title && (
+                            <p className="text-sm text-destructive">
+                                {errors.title}
+                            </p>
+                        )}
                     </div>
 
                     <div className="space-y-2">
@@ -485,52 +612,73 @@ export default function AdminMessageCenter() {
                             className="max-w-2xl"
                             maxLength={10000}
                         />
-                        {errors.body && <p className="text-sm text-destructive">{errors.body}</p>}
+                        {errors.body && (
+                            <p className="text-sm text-destructive">
+                                {errors.body}
+                            </p>
+                        )}
                     </div>
 
                     <div className="space-y-2">
                         <Label>Active date / time range (optional)</Label>
                         <p className="text-xs text-muted-foreground">
-                            When set, the message is <strong>scheduled</strong> before the start time, <strong>active</strong> between start and end, and <strong>expired</strong> after the end time.
+                            When set, the message is <strong>scheduled</strong>{' '}
+                            before the start time, <strong>active</strong>{' '}
+                            between start and end, and <strong>expired</strong>{' '}
+                            after the end time.
                         </p>
                         <div className="flex flex-wrap items-end gap-4">
                             <div>
-                                <Label className="text-xs text-muted-foreground">Active from</Label>
+                                <Label className="text-xs text-muted-foreground">
+                                    Active from
+                                </Label>
                                 <Input
                                     type="datetime-local"
                                     className="mt-0.5 max-w-[220px]"
                                     value={activeAtStart}
-                                    onChange={(e) => setActiveAtStart(e.target.value)}
+                                    onChange={(e) =>
+                                        setActiveAtStart(e.target.value)
+                                    }
                                 />
                             </div>
                             <div>
-                                <Label className="text-xs text-muted-foreground">Active until</Label>
+                                <Label className="text-xs text-muted-foreground">
+                                    Active until
+                                </Label>
                                 <Input
                                     type="datetime-local"
                                     className="mt-0.5 max-w-[220px]"
                                     value={activeAtEnd}
-                                    onChange={(e) => setActiveAtEnd(e.target.value)}
+                                    onChange={(e) =>
+                                        setActiveAtEnd(e.target.value)
+                                    }
                                 />
                             </div>
                         </div>
                         {(errors.active_at_start || errors.active_at_end) && (
-                            <p className="text-sm text-destructive">{errors.active_at_start ?? errors.active_at_end}</p>
+                            <p className="text-sm text-destructive">
+                                {errors.active_at_start ?? errors.active_at_end}
+                            </p>
                         )}
                     </div>
 
                     <Button type="submit" disabled={sending}>
-                        <Send className="size-4 mr-2" />
+                        <Send className="mr-2 size-4" />
                         {sending ? 'Sending…' : 'Send'}
                     </Button>
                 </form>
 
                 {/* Per-user notifications & badge controls */}
-                <section className="rounded-xl border border-sidebar-border/70 bg-card p-4 space-y-4 dark:border-sidebar-border">
+                <section className="space-y-4 rounded-xl border border-sidebar-border/70 bg-card p-4 dark:border-sidebar-border">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <h2 className="text-sm font-semibold">User notifications & badges</h2>
+                            <h2 className="text-sm font-semibold">
+                                User notifications & badges
+                            </h2>
                             <p className="mt-1 text-xs text-muted-foreground">
-                                Inspect notifications for a user, resend a push, delete a notification, or clear their app badge via web push.
+                                Inspect notifications for a user, resend a push,
+                                delete a notification, or clear their app badge
+                                via web push.
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -538,7 +686,9 @@ export default function AdminMessageCenter() {
                                 className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                                 value={selectedUserId ?? ''}
                                 onChange={(e) => {
-                                    const id = e.target.value ? Number(e.target.value) : null;
+                                    const id = e.target.value
+                                        ? Number(e.target.value)
+                                        : null;
                                     if (id != null) {
                                         void loadUserNotifications(id);
                                     } else {
@@ -559,10 +709,16 @@ export default function AdminMessageCenter() {
                                     size="sm"
                                     variant="outline"
                                     className="h-8 text-xs"
-                                    onClick={() => clearBadgeForUser(selectedUserId)}
-                                    disabled={clearingBadgeUserId === selectedUserId}
+                                    onClick={() =>
+                                        clearBadgeForUser(selectedUserId)
+                                    }
+                                    disabled={
+                                        clearingBadgeUserId === selectedUserId
+                                    }
                                 >
-                                    {clearingBadgeUserId === selectedUserId ? 'Clearing…' : 'Clear badge via push'}
+                                    {clearingBadgeUserId === selectedUserId
+                                        ? 'Clearing…'
+                                        : 'Clear badge via push'}
                                 </Button>
                             )}
                         </div>
@@ -572,93 +728,151 @@ export default function AdminMessageCenter() {
                         <div className="space-y-3">
                             <div className="flex items-center justify-between gap-2">
                                 <p className="text-xs text-muted-foreground">
-                                    Showing up to 200 most recent notifications for the selected user.
+                                    Showing up to 200 most recent notifications
+                                    for the selected user.
                                 </p>
                                 <Input
                                     type="text"
                                     placeholder="Search type, title, or message…"
                                     value={userNotificationSearch}
-                                    onChange={(e) => setUserNotificationSearch(e.target.value)}
+                                    onChange={(e) =>
+                                        setUserNotificationSearch(
+                                            e.target.value,
+                                        )
+                                    }
                                     className="h-8 w-56 text-xs"
                                 />
                             </div>
-                            <div className="max-h-72 overflow-y-auto rounded-md border border-sidebar-border/60 bg-muted/30 text-xs dark:border-sidebar-border">
-                                <table className="min-w-full text-left text-xs">
+                            <div className="max-h-72 overflow-x-auto overflow-y-auto rounded-md border border-sidebar-border/60 bg-muted/30 text-xs dark:border-sidebar-border">
+                                <table className="w-full min-w-max text-left text-xs">
                                     <thead className="sticky top-0 bg-muted/80 backdrop-blur">
                                         <tr>
-                                            <th className="px-2 py-1 font-medium">ID</th>
-                                            <th className="px-2 py-1 font-medium">Type</th>
-                                            <th className="px-2 py-1 font-medium">Created</th>
-                                            <th className="px-2 py-1 font-medium">Status</th>
-                                            <th className="px-2 py-1 font-medium">Title / Message</th>
-                                            <th className="px-2 py-1 font-medium text-right">Actions</th>
+                                            <th className="px-2 py-1 font-medium">
+                                                ID
+                                            </th>
+                                            <th className="px-2 py-1 font-medium">
+                                                Type
+                                            </th>
+                                            <th className="px-2 py-1 font-medium">
+                                                Created
+                                            </th>
+                                            <th className="px-2 py-1 font-medium">
+                                                Status
+                                            </th>
+                                            <th className="px-2 py-1 font-medium">
+                                                Title / Message
+                                            </th>
+                                            <th className="px-2 py-1 text-right font-medium">
+                                                Actions
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {userNotificationsLoading ? (
                                             <tr>
-                                                <td colSpan={6} className="px-2 py-4 text-center text-muted-foreground">
+                                                <td
+                                                    colSpan={6}
+                                                    className="px-2 py-4 text-center text-muted-foreground"
+                                                >
                                                     Loading…
                                                 </td>
                                             </tr>
-                                        ) : filteredUserNotifications.length === 0 ? (
+                                        ) : filteredUserNotifications.length ===
+                                          0 ? (
                                             <tr>
-                                                <td colSpan={6} className="px-2 py-4 text-center text-muted-foreground">
-                                                    No notifications found for this user.
+                                                <td
+                                                    colSpan={6}
+                                                    className="px-2 py-4 text-center text-muted-foreground"
+                                                >
+                                                    No notifications found for
+                                                    this user.
                                                 </td>
                                             </tr>
                                         ) : (
-                                            filteredUserNotifications.map((n) => (
-                                                <tr key={n.id} className="border-t border-sidebar-border/40">
-                                                    <td className="px-2 py-1 align-top">{n.id}</td>
-                                                    <td className="px-2 py-1 align-top">
-                                                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">
-                                                            {n.type}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-2 py-1 align-top">
-                                                        {n.created_at ? formatDateTime(n.created_at) : '—'}
-                                                    </td>
-                                                    <td className="px-2 py-1 align-top">
-                                                        {n.read_at ? (
-                                                            <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-300">
-                                                                Read
+                                            filteredUserNotifications.map(
+                                                (n) => (
+                                                    <tr
+                                                        key={n.id}
+                                                        className="border-t border-sidebar-border/40"
+                                                    >
+                                                        <td className="px-2 py-1 align-top">
+                                                            {n.id}
+                                                        </td>
+                                                        <td className="px-2 py-1 align-top">
+                                                            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                                                                {n.type}
                                                             </span>
-                                                        ) : (
-                                                            <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 dark:text-sky-300">
-                                                                Unread
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-2 py-1 align-top max-w-xs">
-                                                        <div className="truncate font-medium">
-                                                            {n.title || n.message || '—'}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-2 py-1 align-top">
-                                                        <div className="flex justify-end gap-1">
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-7 px-2 text-[10px]"
-                                                                onClick={() => pushNotification(n.id)}
-                                                                disabled={pushingNotificationId === n.id}
-                                                            >
-                                                                {pushingNotificationId === n.id ? 'Pushing…' : 'Push again'}
-                                                            </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                className="h-7 px-2 text-[10px] text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                                onClick={() => deleteNotification(n.id)}
-                                                                disabled={deletingNotificationId === n.id}
-                                                            >
-                                                                {deletingNotificationId === n.id ? 'Deleting…' : 'Delete'}
-                                                            </Button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))
+                                                        </td>
+                                                        <td className="px-2 py-1 align-top">
+                                                            {n.created_at
+                                                                ? formatDateTime(
+                                                                      n.created_at,
+                                                                  )
+                                                                : '—'}
+                                                        </td>
+                                                        <td className="px-2 py-1 align-top">
+                                                            {n.read_at ? (
+                                                                <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-300">
+                                                                    Read
+                                                                </span>
+                                                            ) : (
+                                                                <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 dark:text-sky-300">
+                                                                    Unread
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="max-w-xs px-2 py-1 align-top">
+                                                            <div className="truncate font-medium">
+                                                                {n.title ||
+                                                                    n.message ||
+                                                                    '—'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-2 py-1 align-top">
+                                                            <div className="flex justify-end gap-1">
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-7 px-2 text-[10px]"
+                                                                    onClick={() =>
+                                                                        pushNotification(
+                                                                            n.id,
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        pushingNotificationId ===
+                                                                        n.id
+                                                                    }
+                                                                >
+                                                                    {pushingNotificationId ===
+                                                                    n.id
+                                                                        ? 'Pushing…'
+                                                                        : 'Push again'}
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-7 px-2 text-[10px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                                    onClick={() =>
+                                                                        deleteNotification(
+                                                                            n.id,
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        deletingNotificationId ===
+                                                                        n.id
+                                                                    }
+                                                                >
+                                                                    {deletingNotificationId ===
+                                                                    n.id
+                                                                        ? 'Deleting…'
+                                                                        : 'Delete'}
+                                                                </Button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ),
+                                            )
                                         )}
                                     </tbody>
                                 </table>
@@ -668,92 +882,219 @@ export default function AdminMessageCenter() {
                 </section>
 
                 <div>
-                    <h2 className="text-lg font-medium mb-3">Banner message history</h2>
-                    <p className="text-sm text-muted-foreground mb-3">
-                        Expand a row to see who has acknowledged the banner and who has not. You can delete a banner to remove it for everyone.
+                    <h2 className="mb-3 text-lg font-medium">
+                        Banner message history
+                    </h2>
+                    <p className="mb-3 text-sm text-muted-foreground">
+                        Expand a row to see who has acknowledged the banner and
+                        who has not. You can delete a banner to remove it for
+                        everyone.
                     </p>
                     {banners.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-3 mb-3">
-                            <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                <Checkbox checked={allBannersSelected} onCheckedChange={toggleSelectAllBanners} />
+                        <div className="mb-3 flex flex-wrap items-center gap-3">
+                            <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                <Checkbox
+                                    checked={allBannersSelected}
+                                    onCheckedChange={toggleSelectAllBanners}
+                                />
                                 Select all
                             </label>
                             <Button
                                 type="button"
                                 variant="destructive"
                                 size="sm"
-                                disabled={selectedBannerIds.length === 0 || bulkDeletingBanners}
+                                disabled={
+                                    selectedBannerIds.length === 0 ||
+                                    bulkDeletingBanners
+                                }
                                 onClick={bulkDeleteBanners}
                             >
-                                {bulkDeletingBanners ? 'Deleting…' : `Delete selected (${selectedBannerIds.length})`}
+                                {bulkDeletingBanners
+                                    ? 'Deleting…'
+                                    : `Delete selected (${selectedBannerIds.length})`}
                             </Button>
                         </div>
                     )}
                     {banners.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No banner messages sent yet.</p>
+                        <p className="text-sm text-muted-foreground">
+                            No banner messages sent yet.
+                        </p>
                     ) : (
                         <ul className="space-y-2">
                             {banners.map((b) => (
                                 <li
                                     key={b.id}
-                                    className="rounded-lg border border-sidebar-border/70 dark:border-sidebar-border overflow-hidden"
+                                    className="overflow-hidden rounded-lg border border-sidebar-border/70 dark:border-sidebar-border"
                                 >
-                                    <Collapsible open={expandedBannerId === b.id} onOpenChange={(open) => setExpandedBannerId(open ? b.id : null)}>
-                                        <div className="p-3 flex items-start justify-between gap-2">
-                                            <div className="min-w-0 flex items-center gap-2 flex-wrap">
+                                    <Collapsible
+                                        open={expandedBannerId === b.id}
+                                        onOpenChange={(open) =>
+                                            setExpandedBannerId(
+                                                open ? b.id : null,
+                                            )
+                                        }
+                                    >
+                                        <div className="flex items-start justify-between gap-2 p-3">
+                                            <div className="flex min-w-0 flex-wrap items-center gap-2">
                                                 <Checkbox
-                                                    checked={selectedBannerIds.includes(b.id)}
-                                                    onCheckedChange={() => toggleBannerSelect(b.id)}
-                                                    onClick={(e) => e.stopPropagation()}
+                                                    checked={selectedBannerIds.includes(
+                                                        b.id,
+                                                    )}
+                                                    onCheckedChange={() =>
+                                                        toggleBannerSelect(b.id)
+                                                    }
+                                                    onClick={(e) =>
+                                                        e.stopPropagation()
+                                                    }
                                                     aria-label={`Select banner ${b.title}`}
                                                 />
                                                 <CollapsibleTrigger asChild>
-                                                    <button type="button" className="p-0.5 rounded hover:bg-muted/50 -m-0.5">
-                                                        {expandedBannerId === b.id ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                                                    <button
+                                                        type="button"
+                                                        className="-m-0.5 rounded p-0.5 hover:bg-muted/50"
+                                                    >
+                                                        {expandedBannerId ===
+                                                        b.id ? (
+                                                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                                        ) : (
+                                                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                                        )}
                                                     </button>
                                                 </CollapsibleTrigger>
-                                                <span className="font-medium">{b.title}</span>
-                                                <span className={`text-xs px-1.5 py-0.5 rounded ${statusClass(b.status)}`}>{statusLabel(b.status)}</span>
+                                                <span className="font-medium">
+                                                    {b.title}
+                                                </span>
+                                                <span
+                                                    className={`rounded px-1.5 py-0.5 text-xs ${statusClass(b.status)}`}
+                                                >
+                                                    {statusLabel(b.status)}
+                                                </span>
                                                 <span className="text-xs text-muted-foreground">
-                                                    {b.target_type === 'all' && 'All users'}
-                                                    {b.target_type === 'workgroup' && (b.target_workgroup_name ? `Workgroup: ${b.target_workgroup_name}` : 'Workgroup')}
-                                                    {b.target_type === 'individual' && `${b.recipient_count} user(s)`}
+                                                    {b.target_type === 'all' &&
+                                                        'All users'}
+                                                    {b.target_type ===
+                                                        'workgroup' &&
+                                                        (b.target_workgroup_name
+                                                            ? `Workgroup: ${b.target_workgroup_name}`
+                                                            : 'Workgroup')}
+                                                    {b.target_type ===
+                                                        'individual' &&
+                                                        `${b.recipient_count} user(s)`}
                                                 </span>
                                             </div>
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                <span className="text-xs text-muted-foreground">{formatDateTime(b.created_at)}</span>
+                                            <div className="flex shrink-0 items-center gap-2">
+                                                <span className="text-xs text-muted-foreground">
+                                                    {formatDateTime(
+                                                        b.created_at,
+                                                    )}
+                                                </span>
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                    onClick={() => deleteBanner(b.id)}
-                                                    disabled={deletingBannerId === b.id}
+                                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                    onClick={() =>
+                                                        deleteBanner(b.id)
+                                                    }
+                                                    disabled={
+                                                        deletingBannerId ===
+                                                        b.id
+                                                    }
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </div>
                                         </div>
                                         <CollapsibleContent>
-                                            <div className="px-3 pb-3 pt-0 border-t border-sidebar-border/50 space-y-2">
-                                                <p className="text-sm text-muted-foreground line-clamp-2">{b.body}</p>
-                                                {b.created_by_name && <p className="text-xs text-muted-foreground">Sent by {b.created_by_name}</p>}
-                                                {(b.active_at_start || b.active_at_end) && (
+                                            <div className="space-y-2 border-t border-sidebar-border/50 px-3 pt-0 pb-3">
+                                                <p className="line-clamp-2 text-sm text-muted-foreground">
+                                                    {b.body}
+                                                </p>
+                                                {b.created_by_name && (
                                                     <p className="text-xs text-muted-foreground">
-                                                        Active: {b.active_at_start ? formatDateTime(b.active_at_start) : '—'} until {b.active_at_end ? formatDateTime(b.active_at_end) : '—'}
+                                                        Sent by{' '}
+                                                        {b.created_by_name}
                                                     </p>
                                                 )}
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                                {(b.active_at_start ||
+                                                    b.active_at_end) && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Active:{' '}
+                                                        {b.active_at_start
+                                                            ? formatDateTime(
+                                                                  b.active_at_start,
+                                                              )
+                                                            : '—'}{' '}
+                                                        until{' '}
+                                                        {b.active_at_end
+                                                            ? formatDateTime(
+                                                                  b.active_at_end,
+                                                              )
+                                                            : '—'}
+                                                    </p>
+                                                )}
+                                                <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                                                     <div>
-                                                        <span className="font-medium text-muted-foreground">Acknowledged ({b.acknowledged.length})</span>
+                                                        <span className="font-medium text-muted-foreground">
+                                                            Acknowledged (
+                                                            {
+                                                                b.acknowledged
+                                                                    .length
+                                                            }
+                                                            )
+                                                        </span>
                                                         <ul className="mt-0.5 text-muted-foreground">
-                                                            {b.acknowledged.length === 0 ? <li>—</li> : b.acknowledged.map((u) => <li key={u.id}>{u.name}</li>)}
+                                                            {b.acknowledged
+                                                                .length ===
+                                                            0 ? (
+                                                                <li>—</li>
+                                                            ) : (
+                                                                b.acknowledged.map(
+                                                                    (u) => (
+                                                                        <li
+                                                                            key={
+                                                                                u.id
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                u.name
+                                                                            }
+                                                                        </li>
+                                                                    ),
+                                                                )
+                                                            )}
                                                         </ul>
                                                     </div>
                                                     <div>
-                                                        <span className="font-medium text-muted-foreground">Not acknowledged ({b.not_acknowledged.length})</span>
+                                                        <span className="font-medium text-muted-foreground">
+                                                            Not acknowledged (
+                                                            {
+                                                                b
+                                                                    .not_acknowledged
+                                                                    .length
+                                                            }
+                                                            )
+                                                        </span>
                                                         <ul className="mt-0.5 text-muted-foreground">
-                                                            {b.not_acknowledged.length === 0 ? <li>—</li> : b.not_acknowledged.map((u) => <li key={u.id}>{u.name}</li>)}
+                                                            {b.not_acknowledged
+                                                                .length ===
+                                                            0 ? (
+                                                                <li>—</li>
+                                                            ) : (
+                                                                b.not_acknowledged.map(
+                                                                    (u) => (
+                                                                        <li
+                                                                            key={
+                                                                                u.id
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                u.name
+                                                                            }
+                                                                        </li>
+                                                                    ),
+                                                                )
+                                                            )}
                                                         </ul>
                                                     </div>
                                                 </div>
@@ -767,88 +1108,203 @@ export default function AdminMessageCenter() {
                 </div>
 
                 <div>
-                    <h2 className="text-lg font-medium mb-3">Notification message history</h2>
-                    <p className="text-sm text-muted-foreground mb-3">
-                        Batches sent to the notification bell. Expand to see who has read and who has not. Deleting removes the notifications for all recipients.
+                    <h2 className="mb-3 text-lg font-medium">
+                        Notification message history
+                    </h2>
+                    <p className="mb-3 text-sm text-muted-foreground">
+                        Batches sent to the notification bell. Expand to see who
+                        has read and who has not. Deleting removes the
+                        notifications for all recipients.
                     </p>
                     {notificationBatches.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-3 mb-3">
-                            <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                <Checkbox checked={allBatchesSelected} onCheckedChange={toggleSelectAllBatches} />
+                        <div className="mb-3 flex flex-wrap items-center gap-3">
+                            <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                <Checkbox
+                                    checked={allBatchesSelected}
+                                    onCheckedChange={toggleSelectAllBatches}
+                                />
                                 Select all
                             </label>
                             <Button
                                 type="button"
                                 variant="destructive"
                                 size="sm"
-                                disabled={selectedBatchIds.length === 0 || bulkDeletingBatches}
+                                disabled={
+                                    selectedBatchIds.length === 0 ||
+                                    bulkDeletingBatches
+                                }
                                 onClick={bulkDeleteBatches}
                             >
-                                {bulkDeletingBatches ? 'Deleting…' : `Delete selected (${selectedBatchIds.length})`}
+                                {bulkDeletingBatches
+                                    ? 'Deleting…'
+                                    : `Delete selected (${selectedBatchIds.length})`}
                             </Button>
                         </div>
                     )}
                     {notificationBatches.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No notification batches sent yet.</p>
+                        <p className="text-sm text-muted-foreground">
+                            No notification batches sent yet.
+                        </p>
                     ) : (
                         <ul className="space-y-2">
                             {notificationBatches.map((nb) => (
                                 <li
                                     key={nb.id}
-                                    className="rounded-lg border border-sidebar-border/70 dark:border-sidebar-border overflow-hidden"
+                                    className="overflow-hidden rounded-lg border border-sidebar-border/70 dark:border-sidebar-border"
                                 >
-                                    <Collapsible open={expandedBatchId === nb.id} onOpenChange={(open) => setExpandedBatchId(open ? nb.id : null)}>
-                                        <div className="p-3 flex items-start justify-between gap-2">
-                                            <div className="min-w-0 flex items-center gap-2 flex-wrap">
+                                    <Collapsible
+                                        open={expandedBatchId === nb.id}
+                                        onOpenChange={(open) =>
+                                            setExpandedBatchId(
+                                                open ? nb.id : null,
+                                            )
+                                        }
+                                    >
+                                        <div className="flex items-start justify-between gap-2 p-3">
+                                            <div className="flex min-w-0 flex-wrap items-center gap-2">
                                                 <Checkbox
-                                                    checked={selectedBatchIds.includes(nb.id)}
-                                                    onCheckedChange={() => toggleBatchSelect(nb.id)}
-                                                    onClick={(e) => e.stopPropagation()}
+                                                    checked={selectedBatchIds.includes(
+                                                        nb.id,
+                                                    )}
+                                                    onCheckedChange={() =>
+                                                        toggleBatchSelect(nb.id)
+                                                    }
+                                                    onClick={(e) =>
+                                                        e.stopPropagation()
+                                                    }
                                                     aria-label={`Select notification batch ${nb.title}`}
                                                 />
                                                 <CollapsibleTrigger asChild>
-                                                    <button type="button" className="p-0.5 rounded hover:bg-muted/50 -m-0.5">
-                                                        {expandedBatchId === nb.id ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                                                    <button
+                                                        type="button"
+                                                        className="-m-0.5 rounded p-0.5 hover:bg-muted/50"
+                                                    >
+                                                        {expandedBatchId ===
+                                                        nb.id ? (
+                                                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                                        ) : (
+                                                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                                        )}
                                                     </button>
                                                 </CollapsibleTrigger>
-                                                <span className="font-medium">{nb.title}</span>
-                                                <span className={`text-xs px-1.5 py-0.5 rounded ${statusClass(nb.status)}`}>{statusLabel(nb.status)}</span>
-                                                <span className="text-xs text-muted-foreground">{nb.recipient_count} recipient(s)</span>
+                                                <span className="font-medium">
+                                                    {nb.title}
+                                                </span>
+                                                <span
+                                                    className={`rounded px-1.5 py-0.5 text-xs ${statusClass(nb.status)}`}
+                                                >
+                                                    {statusLabel(nb.status)}
+                                                </span>
+                                                <span className="text-xs text-muted-foreground">
+                                                    {nb.recipient_count}{' '}
+                                                    recipient(s)
+                                                </span>
                                             </div>
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                <span className="text-xs text-muted-foreground">{formatDateTime(nb.created_at)}</span>
+                                            <div className="flex shrink-0 items-center gap-2">
+                                                <span className="text-xs text-muted-foreground">
+                                                    {formatDateTime(
+                                                        nb.created_at,
+                                                    )}
+                                                </span>
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                    onClick={() => deleteNotificationBatch(nb.id)}
-                                                    disabled={deletingBatchId === nb.id}
+                                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                    onClick={() =>
+                                                        deleteNotificationBatch(
+                                                            nb.id,
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        deletingBatchId ===
+                                                        nb.id
+                                                    }
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </div>
                                         </div>
                                         <CollapsibleContent>
-                                            <div className="px-3 pb-3 pt-0 border-t border-sidebar-border/50 space-y-2">
-                                                <p className="text-sm text-muted-foreground line-clamp-2">{nb.body}</p>
-                                                {nb.created_by_name && <p className="text-xs text-muted-foreground">Sent by {nb.created_by_name}</p>}
-                                                {(nb.active_at_start || nb.active_at_end) && (
+                                            <div className="space-y-2 border-t border-sidebar-border/50 px-3 pt-0 pb-3">
+                                                <p className="line-clamp-2 text-sm text-muted-foreground">
+                                                    {nb.body}
+                                                </p>
+                                                {nb.created_by_name && (
                                                     <p className="text-xs text-muted-foreground">
-                                                        Active: {nb.active_at_start ? formatDateTime(nb.active_at_start) : '—'} until {nb.active_at_end ? formatDateTime(nb.active_at_end) : '—'}
+                                                        Sent by{' '}
+                                                        {nb.created_by_name}
                                                     </p>
                                                 )}
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                                {(nb.active_at_start ||
+                                                    nb.active_at_end) && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Active:{' '}
+                                                        {nb.active_at_start
+                                                            ? formatDateTime(
+                                                                  nb.active_at_start,
+                                                              )
+                                                            : '—'}{' '}
+                                                        until{' '}
+                                                        {nb.active_at_end
+                                                            ? formatDateTime(
+                                                                  nb.active_at_end,
+                                                              )
+                                                            : '—'}
+                                                    </p>
+                                                )}
+                                                <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                                                     <div>
-                                                        <span className="font-medium text-muted-foreground">Read ({nb.read.length})</span>
+                                                        <span className="font-medium text-muted-foreground">
+                                                            Read (
+                                                            {nb.read.length})
+                                                        </span>
                                                         <ul className="mt-0.5 text-muted-foreground">
-                                                            {nb.read.length === 0 ? <li>—</li> : nb.read.map((u) => <li key={u.id}>{u.name}</li>)}
+                                                            {nb.read.length ===
+                                                            0 ? (
+                                                                <li>—</li>
+                                                            ) : (
+                                                                nb.read.map(
+                                                                    (u) => (
+                                                                        <li
+                                                                            key={
+                                                                                u.id
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                u.name
+                                                                            }
+                                                                        </li>
+                                                                    ),
+                                                                )
+                                                            )}
                                                         </ul>
                                                     </div>
                                                     <div>
-                                                        <span className="font-medium text-muted-foreground">Unread ({nb.unread.length})</span>
+                                                        <span className="font-medium text-muted-foreground">
+                                                            Unread (
+                                                            {nb.unread.length})
+                                                        </span>
                                                         <ul className="mt-0.5 text-muted-foreground">
-                                                            {nb.unread.length === 0 ? <li>—</li> : nb.unread.map((u) => <li key={u.id}>{u.name}</li>)}
+                                                            {nb.unread
+                                                                .length ===
+                                                            0 ? (
+                                                                <li>—</li>
+                                                            ) : (
+                                                                nb.unread.map(
+                                                                    (u) => (
+                                                                        <li
+                                                                            key={
+                                                                                u.id
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                u.name
+                                                                            }
+                                                                        </li>
+                                                                    ),
+                                                                )
+                                                            )}
                                                         </ul>
                                                     </div>
                                                 </div>

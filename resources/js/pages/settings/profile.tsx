@@ -91,14 +91,23 @@ export default function Profile({
                                     />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="employee_id">Employee ID</Label>
+                                    <Label htmlFor="employee_id">
+                                        Employee ID
+                                    </Label>
                                     <p className="text-xs text-muted-foreground">
-                                        Enter your Employee ID without the E (e.g. 121883).
+                                        Enter your Employee ID without the E
+                                        (e.g. 121883).
                                     </p>
                                     <Input
                                         id="employee_id"
                                         className="mt-1 block w-full"
-                                        defaultValue={(auth.user as { employee_id?: string })?.employee_id ?? ''}
+                                        defaultValue={
+                                            (
+                                                auth.user as {
+                                                    employee_id?: string;
+                                                }
+                                            )?.employee_id ?? ''
+                                        }
                                         name="employee_id"
                                         required
                                         autoComplete="off"
@@ -111,22 +120,38 @@ export default function Profile({
                                 </div>
 
                                 <div className="grid gap-2">
-                                    <Label htmlFor="preferred_contact_method">Preferred contact method</Label>
+                                    <Label htmlFor="preferred_contact_method">
+                                        Preferred contact method
+                                    </Label>
                                     <select
                                         id="preferred_contact_method"
                                         name="preferred_contact_method"
                                         required
-                                        defaultValue={(auth.user as { preferred_contact_method?: string })?.preferred_contact_method ?? 'email'}
-                                        className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                        defaultValue={
+                                            (
+                                                auth.user as {
+                                                    preferred_contact_method?: string;
+                                                }
+                                            )?.preferred_contact_method ??
+                                            'email'
+                                        }
+                                        className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
                                     >
                                         <option value="email">Email</option>
                                         <option value="call">Call</option>
                                         <option value="text">Text</option>
                                     </select>
                                     <p className="text-xs text-muted-foreground">
-                                        How others should reach you when responding to your swap posts. If Call or Text, phone number is required.
+                                        How others should reach you when
+                                        responding to your swap posts. If Call
+                                        or Text, phone number is required.
                                     </p>
-                                    <InputError className="mt-2" message={errors.preferred_contact_method} />
+                                    <InputError
+                                        className="mt-2"
+                                        message={
+                                            errors.preferred_contact_method
+                                        }
+                                    />
                                 </div>
 
                                 <div className="grid gap-2">
@@ -135,12 +160,18 @@ export default function Profile({
                                         id="phone"
                                         type="tel"
                                         className="mt-1 block w-full"
-                                        defaultValue={(auth.user as { phone?: string })?.phone ?? ''}
+                                        defaultValue={
+                                            (auth.user as { phone?: string })
+                                                ?.phone ?? ''
+                                        }
                                         name="phone"
                                         autoComplete="tel"
                                         placeholder="e.g. 555-123-4567"
                                     />
-                                    <InputError className="mt-2" message={errors.phone} />
+                                    <InputError
+                                        className="mt-2"
+                                        message={errors.phone}
+                                    />
                                 </div>
 
                                 {mustVerifyEmail &&

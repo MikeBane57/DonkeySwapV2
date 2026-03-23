@@ -3,7 +3,6 @@
 namespace App\Observers;
 
 use App\Models\AppNotification;
-use App\Models\SwapOffer;
 use App\Notifications\WebPushSwapNotification;
 use Illuminate\Support\Facades\Log;
 

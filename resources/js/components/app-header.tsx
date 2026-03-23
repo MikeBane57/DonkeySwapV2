@@ -73,7 +73,18 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                     Navigation menu
                                 </SheetTitle>
                                 <SheetHeader className="flex justify-start text-left">
-                                    <img src={(page.props as { app_icon_url?: string }).app_icon_url ?? '/images/donkey-swap-logo.png'} alt="DonkeySwap" className="h-8 w-auto object-contain" />
+                                    <img
+                                        src={
+                                            (
+                                                page.props as {
+                                                    app_icon_url?: string;
+                                                }
+                                            ).app_icon_url ??
+                                            '/images/donkey-swap-logo.png'
+                                        }
+                                        alt="DonkeySwap"
+                                        className="h-8 w-auto object-contain"
+                                    />
                                 </SheetHeader>
                                 <div className="flex h-full flex-1 flex-col space-y-4 p-4">
                                     <div className="flex h-full flex-col justify-between text-sm">
@@ -91,7 +102,6 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                                 </Link>
                                             ))}
                                         </div>
-
                                     </div>
                                 </div>
                             </SheetContent>

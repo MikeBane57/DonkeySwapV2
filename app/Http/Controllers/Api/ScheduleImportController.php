@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ScheduleImportRun;
 use App\Services\ScheduleImport\ArisExpandedScheduleCsvParser;
 use App\Services\ScheduleImport\ScheduleImportService;
 use Illuminate\Http\JsonResponse;
@@ -91,7 +92,7 @@ class ScheduleImportController extends Controller
         $rowsToApply = $request->input('rows_to_apply');
         if (is_array($rowsToApply) && count($rowsToApply) > 0) {
             $myRows = [];
-            $tz = new \DateTimeZone(\App\Services\ScheduleImport\ScheduleImportService::TIMEZONE);
+            $tz = new \DateTimeZone(ScheduleImportService::TIMEZONE);
             $monthStart = (new \DateTimeImmutable('now', $tz))->format('Y-m-01');
             foreach ($rowsToApply as $r) {
                 $date = $r['shift_date'] ?? '';
@@ -171,7 +172,7 @@ class ScheduleImportController extends Controller
     public function history(Request $request): JsonResponse
     {
         $user = $request->user();
-        $runs = \App\Models\ScheduleImportRun::where('target_user_id', $user->id)
+        $runs = ScheduleImportRun::where('target_user_id', $user->id)
             ->orderByDesc('created_at')
             ->limit(5)
             ->get()
@@ -218,8 +219,10 @@ class ScheduleImportController extends Controller
             $mime = $upload->getMimeType();
             if (in_array($mime, ['text/csv', 'text/plain', 'application/csv'], true)) {
                 $raw = $upload->get();
+
                 return is_string($raw) && $raw !== '' ? $raw : null;
             }
+
             return null;
         }
         $content = $request->input('csv_content');
@@ -238,6 +241,7 @@ class ScheduleImportController extends Controller
         }
         if (is_numeric($v)) {
             $ms = (int) $v;
+
             return $ms > 0 ? $ms : null;
         }
 

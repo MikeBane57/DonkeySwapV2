@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\ActiveSessionsController;
+use App\Http\Controllers\Admin\AnalyticsController;
 use App\Http\Controllers\Admin\AppIconController;
 use App\Http\Controllers\Admin\MessageCenterController;
 use App\Http\Controllers\Admin\PostManagerController;
@@ -122,9 +124,14 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
     // Admin panel (admin role required)
     Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
         Route::inertia('/', 'admin/index')->name('index');
+        Route::get('analytics', [AnalyticsController::class, 'index'])->name('analytics');
+        Route::get('active-sessions', [ActiveSessionsController::class, 'index'])->name('active-sessions');
         Route::get('users', [UserManagerController::class, 'index'])->name('users');
         Route::post('users', [UserManagerController::class, 'store'])->name('users.store');
+        Route::post('users/import', [UserManagerController::class, 'import'])->name('users.import');
+        Route::post('users/{user}/reset-password', [UserManagerController::class, 'resetPasswordToDefault'])->name('users.reset-password');
         Route::put('users/{user}', [UserManagerController::class, 'update'])->name('users.update');
+        Route::delete('users/{user}', [UserManagerController::class, 'destroy'])->name('users.destroy');
         Route::post('workgroups', [WorkgroupsController::class, 'store'])->name('workgroups.store');
         Route::get('workgroups', [WorkgroupsController::class, 'index'])->name('workgroups');
         Route::put('workgroups/{workgroup}', [WorkgroupsController::class, 'update'])->name('workgroups.update');

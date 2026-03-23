@@ -26,6 +26,7 @@ class LookingForWorkController extends Controller
             return null;
         }
         $out = array_values(array_intersect($slots, self::LFW_FF_SLOTS));
+
         return $out === [] ? null : $out;
     }
 
@@ -65,6 +66,7 @@ class LookingForWorkController extends Controller
             $deskType = trim($request->input('desk_type'));
             $posts = $posts->filter(function (LookingForWorkPost $post) use ($deskType) {
                 $types = $post->seeking_desk_types;
+
                 return $types === null || $types === [] || in_array($deskType, $types, true);
             })->values();
         }
@@ -84,6 +86,7 @@ class LookingForWorkController extends Controller
         $items = $posts->map(function (LookingForWorkPost $post) use ($user, $pendingCountByPostId) {
             $pendingCount = (int) ($pendingCountByPostId[$post->id] ?? 0);
             $myOffer = $post->offers->firstWhere('offered_by_user_id', $user->id);
+
             return [
                 'id' => $post->id,
                 'user_id' => $post->user_id,
@@ -94,11 +97,11 @@ class LookingForWorkController extends Controller
                 'seeking_obo' => (bool) $post->seeking_obo,
                 'status' => $post->status,
                 'notes' => $post->notes,
-            'willing_to_follow' => (bool) $post->willing_to_follow,
-            'willing_to_follow_time_frame' => $post->willing_to_follow_time_frame,
-            'willing_to_follow_slots' => $post->willing_to_follow_slots ?? [],
-            'willing_to_follow_custom' => $post->willing_to_follow_custom,
-            'pending_offer_count' => $pendingCount,
+                'willing_to_follow' => (bool) $post->willing_to_follow,
+                'willing_to_follow_time_frame' => $post->willing_to_follow_time_frame,
+                'willing_to_follow_slots' => $post->willing_to_follow_slots ?? [],
+                'willing_to_follow_custom' => $post->willing_to_follow_custom,
+                'pending_offer_count' => $pendingCount,
                 'is_mine' => $post->user_id === $user->id,
                 'my_offer' => $myOffer ? [
                     'id' => $myOffer->id,
@@ -493,7 +496,7 @@ class LookingForWorkController extends Controller
             'data' => [
                 'looking_for_work_post_id' => $post->id,
                 'looking_for_work_offer_id' => $offer->id,
-                'message' => $user->name . ' offered a shift for your looking-for-work post.',
+                'message' => $user->name.' offered a shift for your looking-for-work post.',
             ],
         ]);
 
