@@ -118,25 +118,27 @@ jobs:
         run: npm ci && npm run build
 
       # FTP passive data connections often time out from GitHub-hosted runners.
-      # appleboy/scp-action uses drone-scp (tar + remote untar); cPanel/old tar often fails that untar step.
-      # rsync streams files over SSH—no remote tar—and --delete drops old Vite chunks like FTP sync did.
-      - name: Start SSH agent (for rsync)
+      # appleboy/scp-action uses drone-scp (tar + remote untar); remote tar often fails on shared hosting.
+      # Plain OpenSSH scp -r only needs sftp/scp on the server (no rsync, no remote untar).
+      - name: Start SSH agent (for scp)
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Upload public/build via rsync (SSH)
+      - name: Upload public/build via scp (SSH)
         env:
           SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
           set -euo pipefail
           PORT="${SSH_PORT:-22}"
-          REMOTE_BASE="${{ secrets.FTP_REMOTE_DIR }}/public/build"
-          DEST="${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${REMOTE_BASE}/"
-          echo "==> rsync public/build/ to FTP_REMOTE_DIR/public/build on server"
-          rsync -avz --delete \
-            -e "ssh -p ${PORT} -o StrictHostKeyChecking=accept-new" \
-            "public/build/" \
+          REMOTE_PARENT="${{ secrets.FTP_REMOTE_DIR }}/public"
+          DEST="${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${REMOTE_PARENT}/"
+          echo "==> scp -r public/build -> FTP_REMOTE_DIR/public/build on server"
+          ssh -p "${PORT}" -o StrictHostKeyChecking=accept-new \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "rm -rf ${REMOTE_PARENT}/build"
+          scp -r -P "${PORT}" -o StrictHostKeyChecking=accept-new \
+            "public/build" \
             "${DEST}"
 
       # Server: pull code, install deps, migrate, then optimize (config + events + routes + views).
