@@ -76,9 +76,6 @@ jobs:
       - name: Verify deploy secrets are set
         run: |
           missing=""
-          [ -z "${{ secrets.FTP_SERVER }}" ] && missing="$missing FTP_SERVER"
-          [ -z "${{ secrets.FTP_USERNAME }}" ] && missing="$missing FTP_USERNAME"
-          [ -z "${{ secrets.FTP_PASSWORD }}" ] && missing="$missing FTP_PASSWORD"
           [ -z "${{ secrets.FTP_REMOTE_DIR }}" ] && missing="$missing FTP_REMOTE_DIR"
           [ -z "${{ secrets.SSH_HOST }}" ] && missing="$missing SSH_HOST"
           [ -z "${{ secrets.SSH_USER }}" ] && missing="$missing SSH_USER"
@@ -120,17 +117,20 @@ jobs:
           VITE_APP_VERSION: 2.1.${{ github.run_number }}
         run: npm ci && npm run build
 
-      - name: Upload public/build via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+      # FTP passive-mode data connections often time out from GitHub-hosted runners (firewall/NAT on the host).
+      # SCP reuses the same SSH path as the deploy step—no separate FTP data channel.
+      - name: Upload public/build via SSH (SCP)
+        uses: appleboy/scp-action@v1
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./public/build/
-          server-dir: ${{ secrets.FTP_REMOTE_DIR }}/public/build/
-          protocol: ftp
-          port: 21
-          timeout: 60000
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "public/build"
+          target: ${{ secrets.FTP_REMOTE_DIR }}/public/build
+          strip_components: 2
+          rm: true
+          command_timeout: 15m
 
       # Server: pull code, install deps, migrate, then optimize (config + events + routes + views).
       # set -e: any failing command fails the deploy so migrations/caches are not silently skipped.
