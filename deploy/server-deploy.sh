@@ -23,8 +23,7 @@ composer install --no-dev --optimize-autoloader --no-interaction
 echo "==> Running migrations..."
 php artisan migrate --force
 
-echo "==> Cache config and routes..."
-php artisan config:cache
-php artisan route:cache
+echo "==> Optimize (config, events, routes, views)..."
+php artisan optimize
 
 echo "==> Done."

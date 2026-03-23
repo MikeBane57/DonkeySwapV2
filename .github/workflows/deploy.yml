@@ -132,7 +132,9 @@ jobs:
           port: 21
           timeout: 60000
 
-      - name: Deploy on server (git pull + composer + migrate + cache)
+      # Server: pull code, install deps, migrate, then optimize (config + events + routes + views).
+      # set -e: any failing command fails the deploy so migrations/caches are not silently skipped.
+      - name: Deploy on server (git pull + composer + migrate + optimize)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -140,9 +142,15 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
+            set -e
+            PHP=/opt/cpanel/ea-php84/root/usr/bin/php
+            COMPOSER=/opt/cpanel/composer/bin/composer
             cd ${{ secrets.SERVER_APP_PATH }}
+            echo "==> git pull"
             git pull origin main
-            /opt/cpanel/ea-php84/root/usr/bin/php /opt/cpanel/composer/bin/composer install --no-dev --optimize-autoloader --no-interaction
-            /opt/cpanel/ea-php84/root/usr/bin/php artisan migrate --force
-            /opt/cpanel/ea-php84/root/usr/bin/php artisan config:cache
-            /opt/cpanel/ea-php84/root/usr/bin/php artisan route:cache
+            echo "==> composer install"
+            $PHP $COMPOSER install --no-dev --optimize-autoloader --no-interaction
+            echo "==> migrate"
+            $PHP artisan migrate --force
+            echo "==> optimize (config, events, routes, views)"
+            $PHP artisan optimize
