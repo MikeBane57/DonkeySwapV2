@@ -117,20 +117,27 @@ jobs:
           VITE_APP_VERSION: 2.1.${{ github.run_number }}
         run: npm ci && npm run build
 
-      # FTP passive-mode data connections often time out from GitHub-hosted runners (firewall/NAT on the host).
-      # SCP reuses the same SSH path as the deploy step—no separate FTP data channel.
-      - name: Upload public/build via SSH (SCP)
-        uses: appleboy/scp-action@v1
+      # FTP passive data connections often time out from GitHub-hosted runners.
+      # appleboy/scp-action uses drone-scp (tar + remote untar); cPanel/old tar often fails that untar step.
+      # rsync streams files over SSH—no remote tar—and --delete drops old Vite chunks like FTP sync did.
+      - name: Start SSH agent (for rsync)
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          source: "public/build"
-          target: ${{ secrets.FTP_REMOTE_DIR }}/public/build
-          strip_components: 2
-          rm: true
-          command_timeout: 15m
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Upload public/build via rsync (SSH)
+        env:
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          set -euo pipefail
+          PORT="${SSH_PORT:-22}"
+          REMOTE_BASE="${{ secrets.FTP_REMOTE_DIR }}/public/build"
+          DEST="${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${REMOTE_BASE}/"
+          echo "==> rsync public/build/ to FTP_REMOTE_DIR/public/build on server"
+          rsync -avz --delete \
+            -e "ssh -p ${PORT} -o StrictHostKeyChecking=accept-new" \
+            "public/build/" \
+            "${DEST}"
 
       # Server: pull code, install deps, migrate, then optimize (config + events + routes + views).
       # set -e: any failing command fails the deploy so migrations/caches are not silently skipped.
