@@ -55,6 +55,7 @@ class UserManagerController extends Controller
         return Inertia::render('admin/users', [
             'users' => $users,
             'workgroups' => $workgroups,
+            'default_user_password' => (string) config('admin.default_user_password'),
         ]);
     }
 
@@ -65,12 +66,11 @@ class UserManagerController extends Controller
             'email' => $request->input('email'),
             'employee_id' => $request->input('employee_id'),
             'password' => (string) config('admin.default_user_password'),
+            'role' => $request->input('role'),
             'time_display_preference' => $request->input('time_display_preference'),
             'phone' => $request->input('phone') ? trim($request->input('phone')) : null,
             'preferred_contact_method' => $request->input('preferred_contact_method') ?: 'email',
         ]);
-        $user->role = $request->input('role');
-        $user->save();
         $workgroups = $request->input('workgroups', []);
         $sync = [];
         foreach ($workgroups as $w) {
@@ -239,12 +239,11 @@ class UserManagerController extends Controller
                 'email' => $v->validated()['email'],
                 'employee_id' => $v->validated()['employee_id'] ?: null,
                 'password' => $password,
+                'role' => $v->validated()['role'],
                 'time_display_preference' => 'central',
                 'phone' => $v->validated()['phone'] ? trim((string) $v->validated()['phone']) : null,
                 'preferred_contact_method' => 'email',
             ]);
-            $user->role = $v->validated()['role'];
-            $user->save();
 
             $sync = [];
             foreach ($workgroupIds as $wgId) {

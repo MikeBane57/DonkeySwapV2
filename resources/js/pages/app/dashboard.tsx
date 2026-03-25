@@ -546,9 +546,7 @@ function getConsecutiveWorkDaysIncluding(
 }
 
 /** Convert time-off ranges to one all-day bar per range. Title shown once, centered on the event. */
-function timeOffToCalendarEvents(
-    ranges: TimeOffRange[],
-): Array<{
+function timeOffToCalendarEvents(ranges: TimeOffRange[]): Array<{
     id: string;
     start: string;
     end: string;
@@ -1854,7 +1852,10 @@ export default function AppDashboard() {
                 </div>
 
                 {/* Two columns: Current/Next shift (one card) | Tabs (Time off, Available to work, My active posts) */}
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div
+                    className="grid gap-4 sm:grid-cols-2"
+                    data-tour="dashboard-shift-summary"
+                >
                     {/* Current (or imminent) + Next shift in same card */}
                     <section className="min-w-0 rounded-xl border border-sidebar-border/50 bg-gradient-to-br from-teal-50 to-emerald-50/80 p-3 shadow-sm dark:from-teal-950/30 dark:to-emerald-950/20">
                         {/* Top: current shift (active now) or today's shift (starts later today) */}
@@ -2167,9 +2168,13 @@ export default function AppDashboard() {
                     </section>
                     {/* Tabs + content: Time off | Available to work | My active posts */}
                     <div className="flex min-w-0 flex-col">
-                        <div className="flex gap-1 border-b border-sidebar-border/50 pb-2">
+                        <div
+                            className="flex gap-1 border-b border-sidebar-border/50 pb-2"
+                            data-tour="dashboard-left-tabs"
+                        >
                             <button
                                 type="button"
+                                data-tour="dashboard-tab-dates-off"
                                 className={`rounded px-3 py-1.5 text-sm font-medium ${dashboardLeftTab === 'overview' ? 'bg-background text-foreground shadow' : 'text-muted-foreground hover:text-foreground'}`}
                                 onClick={() => setDashboardLeftTab('overview')}
                             >
@@ -2177,6 +2182,7 @@ export default function AppDashboard() {
                             </button>
                             <button
                                 type="button"
+                                data-tour="dashboard-tab-available-to-work"
                                 className={`rounded px-3 py-1.5 text-sm font-medium ${dashboardLeftTab === 'time_off' ? 'bg-background text-foreground shadow' : 'text-muted-foreground hover:text-foreground'}`}
                                 onClick={() => setDashboardLeftTab('time_off')}
                             >
@@ -2184,6 +2190,7 @@ export default function AppDashboard() {
                             </button>
                             <button
                                 type="button"
+                                data-tour="dashboard-tab-active-posts"
                                 className={`rounded px-3 py-1.5 text-sm font-medium ${dashboardLeftTab === 'active_posts' ? 'bg-background text-foreground shadow' : 'text-muted-foreground hover:text-foreground'}`}
                                 onClick={() =>
                                     setDashboardLeftTab('active_posts')
@@ -4060,7 +4067,10 @@ export default function AppDashboard() {
                             </Button>
                         </div>
                     </div>
-                    <div className="schedule-calendar relative rounded-xl border border-sidebar-border/70 bg-card p-2 sm:p-4 dark:border-sidebar-border">
+                    <div
+                        className="schedule-calendar relative rounded-xl border border-sidebar-border/70 bg-card p-2 sm:p-4 dark:border-sidebar-border"
+                        data-tour="dashboard-calendar"
+                    >
                         {calendarEventsLoading && (
                             <div
                                 className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/80 backdrop-blur-[1px]"

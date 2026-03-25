@@ -501,7 +501,9 @@ export default function ImportSchedule() {
                                                     {willImport}
                                                 </span>{' '}
                                                 shift
-                                                {willImport !== 1 ? 's' : ''}{' '}
+                                                {willImport !== 1
+                                                    ? 's'
+                                                    : ''}{' '}
                                                 will be imported
                                             </li>
                                             {pastCount > 0 && (

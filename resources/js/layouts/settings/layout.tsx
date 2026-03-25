@@ -69,6 +69,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                     <nav
                         className="flex flex-col space-y-1 space-x-0"
                         aria-label="Settings"
+                        data-tour="settings-nav"
                     >
                         {sidebarNavItems.map((item, index) => (
                             <Button

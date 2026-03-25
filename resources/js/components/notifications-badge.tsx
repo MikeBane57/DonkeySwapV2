@@ -266,6 +266,7 @@ export function NotificationsBadge() {
                 <DropdownMenuTrigger asChild>
                     <button
                         type="button"
+                        data-tour="notifications-bell"
                         className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         aria-label={
                             unreadCount > 0

@@ -177,7 +177,10 @@ export default function NotificationsPage() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Notifications" />
             <div className="min-h-[50vh] flex-1 p-4 md:p-6">
-                <div className="mx-auto max-w-2xl">
+                <div
+                    className="mx-auto max-w-2xl"
+                    data-tour="notifications-main"
+                >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                             <h1 className="text-xl font-semibold tracking-tight">

@@ -6,12 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Services\Client\UserAgentSummary;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ActiveSessionsController extends Controller
 {
+    private const HISTORY_LIMIT = 500;
+
     public function index(Request $request, UserAgentSummary $userAgentSummary): Response
     {
         $driver = (string) config('session.driver');
@@ -34,6 +37,9 @@ class ActiveSessionsController extends Controller
                 ],
                 'current_session_id' => null,
                 'total' => 0,
+                'history_rows' => [],
+                'history_total' => 0,
+                'history_limit' => self::HISTORY_LIMIT,
             ]);
         }
 
@@ -42,25 +48,65 @@ class ActiveSessionsController extends Controller
 
         $table = (string) config('session.table', 'sessions');
 
+        $select = [
+            "{$table}.id as session_id",
+            "{$table}.user_id",
+            "{$table}.ip_address",
+            "{$table}.user_agent",
+            "{$table}.last_activity",
+            "{$table}.client_display_mode",
+            "{$table}.client_platform",
+            'users.name as user_name',
+            'users.email as user_email',
+        ];
+
         $raw = DB::table($table)
             ->join('users', 'users.id', '=', "{$table}.user_id")
             ->where("{$table}.last_activity", '>=', $cutoff)
             ->orderByDesc("{$table}.last_activity")
-            ->select([
-                "{$table}.id as session_id",
-                "{$table}.user_id",
-                "{$table}.ip_address",
-                "{$table}.user_agent",
-                "{$table}.last_activity",
-                "{$table}.client_display_mode",
-                "{$table}.client_platform",
-                'users.name as user_name',
-                'users.email as user_email',
-            ])
+            ->select($select)
+            ->get();
+
+        $historyRaw = DB::table($table)
+            ->join('users', 'users.id', '=', "{$table}.user_id")
+            ->where("{$table}.last_activity", '<', $cutoff)
+            ->orderByDesc("{$table}.last_activity")
+            ->limit(self::HISTORY_LIMIT)
+            ->select($select)
             ->get();
 
         $currentId = $request->session()->getId();
 
+        $rows = $this->mapSessionRows($raw, $tz, $userAgentSummary, $currentId);
+        $historyRows = $this->mapSessionRows($historyRaw, $tz, $userAgentSummary, $currentId);
+
+        $collect = collect($rows);
+
+        return Inertia::render('admin/active-sessions', [
+            'sessions_unavailable' => false,
+            'sessions_unavailable_reason' => null,
+            'timezone' => $tz,
+            'session_lifetime_minutes' => $lifetimeMin,
+            'rows' => $rows,
+            'rollup' => [
+                'by_browser' => $collect->groupBy('browser')->map->count()->sortDesc()->all(),
+                'by_os' => $collect->groupBy('os')->map->count()->sortDesc()->all(),
+                'by_display_mode' => $collect->groupBy(fn ($r) => $r['display_mode'] ?? 'unknown')->map->count()->sortDesc()->all(),
+            ],
+            'current_session_id' => $currentId,
+            'total' => count($rows),
+            'history_rows' => $historyRows,
+            'history_total' => count($historyRows),
+            'history_limit' => self::HISTORY_LIMIT,
+        ]);
+    }
+
+    /**
+     * @param  Collection<int, object>  $raw
+     * @return list<array<string, mixed>>
+     */
+    private function mapSessionRows($raw, string $tz, UserAgentSummary $userAgentSummary, string $currentId): array
+    {
         $rows = [];
         foreach ($raw as $row) {
             $ua = $userAgentSummary->summarize($row->user_agent);
@@ -91,21 +137,6 @@ class ActiveSessionsController extends Controller
             ];
         }
 
-        $collect = collect($rows);
-
-        return Inertia::render('admin/active-sessions', [
-            'sessions_unavailable' => false,
-            'sessions_unavailable_reason' => null,
-            'timezone' => $tz,
-            'session_lifetime_minutes' => $lifetimeMin,
-            'rows' => $rows,
-            'rollup' => [
-                'by_browser' => $collect->groupBy('browser')->map->count()->sortDesc()->all(),
-                'by_os' => $collect->groupBy('os')->map->count()->sortDesc()->all(),
-                'by_display_mode' => $collect->groupBy(fn ($r) => $r['display_mode'] ?? 'unknown')->map->count()->sortDesc()->all(),
-            ],
-            'current_session_id' => $currentId,
-            'total' => count($rows),
-        ]);
+        return $rows;
     }
 }

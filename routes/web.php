@@ -27,6 +27,7 @@ use App\Http\Controllers\App\DashboardController;
 use App\Http\Controllers\App\LookingForWorkController;
 use App\Http\Controllers\App\NotificationsController as AppNotificationsController;
 use App\Http\Controllers\App\ReconcileScheduleController;
+use App\Http\Controllers\App\TutorialController;
 use App\Http\Controllers\LandingController;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Route;
@@ -114,6 +115,7 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
     Route::get('available', [AvailableController::class, 'index'])->name('available');
     Route::get('looking-for-work', [LookingForWorkController::class, 'index'])->name('looking-for-work');
     Route::get('notifications', [AppNotificationsController::class, 'index'])->name('notifications');
+    Route::post('tutorial/mark-seen', [TutorialController::class, 'markSeen'])->name('tutorial.mark-seen');
     Route::redirect('dashboard', '/app');
     Route::redirect('calendar', '/app')->name('calendar');
 

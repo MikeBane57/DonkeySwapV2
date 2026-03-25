@@ -15,21 +15,29 @@ const mainNavItems: NavItem[] = [
         title: 'My Schedule',
         href: dashboard(),
         icon: CalendarSync,
+        dataTour: 'nav-my-schedule',
     },
     {
         title: 'Available shifts',
         href: '/app/available',
         icon: ClipboardList,
+        dataTour: 'nav-available',
     },
     {
         title: 'Looking for work',
         href: '/app/looking-for-work',
         icon: Briefcase,
+        dataTour: 'nav-looking-for-work',
     },
 ];
 
 const adminNavItems: NavItem[] = [
-    { title: 'Admin Panel', href: '/app/admin', icon: Shield },
+    {
+        title: 'Admin Panel',
+        href: '/app/admin',
+        icon: Shield,
+        dataTour: 'nav-admin',
+    },
 ];
 
 export function AppSidebar() {
@@ -49,16 +57,18 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain
-                    items={mainNavItems}
-                    groupLabel="Manage your schedule"
-                />
-                {isAdmin && (
+                <div data-tour="sidebar-nav">
                     <NavMain
-                        items={adminNavItems}
-                        groupLabel="Administration"
+                        items={mainNavItems}
+                        groupLabel="Manage your schedule"
                     />
-                )}
+                    {isAdmin && (
+                        <NavMain
+                            items={adminNavItems}
+                            groupLabel="Administration"
+                        />
+                    )}
+                </div>
             </SidebarContent>
         </Sidebar>
     );

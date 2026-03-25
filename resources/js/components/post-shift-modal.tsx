@@ -1057,6 +1057,7 @@ export function PostShiftModal({
                                                                                 <span className="w-4 text-muted-foreground">
                                                                                     {i +
                                                                                         1}
+
                                                                                     .
                                                                                 </span>
                                                                                 <span className="flex-1">

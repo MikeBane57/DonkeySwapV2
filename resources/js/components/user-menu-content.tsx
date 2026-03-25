@@ -1,5 +1,11 @@
 import { Link, router } from '@inertiajs/react';
-import { Award, LogOut, Settings, SlidersHorizontal } from 'lucide-react';
+import {
+    Award,
+    BookOpen,
+    LogOut,
+    Settings,
+    SlidersHorizontal,
+} from 'lucide-react';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -10,6 +16,7 @@ import { UserInfo } from '@/components/user-info';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { logout } from '@/routes';
 import { edit } from '@/routes/profile';
+import { useTutorialOptional } from '@/tutorial/tutorial-context';
 import type { User } from '@/types';
 
 type Props = {
@@ -18,6 +25,7 @@ type Props = {
 
 export function UserMenuContent({ user }: Props) {
     const cleanup = useMobileNavigation();
+    const tutorial = useTutorialOptional();
 
     const handleLogout = () => {
         cleanup();
@@ -33,6 +41,18 @@ export function UserMenuContent({ user }: Props) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
+                {tutorial && (
+                    <DropdownMenuItem
+                        onSelect={(e) => {
+                            e.preventDefault();
+                            cleanup();
+                            tutorial.openIntentPicker();
+                        }}
+                    >
+                        <BookOpen className="mr-2" />
+                        Run tutorial
+                    </DropdownMenuItem>
+                )}
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full cursor-pointer"

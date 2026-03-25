@@ -1,9 +1,10 @@
 import { Head, router } from '@inertiajs/react';
 import { RefreshCw } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
     Table,
     TableBody,
@@ -60,6 +61,29 @@ function displayModeLabel(mode: string | null): string {
     }
 }
 
+function sessionRowSearchHaystack(row: SessionRow): string {
+    return [
+        row.user_name,
+        row.user_email,
+        row.session_id,
+        row.ip_address ?? '',
+        row.browser,
+        row.os,
+        row.platform,
+        displayModeLabel(row.display_mode),
+        String(row.user_id),
+    ].join(' ');
+}
+
+function matchesSearchQuery(haystack: string, query: string): boolean {
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) {
+        return true;
+    }
+    const h = haystack.toLowerCase();
+    return tokens.every((t) => h.includes(t));
+}
+
 function RollupList({
     title,
     data,
@@ -100,6 +124,9 @@ export default function AdminActiveSessions({
     rows,
     rollup,
     total,
+    history_rows,
+    history_total,
+    history_limit,
 }: {
     sessions_unavailable: boolean;
     sessions_unavailable_reason: string | null;
@@ -108,7 +135,20 @@ export default function AdminActiveSessions({
     rows: SessionRow[];
     rollup: Rollup;
     total: number;
+    history_rows: SessionRow[];
+    history_total: number;
+    history_limit: number;
 }) {
+    const [historyFilter, setHistoryFilter] = useState('');
+
+    const filteredHistoryRows = useMemo(
+        () =>
+            history_rows.filter((r) =>
+                matchesSearchQuery(sessionRowSearchHaystack(r), historyFilter),
+            ),
+        [history_rows, historyFilter],
+    );
+
     const handleRefresh = () => {
         router.reload();
     };
@@ -281,6 +321,162 @@ export default function AdminActiveSessions({
                                     )}
                                 </TableBody>
                             </Table>
+                        </div>
+
+                        <div className="mt-12 space-y-4">
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                                <div className="max-w-3xl space-y-2">
+                                    <h2 className="text-xl font-semibold tracking-tight">
+                                        Recent inactive sessions
+                                    </h2>
+                                    <p className="text-sm leading-relaxed text-muted-foreground">
+                                        Sessions still in the database but
+                                        outside the active window (last activity
+                                        older than {session_lifetime_minutes}{' '}
+                                        minutes). Rows disappear when expired
+                                        sessions are pruned.
+                                        {history_total >= history_limit
+                                            ? ` Showing up to the ${history_limit} most recent.`
+                                            : null}
+                                    </p>
+                                </div>
+                                <div className="w-full min-w-0 sm:max-w-sm">
+                                    <label
+                                        htmlFor="session-history-filter"
+                                        className="mb-1.5 block text-xs font-medium text-muted-foreground"
+                                    >
+                                        Filter history
+                                    </label>
+                                    <Input
+                                        id="session-history-filter"
+                                        type="search"
+                                        placeholder="User, email, IP, browser, OS…"
+                                        value={historyFilter}
+                                        onChange={(e) =>
+                                            setHistoryFilter(e.target.value)
+                                        }
+                                        autoComplete="off"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="text-sm text-muted-foreground">
+                                {historyFilter.trim() !== '' ? (
+                                    <>
+                                        Showing{' '}
+                                        <span className="font-medium text-foreground">
+                                            {filteredHistoryRows.length}
+                                        </span>{' '}
+                                        of{' '}
+                                        <span className="font-medium text-foreground">
+                                            {history_rows.length}
+                                        </span>{' '}
+                                        loaded inactive session
+                                        {history_rows.length === 1 ? '' : 's'}.
+                                    </>
+                                ) : (
+                                    <>
+                                        Showing{' '}
+                                        <span className="font-medium text-foreground">
+                                            {history_rows.length}
+                                        </span>{' '}
+                                        inactive session
+                                        {history_rows.length === 1 ? '' : 's'}.
+                                    </>
+                                )}
+                            </div>
+
+                            <div className="overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>User</TableHead>
+                                            <TableHead>Browser</TableHead>
+                                            <TableHead>OS</TableHead>
+                                            <TableHead>Platform</TableHead>
+                                            <TableHead>App</TableHead>
+                                            <TableHead>IP</TableHead>
+                                            <TableHead>Last activity</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {history_rows.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell
+                                                    colSpan={7}
+                                                    className="text-muted-foreground"
+                                                >
+                                                    No inactive sessions in the
+                                                    store right now.
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : filteredHistoryRows.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell
+                                                    colSpan={7}
+                                                    className="text-muted-foreground"
+                                                >
+                                                    No rows match your filter.
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            filteredHistoryRows.map((r) => (
+                                                <TableRow key={r.session_id}>
+                                                    <TableCell className="font-medium">
+                                                        <div>{r.user_name}</div>
+                                                        <div className="text-xs font-normal text-muted-foreground">
+                                                            {r.user_email}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {r.browser}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {r.os}
+                                                    </TableCell>
+                                                    <TableCell
+                                                        className="max-w-[10rem] truncate"
+                                                        title={r.platform}
+                                                    >
+                                                        {r.platform}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="flex flex-col gap-1">
+                                                            <span>
+                                                                {displayModeLabel(
+                                                                    r.display_mode,
+                                                                )}
+                                                            </span>
+                                                            {r.is_installed_web_app && (
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className="w-fit text-xs"
+                                                                >
+                                                                    Installed
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="font-mono text-xs">
+                                                        {r.ip_address ?? '—'}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <span
+                                                            title={
+                                                                r.last_activity_at
+                                                            }
+                                                        >
+                                                            {
+                                                                r.last_activity_human
+                                                            }
+                                                        </span>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </div>
                     </>
                 )}

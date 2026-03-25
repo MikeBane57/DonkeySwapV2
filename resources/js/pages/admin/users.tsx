@@ -67,11 +67,13 @@ export default function AdminUsers() {
     const {
         users = [],
         workgroups = [],
+        default_user_password: defaultUserPassword = '',
         flash,
         auth,
     } = page.props as {
         users?: UserRow[];
         workgroups?: WorkgroupOption[];
+        default_user_password?: string;
         flash?: { success?: string; error?: string };
         auth?: { user?: { id: number } };
     };
@@ -788,13 +790,15 @@ export default function AdminUsers() {
                                     <p className="font-medium text-foreground">
                                         Initial password
                                     </p>
+                                    <p className="mt-1.5 font-mono text-sm text-foreground">
+                                        {defaultUserPassword || '—'}
+                                    </p>
                                     <p className="mt-1 text-xs text-muted-foreground">
-                                        New users are given the standard initial
-                                        password for this site (the same one
-                                        used for CSV imports). They should sign
-                                        in and change it under account settings.
-                                        Admins can reset a user to that default
-                                        from Edit user.
+                                        Share this with the user for first
+                                        sign-in; they should change it under
+                                        account settings. CSV imports use the
+                                        same password. Admins can reset a user
+                                        to this value from Edit user.
                                     </p>
                                 </div>
                                 <div>
@@ -1092,10 +1096,12 @@ export default function AdminUsers() {
                                         Password
                                     </p>
                                     <p className="mt-1 text-xs text-muted-foreground">
-                                        Reset this user&apos;s password to the
-                                        same standard initial password used for
-                                        new accounts and imports. They should
-                                        change it after signing in.
+                                        Reset to the initial password (
+                                        <span className="font-mono text-foreground">
+                                            {defaultUserPassword || '—'}
+                                        </span>
+                                        ). They should change it after signing
+                                        in.
                                     </p>
                                     <Button
                                         type="button"
@@ -1367,9 +1373,11 @@ export default function AdminUsers() {
                                 <p className="mt-3 text-xs text-muted-foreground">
                                     Rows with an unknown workgroup name fail for
                                     that row. Maximum 500 data rows per import.
-                                    Imported users receive the same standard
-                                    initial password as manually added users;
-                                    seniority dates and qualifications are not
+                                    Imported users get initial password{' '}
+                                    <span className="font-mono text-foreground">
+                                        {defaultUserPassword || '—'}
+                                    </span>
+                                    . Seniority dates and qualifications are not
                                     set by import—edit the user afterward if
                                     needed.
                                 </p>

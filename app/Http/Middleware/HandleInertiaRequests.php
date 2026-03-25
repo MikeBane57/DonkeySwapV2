@@ -54,6 +54,25 @@ class HandleInertiaRequests extends Middleware
 
         $vapidPublicKey = config('webpush.vapid.public_key');
 
+        $seenFeatureIds = $user ? $user->seenTutorialFeatureIds() : [];
+        $whatsNew = [];
+        if ($user) {
+            foreach (config('tutorial.whats_new', []) as $entry) {
+                if (! is_array($entry) || empty($entry['id']) || ! is_string($entry['id'])) {
+                    continue;
+                }
+                if (in_array($entry['id'], $seenFeatureIds, true)) {
+                    continue;
+                }
+                $whatsNew[] = [
+                    'id' => $entry['id'],
+                    'title' => (string) ($entry['title'] ?? ''),
+                    'description' => (string) ($entry['description'] ?? ''),
+                    'intent' => isset($entry['intent']) && is_string($entry['intent']) ? $entry['intent'] : null,
+                ];
+            }
+        }
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
@@ -80,6 +99,11 @@ class HandleInertiaRequests extends Middleware
                 })() : null,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'tutorial' => $user ? [
+                'first_login_tutorial' => $request->session()->pull('first_login_tutorial', false),
+                'seen_feature_ids' => $seenFeatureIds,
+                'whats_new' => $whatsNew,
+            ] : null,
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),

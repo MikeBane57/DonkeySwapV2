@@ -651,7 +651,7 @@ export default function AvailablePage() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Available shifts" />
-            <div className="space-y-4 p-4">
+            <div className="space-y-4 p-4" data-tour="available-main">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                         <h1 className="text-2xl font-semibold">

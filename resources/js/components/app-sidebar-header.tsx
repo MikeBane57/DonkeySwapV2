@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, CircleHelp } from 'lucide-react';
 import { BadgePermissionBanner } from '@/components/badge-permission-banner';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { NotificationsBadge } from '@/components/notifications-badge';
@@ -13,7 +13,8 @@ import {
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useInitials } from '@/hooks/use-initials';
-import type { BreadcrumbItem as BreadcrumbItemType } from '@/types';
+import { useTutorialOptional } from '@/tutorial/tutorial-context';
+import type { BreadcrumbItem as BreadcrumbItemType, User } from '@/types';
 
 export function AppSidebarHeader({
     breadcrumbs = [],
@@ -22,11 +23,12 @@ export function AppSidebarHeader({
 }) {
     const page = usePage();
     const { auth, pending_reconciliation } = page.props as {
-        auth?: { user?: { name: string; avatar?: string } };
+        auth?: { user?: User };
         pending_reconciliation?: boolean;
     };
     const getInitials = useInitials();
     const user = auth?.user;
+    const tutorial = useTutorialOptional();
 
     return (
         <>
@@ -60,12 +62,26 @@ export function AppSidebarHeader({
                     <Breadcrumbs breadcrumbs={breadcrumbs} />
                 </div>
                 <div className="flex items-center gap-2">
+                    {tutorial && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-9 shrink-0 text-muted-foreground"
+                            onClick={() => tutorial.openIntentPicker()}
+                            aria-label="Run tutorial"
+                            title="Run tutorial"
+                        >
+                            <CircleHelp className="size-5" />
+                        </Button>
+                    )}
                     <NotificationsBadge />
                     {user && (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button
                                     variant="ghost"
+                                    data-tour="user-menu"
                                     className="size-9 rounded-full p-1"
                                 >
                                     <Avatar className="size-8 overflow-hidden rounded-full">

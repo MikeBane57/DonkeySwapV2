@@ -352,7 +352,7 @@ export default function LookingForWorkPage() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Looking for work" />
-            <div className="space-y-4 p-4">
+            <div className="space-y-4 p-4" data-tour="lfw-main">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                         <h1 className="text-2xl font-semibold">
@@ -364,7 +364,10 @@ export default function LookingForWorkPage() {
                             offer their shift.
                         </p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div
+                        className="flex shrink-0 items-center gap-2"
+                        data-tour="lfw-header-actions"
+                    >
                         <Button
                             onClick={() => setCreateOpen(true)}
                             className="gap-1.5"
