@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\ContentSecurityPolicy;
 use App\Http\Middleware\EnsureAdmin;
+use App\Http\Middleware\EnsureFeatureEnabled;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\TrackClientSessionContext;
@@ -29,7 +30,10 @@ return Application::configure(basePath: dirname(__DIR__))
             TrackClientSessionContext::class,
         ]);
 
-        $middleware->alias(['admin' => EnsureAdmin::class]);
+        $middleware->alias([
+            'admin' => EnsureAdmin::class,
+            'feature' => EnsureFeatureEnabled::class,
+        ]);
     })
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('analytics:aggregate')->dailyAt('01:25');

@@ -2,7 +2,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import FullCalendar from '@fullcalendar/react';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Plus, Trash2, UserPlus } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScheduleCalendarShiftEventContent } from '@/components/schedule-calendar-shift-event-content';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -168,10 +168,9 @@ export default function AdminShifts() {
         filters.workgroup_id ?? '',
     );
     const [userListSearch, setUserListSearch] = useState('');
-    const filterNavigateSkipRef = useRef(true);
+    const [filtersLoading, setFiltersLoading] = useState(false);
 
     useEffect(() => {
-        filterNavigateSkipRef.current = true;
         setFilterUserIds(parseUserIdsFromFilters(filters));
         setFilterDateFrom(filters.date_from ?? '');
         setFilterDateTo(filters.date_to ?? '');
@@ -179,25 +178,35 @@ export default function AdminShifts() {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-sync when the visit URL changes; `filters` always matches the current `url`.
     }, [url]);
 
-    useEffect(() => {
-        if (filterNavigateSkipRef.current) {
-            filterNavigateSkipRef.current = false;
-            return;
-        }
-        const t = window.setTimeout(() => {
-            router.get(
-                '/app/admin/shifts',
-                buildShiftFilterParams(
-                    filterUserIds,
-                    filterDateFrom,
-                    filterDateTo,
-                    filterWorkgroup,
-                ),
-                { replace: true, preserveScroll: true },
-            );
-        }, 350);
-        return () => window.clearTimeout(t);
-    }, [filterUserIds, filterDateFrom, filterDateTo, filterWorkgroup]);
+    const filtersDirty = useMemo(() => {
+        const appliedIds = parseUserIdsFromFilters(filters);
+        const pending = [...filterUserIds].sort((a, b) => a - b).join(',');
+        const applied = [...appliedIds].sort((a, b) => a - b).join(',');
+        return (
+            pending !== applied ||
+            (filterDateFrom || '') !== (filters.date_from ?? '') ||
+            (filterDateTo || '') !== (filters.date_to ?? '') ||
+            (filterWorkgroup || '') !== (filters.workgroup_id ?? '')
+        );
+    }, [filters, filterUserIds, filterDateFrom, filterDateTo, filterWorkgroup]);
+
+    const applyFilters = () => {
+        setFiltersLoading(true);
+        router.get(
+            '/app/admin/shifts',
+            buildShiftFilterParams(
+                filterUserIds,
+                filterDateFrom,
+                filterDateTo,
+                filterWorkgroup,
+            ),
+            {
+                replace: true,
+                preserveScroll: true,
+                onFinish: () => setFiltersLoading(false),
+            },
+        );
+    };
 
     const [addForm, setAddForm] = useState({
         user_id: '',
@@ -269,16 +278,20 @@ export default function AdminShifts() {
     });
 
     const clearFilters = () => {
-        filterNavigateSkipRef.current = true;
         setFilterUserIds([]);
         setFilterDateFrom('');
         setFilterDateTo('');
         setFilterWorkgroup('');
         setUserListSearch('');
+        setFiltersLoading(true);
         router.get(
             '/app/admin/shifts',
             {},
-            { replace: true, preserveScroll: true },
+            {
+                replace: true,
+                preserveScroll: true,
+                onFinish: () => setFiltersLoading(false),
+            },
         );
     };
 
@@ -494,10 +507,11 @@ export default function AdminShifts() {
                             Shift Manager
                         </h1>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Add, remove, or move shifts for any user. Filters
-                            update the list as you change them (after a short
-                            pause). Leave all users unchecked to see everyone,
-                            or select multiple people to compare.
+                            Add, remove, or move shifts for any user. Set
+                            filters below, then click{' '}
+                            <strong>Apply filters</strong> to load the calendar
+                            and table. Leave all users unchecked to see
+                            everyone, or select multiple people to compare.
                         </p>
                     </div>
                     <Button onClick={openAdd}>
@@ -512,7 +526,7 @@ export default function AdminShifts() {
                     </div>
                 )}
 
-                {/* Filters — update in real time (debounced); pick no users for everyone, or multiple users */}
+                {/* Filters — apply explicitly so multi-select users does not trigger a request per click */}
                 <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-sidebar-border/70 bg-muted/30 p-3 dark:border-sidebar-border">
                     <div className="max-w-sm min-w-[12rem] flex-1">
                         <Label className="text-xs">Users</Label>
@@ -600,10 +614,36 @@ export default function AdminShifts() {
                             ))}
                         </select>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={clearFilters}>
-                        Clear filters
-                    </Button>
+                    <div className="flex flex-col gap-1.5 sm:items-end">
+                        <Button
+                            type="button"
+                            size="sm"
+                            disabled={filtersLoading || !filtersDirty}
+                            onClick={applyFilters}
+                            title={
+                                filtersDirty
+                                    ? 'Load shifts for the current filters'
+                                    : 'Filters already match the loaded data'
+                            }
+                        >
+                            {filtersLoading ? 'Loading…' : 'Apply filters'}
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={clearFilters}
+                            disabled={filtersLoading}
+                        >
+                            Clear filters
+                        </Button>
+                    </div>
                 </div>
+                {filtersDirty && (
+                    <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                        You have filter changes that are not applied yet — click
+                        Apply filters to refresh the calendar and table.
+                    </p>
+                )}
 
                 {/* Bulk actions */}
                 {selectedIds.size > 0 && (

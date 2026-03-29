@@ -19,6 +19,11 @@ export type ScheduleCalendarShiftEventContentProps = {
     pendingIncoming?: boolean;
     isNewShift?: boolean;
     actionRequired?: boolean;
+    /**
+     * When set, replaces default blue/muted surface classes (e.g. per-user colors on Others boards).
+     * Pending-incoming styling still wins when `pendingIncoming` is true.
+     */
+    surfaceClassName?: string;
 };
 
 /**
@@ -34,6 +39,7 @@ export function ScheduleCalendarShiftEventContent({
     pendingIncoming = false,
     isNewShift = false,
     actionRequired = false,
+    surfaceClassName,
 }: ScheduleCalendarShiftEventContentProps) {
     const time24Full = formatStartTime24Full(startIso);
     const isPast = new Date(endIso) < new Date();
@@ -107,15 +113,18 @@ export function ScheduleCalendarShiftEventContent({
         );
     }
 
+    const defaultSurface = isPast
+        ? 'bg-muted text-muted-foreground opacity-70'
+        : 'bg-blue-100 text-blue-900 dark:bg-blue-950/50 dark:text-blue-100';
+    const surface = pendingIncoming
+        ? 'border border-dashed border-amber-500/60 bg-amber-50 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100'
+        : surfaceClassName
+          ? `${surfaceClassName} ${isPast ? 'opacity-70' : ''}`
+          : defaultSurface;
+
     return (
         <div
-            className={`flex w-full min-w-0 overflow-hidden rounded-lg px-2 py-0.5 text-xs ${
-                pendingIncoming
-                    ? 'border border-dashed border-amber-500/60 bg-amber-50 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100'
-                    : isPast
-                      ? 'bg-muted text-muted-foreground opacity-70'
-                      : 'bg-blue-100 text-blue-900 dark:bg-blue-950/50 dark:text-blue-100'
-            } min-h-[3.5rem] flex-col items-center gap-0.5 py-1.5 sm:min-h-0 sm:flex-row sm:items-center sm:py-0.5`}
+            className={`flex w-full min-w-0 overflow-hidden rounded-lg px-2 py-0.5 text-xs ${surface} min-h-[3.5rem] flex-col items-center gap-0.5 py-1.5 sm:min-h-0 sm:flex-row sm:items-center sm:py-0.5`}
             title={`${positionLabel} ${formatStartTimeOnly(startIso)}`}
         >
             <div className="flex min-w-0 flex-1 flex-col gap-0.5 truncate text-center sm:text-left">

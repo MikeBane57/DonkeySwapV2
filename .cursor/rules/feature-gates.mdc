@@ -1,0 +1,12 @@
+---
+description: Beta feature gating via config/features.php — no per-feature .env; do not retrofit unrelated routes
+globs: routes/**/*.php,config/features.php,app/Http/Middleware/**/*.php,**/HandleInertiaRequests.php,resources/js/components/app-sidebar.tsx,resources/js/components/app-header.tsx
+alwaysApply: false
+---
+
+# Feature gates
+
+- New pre-release features get a **boolean key** in `config/features.php` and route middleware `feature:{key}` (see `EnsureFeatureEnabled`). Share visibility with Inertia `features.{key}` in `HandleInertiaRequests` when the UI needs it (e.g. sidebar). Prefer driving flags from existing `APP_ENV` in that config file (no new per-feature env vars).
+- **Do not** add dedicated `.env` variables for each beta feature unless the team explicitly chooses that.
+- **Do not** wrap existing product areas (dashboard, swaps, admin core, settings, etc.) behind feature gates unless explicitly requested. Gates apply only to **new** routes and nav for that feature.
+- When adding a feature: register the key in `config/features.php`, alias middleware is already `feature` in `bootstrap/app.php`.

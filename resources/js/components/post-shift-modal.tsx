@@ -13,6 +13,7 @@ import {
     X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { DatePickerPopover } from '@/components/date-picker-popover';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -650,18 +651,13 @@ export function PostShiftModal({
                                                                         }
                                                                         className="flex max-w-full flex-nowrap items-center gap-1.5"
                                                                     >
-                                                                        <Input
-                                                                            type="date"
+                                                                        <DatePickerPopover
                                                                             value={
                                                                                 range.start
                                                                             }
                                                                             onChange={(
-                                                                                e,
+                                                                                v,
                                                                             ) => {
-                                                                                const v =
-                                                                                    e
-                                                                                        .target
-                                                                                        .value;
                                                                                 setPaybackDateRanges(
                                                                                     (
                                                                                         prev,
@@ -683,23 +679,19 @@ export function PostShiftModal({
                                                                                     },
                                                                                 );
                                                                             }}
-                                                                            className="h-8 w-28 shrink-0 text-sm"
+                                                                            placeholder="Start"
+                                                                            className="w-28 shrink-0 text-sm"
                                                                         />
                                                                         <span className="shrink-0 text-[11px] text-muted-foreground">
                                                                             to
                                                                         </span>
-                                                                        <Input
-                                                                            type="date"
+                                                                        <DatePickerPopover
                                                                             value={
                                                                                 range.end
                                                                             }
                                                                             onChange={(
-                                                                                e,
+                                                                                v,
                                                                             ) => {
-                                                                                const v =
-                                                                                    e
-                                                                                        .target
-                                                                                        .value;
                                                                                 setPaybackDateRanges(
                                                                                     (
                                                                                         prev,
@@ -721,7 +713,8 @@ export function PostShiftModal({
                                                                                     },
                                                                                 );
                                                                             }}
-                                                                            className="h-8 w-28 shrink-0 text-sm"
+                                                                            placeholder="End"
+                                                                            className="w-28 shrink-0 text-sm"
                                                                         />
                                                                         <Button
                                                                             type="button"

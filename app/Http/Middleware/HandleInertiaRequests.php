@@ -75,6 +75,9 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            'features' => [
+                'bid_tools' => (bool) config('features.bid_tools'),
+            ],
             'name' => config('app.name'),
             'app_icon_url' => $appIconUrl,
             'badge_count' => $badgeCount,

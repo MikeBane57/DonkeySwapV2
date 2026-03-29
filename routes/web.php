@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\ActiveSessionsController;
 use App\Http\Controllers\Admin\AnalyticsController;
 use App\Http\Controllers\Admin\AppIconController;
+use App\Http\Controllers\Admin\BidLineImportController;
 use App\Http\Controllers\Admin\MessageCenterController;
 use App\Http\Controllers\Admin\PostManagerController;
 use App\Http\Controllers\Admin\RedLinesController;
@@ -17,15 +18,21 @@ use App\Http\Controllers\Api\HiddenPostController;
 use App\Http\Controllers\Api\LfwDateRangeController;
 use App\Http\Controllers\Api\NotificationsController;
 use App\Http\Controllers\Api\OfferController;
+use App\Http\Controllers\Api\OthersBoardsCalendarController;
 use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\ScheduleImportController as ApiScheduleImportController;
 use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\Api\SwapPostController;
 use App\Http\Controllers\Api\TimeOffRangeController;
 use App\Http\Controllers\App\AvailableController;
+use App\Http\Controllers\App\BidTools\HubController as BidToolsHubController;
+use App\Http\Controllers\App\BidTools\LineBrowserController;
+use App\Http\Controllers\App\BidTools\RankedController as BidToolsRankedController;
+use App\Http\Controllers\App\BidTools\ScenarioController as BidToolsScenarioController;
 use App\Http\Controllers\App\DashboardController;
 use App\Http\Controllers\App\LookingForWorkController;
 use App\Http\Controllers\App\NotificationsController as AppNotificationsController;
+use App\Http\Controllers\App\OthersBoardsController;
 use App\Http\Controllers\App\ReconcileScheduleController;
 use App\Http\Controllers\App\TutorialController;
 use App\Http\Controllers\LandingController;
@@ -74,6 +81,8 @@ Route::prefix('api')->middleware(['auth'])->group(function () {
     Route::delete('push-subscription', [PushSubscriptionController::class, 'destroy'])->name('api.push-subscription.destroy');
     Route::get('export/ics', [ExportController::class, 'ics'])->name('api.export.ics');
     Route::get('calendar/events', [CalendarController::class, 'events'])->name('api.calendar.events');
+    Route::get('others-boards/users', [OthersBoardsCalendarController::class, 'eligibleUsers'])->name('api.others-boards.users');
+    Route::get('others-boards/overlay', [OthersBoardsCalendarController::class, 'overlay'])->name('api.others-boards.overlay');
     Route::post('shifts', [ShiftController::class, 'store'])->name('api.shifts.store');
     Route::patch('shifts/{shift}', [ShiftController::class, 'update'])->name('api.shifts.update');
     Route::delete('shifts/{shift}', [ShiftController::class, 'destroy'])->name('api.shifts.destroy');
@@ -112,6 +121,7 @@ Route::prefix('api')->middleware(['auth'])->group(function () {
 // Authenticated app routes under /app
 Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('others-boards', [OthersBoardsController::class, 'index'])->name('others-boards');
     Route::get('available', [AvailableController::class, 'index'])->name('available');
     Route::get('looking-for-work', [LookingForWorkController::class, 'index'])->name('looking-for-work');
     Route::get('notifications', [AppNotificationsController::class, 'index'])->name('notifications');
@@ -122,6 +132,19 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
     Route::get('reconcile-schedule', [ReconcileScheduleController::class, 'index'])->name('reconcile-schedule.index');
     Route::get('reconcile-schedule/{reconcile_schedule}', [ReconcileScheduleController::class, 'show'])->name('reconcile-schedule.show');
     Route::post('reconcile-schedule/{reconcile_schedule}', [ReconcileScheduleController::class, 'store'])->name('reconcile-schedule.store');
+
+    Route::middleware('feature:bid_tools')->prefix('bid-tools')->name('bid-tools.')->group(function () {
+        Route::get('/', BidToolsHubController::class)->name('index');
+        Route::get('/lines', LineBrowserController::class)->name('lines.index');
+        Route::get('/scenarios/create', [BidToolsScenarioController::class, 'create'])->name('scenarios.create');
+        Route::post('/scenarios', [BidToolsScenarioController::class, 'store'])->name('scenarios.store');
+        Route::get('/scenarios/{scenario}/edit', [BidToolsScenarioController::class, 'edit'])->name('scenarios.edit');
+        Route::put('/scenarios/{scenario}', [BidToolsScenarioController::class, 'update'])->name('scenarios.update');
+        Route::delete('/scenarios/{scenario}', [BidToolsScenarioController::class, 'destroy'])->name('scenarios.destroy');
+        Route::get('/scenarios/{scenario}/ranked', [BidToolsRankedController::class, 'show'])->name('scenarios.ranked');
+        Route::post('/scenarios/{scenario}/score', [BidToolsRankedController::class, 'score'])->name('scenarios.score');
+        Route::patch('/scenarios/{scenario}/lines/{line}/submitted', [BidToolsRankedController::class, 'updateSubmitted'])->name('scenarios.line-submitted');
+    });
 
     // Admin panel (admin role required)
     Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
@@ -179,6 +202,11 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::post('schedule-import/bulk-apply', [ScheduleImportController::class, 'bulkApply'])->name('schedule-import.bulk-apply')->middleware('throttle:10,1');
         Route::post('schedule-import/master-compare', [ScheduleImportController::class, 'masterCompare'])->name('schedule-import.master-compare')->middleware('throttle:10,1');
         Route::post('schedule-import/master-apply', [ScheduleImportController::class, 'masterApply'])->name('schedule-import.master-apply')->middleware('throttle:10,1');
+
+        Route::middleware('feature:bid_tools')->group(function () {
+            Route::get('bid-lines', [BidLineImportController::class, 'index'])->name('bid-lines.index');
+            Route::post('bid-lines', [BidLineImportController::class, 'store'])->name('bid-lines.store')->middleware('throttle:10,1');
+        });
     });
 
     require __DIR__.'/settings.php';

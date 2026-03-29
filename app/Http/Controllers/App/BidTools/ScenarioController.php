@@ -1,0 +1,173 @@
+<?php
+
+namespace App\Http\Controllers\App\BidTools;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\BidTools\StoreBidScenarioRequest;
+use App\Http\Requests\BidTools\UpdateBidScenarioRequest;
+use App\Models\BidImport;
+use App\Models\BidScenario;
+use App\Models\BidScenarioVacationRange;
+use App\Services\BidTools\BidLinePreferenceCatalog;
+use App\Services\BidTools\ScenarioScoreService;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class ScenarioController extends Controller
+{
+    public function __construct(
+        private readonly ScenarioScoreService $scoreService,
+        private readonly BidLinePreferenceCatalog $preferenceCatalog,
+    ) {}
+
+    public function create(): Response
+    {
+        $imports = BidImport::query()
+            ->where('is_current', true)
+            ->orderByDesc('bid_year')
+            ->get(['id', 'bid_year', 'file_hash']);
+
+        return Inertia::render('app/bid-tools/scenarios/create', [
+            'imports' => $imports,
+        ]);
+    }
+
+    public function store(StoreBidScenarioRequest $request): RedirectResponse
+    {
+        $user = $request->user();
+        $import = BidImport::query()->findOrFail($request->validated('bid_import_id'));
+        $bidYear = (int) $import->bid_year;
+
+        $deskKeys = $this->preferenceCatalog->deskKeysForImport($import->id);
+        $startKeys = $this->preferenceCatalog->startTimeKeysForImport($import->id);
+        $deskRank = $deskKeys === []
+            ? $this->scoreService->defaultDeskEntries()
+            : $this->scoreService->deskEntriesForEditor([], $deskKeys);
+        $startRank = $startKeys === []
+            ? $this->scoreService->defaultStartTimeEntries()
+            : $this->scoreService->startTimeEntriesForEditor([], $startKeys);
+
+        $scenario = BidScenario::create([
+            'user_id' => $user->id,
+            'bid_import_id' => $import->id,
+            'name' => $request->validated('name'),
+            'vacation_bank' => 15,
+            'weights' => [
+                'holiday' => 1.0,
+                'personal' => 1.0,
+                'start_time' => 1.0,
+                'desk' => 1.0,
+                'vacation_penalty' => 1.0,
+                'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+            ],
+            'holiday_rank' => $this->scoreService->defaultHolidayEntries($bidYear),
+            'desk_rank' => $deskRank,
+            'start_time_rank' => $startRank,
+            'personal_dates' => [],
+            'code_overrides' => [],
+        ]);
+
+        return redirect()
+            ->route('bid-tools.scenarios.edit', $scenario->id)
+            ->with('success', 'Scenario created.');
+    }
+
+    public function edit(Request $request, int $scenario): Response
+    {
+        $s = $this->findScenario($request, $scenario);
+        $s->load(['vacationRanges', 'import']);
+        $bidYear = (int) $s->import->bid_year;
+
+        $weights = array_merge([
+            'holiday' => 1.0,
+            'personal' => 1.0,
+            'start_time' => 1.0,
+            'desk' => 1.0,
+            'vacation_penalty' => 1.0,
+            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+        ], $s->weights ?? []);
+
+        $deskKeys = $this->preferenceCatalog->deskKeysForImport($s->bid_import_id);
+        $startKeys = $this->preferenceCatalog->startTimeKeysForImport($s->bid_import_id);
+
+        return Inertia::render('app/bid-tools/scenarios/edit', [
+            'scenario' => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'bid_import_id' => $s->bid_import_id,
+                'vacation_bank' => $s->vacation_bank,
+                'weights' => $weights,
+                'holiday_rank' => $this->scoreService->holidayEntriesForEditor($s->holiday_rank, $bidYear),
+                'desk_rank' => $this->scoreService->deskEntriesForEditor($s->desk_rank, $deskKeys),
+                'start_time_rank' => $this->scoreService->startTimeEntriesForEditor($s->start_time_rank, $startKeys),
+                'personal_dates' => $this->scoreService->personalDatesForEditor($s->personal_dates ?? []),
+                'code_overrides' => $s->code_overrides ?? [],
+                'import' => [
+                    'bid_year' => $s->import->bid_year,
+                    'file_hash' => $s->import->file_hash,
+                    'is_current' => $s->import->is_current,
+                ],
+                'vacation_ranges' => $s->vacationRanges->map(fn ($r) => [
+                    'id' => $r->id,
+                    'title' => $r->title,
+                    'starts_on' => $r->starts_on->format('Y-m-d'),
+                    'ends_on' => $r->ends_on->format('Y-m-d'),
+                ]),
+            ],
+            'distinctCodes' => $s->import->meta['distinct_codes'] ?? [],
+            'holidaysCatalog' => $this->scoreService->holidaysCatalog($bidYear),
+            'deskCatalog' => $this->preferenceCatalog->deskCatalogForImport($s->bid_import_id),
+            'startTimeCatalog' => $this->preferenceCatalog->startTimeCatalogForImport($s->bid_import_id),
+        ]);
+    }
+
+    public function update(UpdateBidScenarioRequest $request, int $scenario): RedirectResponse
+    {
+        $s = $this->findScenario($request, $scenario);
+        $data = $request->validated();
+
+        if (array_key_exists('vacation_ranges', $data)) {
+            $s->vacationRanges()->delete();
+            foreach ($data['vacation_ranges'] ?? [] as $range) {
+                BidScenarioVacationRange::create([
+                    'bid_scenario_id' => $s->id,
+                    'title' => $range['title'] ?? null,
+                    'starts_on' => $range['starts_on'],
+                    'ends_on' => $range['ends_on'],
+                ]);
+            }
+            unset($data['vacation_ranges']);
+        }
+
+        $fillKeys = [
+            'name', 'vacation_bank', 'weights', 'holiday_rank', 'desk_rank',
+            'start_time_rank', 'personal_dates', 'code_overrides',
+        ];
+        $s->fill(Arr::only($data, $fillKeys));
+        $s->save();
+
+        return redirect()
+            ->route('bid-tools.scenarios.edit', $s->id)
+            ->with('success', 'Scenario saved.');
+    }
+
+    public function destroy(Request $request, int $scenario): RedirectResponse
+    {
+        $s = $this->findScenario($request, $scenario);
+        $s->delete();
+
+        return redirect()
+            ->route('bid-tools.index')
+            ->with('success', 'Scenario deleted.');
+    }
+
+    private function findScenario(Request $request, int $id): BidScenario
+    {
+        return BidScenario::query()
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
+    }
+}

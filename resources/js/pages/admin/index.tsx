@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     AlertTriangle,
     BarChart3,
@@ -32,7 +32,7 @@ type AdminSection = {
     items: AdminModule[];
 };
 
-const sections: AdminSection[] = [
+const baseSections: AdminSection[] = [
     {
         title: 'Insights',
         blurb: 'Trends and historical metrics for swap activity and scheduling.',
@@ -177,7 +177,42 @@ function AdminCard({ item }: { item: AdminModule }) {
     );
 }
 
+function withBidLineImportSection(
+    sections: AdminSection[],
+    bidToolsEnabled: boolean,
+): AdminSection[] {
+    if (!bidToolsEnabled) {
+        return sections;
+    }
+    return sections.map((section) => {
+        if (section.title !== 'Schedule imports') {
+            return section;
+        }
+        return {
+            ...section,
+            items: [
+                ...section.items,
+                {
+                    title: 'Bid line import',
+                    href: '/app/admin/bid-lines',
+                    description:
+                        'Upload one or more bid-line CSVs per bid year (merge workgroup files into one master).',
+                    icon: FileSpreadsheet,
+                },
+            ],
+        };
+    });
+}
+
 export default function AdminIndex() {
+    const { features } = usePage().props as {
+        features?: { bid_tools?: boolean };
+    };
+    const sections = withBidLineImportSection(
+        baseSections,
+        !!features?.bid_tools,
+    );
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Admin" />
