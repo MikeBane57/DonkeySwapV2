@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppNotification;
+use App\Models\LookingForWorkPost;
 use App\Models\Shift;
 use App\Models\SwapOffer;
 use App\Models\SwapPost;
@@ -144,6 +145,48 @@ class CalendarController extends Controller
                     ],
                 ];
             }
+        }
+
+        $lfwPosts = LookingForWorkPost::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'open')
+            ->where('seeking_date', '>=', $startDt->toDateString())
+            ->where('seeking_date', '<=', $endDt->toDateString())
+            ->orderBy('seeking_date')
+            ->get();
+
+        foreach ($lfwPosts as $post) {
+            $dateStr = $post->seeking_date->format('Y-m-d');
+            $endExclusive = $post->seeking_date->copy()->addDay();
+            $cash = (float) $post->seeking_cash;
+            $cashLabel = $cash > 0
+                ? '$'.(floor($cash) === $cash ? (string) (int) $cash : number_format($cash, 2))
+                : null;
+            $titleParts = ['LFW'];
+            if ($cashLabel !== null) {
+                $titleParts[] = $cashLabel;
+            }
+            if ($post->seeking_obo) {
+                $titleParts[] = 'OBO';
+            }
+            if (count($titleParts) === 1) {
+                $titleParts[] = 'post';
+            }
+            $events[] = [
+                'id' => 'lfw-post-'.$post->id,
+                'title' => implode(' · ', $titleParts),
+                'start' => $dateStr,
+                'end' => $endExclusive->format('Y-m-d'),
+                'allDay' => true,
+                'backgroundColor' => 'rgba(245, 158, 11, 0.38)',
+                'extendedProps' => [
+                    'isLfwPost' => true,
+                    'lfw_post_id' => $post->id,
+                    'seeking_cash' => $cash,
+                    'seeking_obo' => (bool) $post->seeking_obo,
+                    'notes' => $post->notes,
+                ],
+            ];
         }
 
         return response()->json($events);

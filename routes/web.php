@@ -99,6 +99,7 @@ Route::prefix('api')->middleware(['auth'])->group(function () {
     Route::get('time-off-ranges', [TimeOffRangeController::class, 'index'])->name('api.time-off-ranges.index');
     Route::post('time-off-ranges', [TimeOffRangeController::class, 'store'])->name('api.time-off-ranges.store');
     Route::delete('time-off-ranges/{userTimeOffRange}', [TimeOffRangeController::class, 'destroy'])->name('api.time-off-ranges.destroy');
+    Route::get('lfw-date-ranges', [LfwDateRangeController::class, 'index'])->name('api.lfw-date-ranges.index');
     Route::post('lfw-date-ranges', [LfwDateRangeController::class, 'store'])->name('api.lfw-date-ranges.store');
     Route::delete('lfw-date-ranges/{userLfwDateRange}', [LfwDateRangeController::class, 'destroy'])->name('api.lfw-date-ranges.destroy');
     Route::get('available/eligible-counts', [AvailableController::class, 'eligibleCounts'])->name('api.available.eligible-counts');

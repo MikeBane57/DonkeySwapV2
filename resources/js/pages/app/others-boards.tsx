@@ -33,11 +33,19 @@ type TimeOffRange = {
     notes?: string | null;
 };
 
+type LfwDateRangeRow = {
+    id: number;
+    title?: string | null;
+    dateFrom: string;
+    dateTo: string;
+};
+
 type CalendarEvent = {
     id: string;
     title: string;
     start: string;
     end: string;
+    allDay?: boolean;
     extendedProps?: {
         shiftId?: number;
         position_name?: string;
@@ -51,6 +59,11 @@ type CalendarEvent = {
         overlayUserName?: string;
         isOverlayOther?: boolean;
         isOverlayTimeOff?: boolean;
+        isOverlayLfw?: boolean;
+        isOverlayLfwPost?: boolean;
+        isLfwRange?: boolean;
+        isLfwPost?: boolean;
+        notes?: string | null;
     };
 };
 
@@ -80,8 +93,40 @@ function timeOffToCalendarEvents(ranges: TimeOffRange[]): Array<{
     });
 }
 
+function lfwToCalendarEvents(ranges: LfwDateRangeRow[]): Array<{
+    id: string;
+    start: string;
+    end: string;
+    title: string;
+    allDay: boolean;
+    backgroundColor: string;
+    extendedProps?: { isLfwRange: true };
+}> {
+    return ranges.map((r) => {
+        const end = new Date(r.dateTo + 'T12:00:00');
+        const endExclusive = new Date(end);
+        endExclusive.setDate(endExclusive.getDate() + 1);
+        const title = r.title?.trim() || 'Looking for work';
+        return {
+            id: `lfw-${r.id}`,
+            start: r.dateFrom,
+            end: endExclusive.toISOString().slice(0, 10),
+            title,
+            allDay: true,
+            backgroundColor: 'rgba(251, 191, 36, 0.28)',
+            extendedProps: { isLfwRange: true },
+        };
+    });
+}
+
 function normalizeEventEnd(ev: CalendarEvent): CalendarEvent {
-    if (ev.extendedProps?.isOverlayTimeOff) {
+    if (
+        ev.allDay ||
+        ev.extendedProps?.isLfwPost ||
+        ev.extendedProps?.isOverlayTimeOff ||
+        ev.extendedProps?.isOverlayLfw ||
+        ev.extendedProps?.isOverlayLfwPost
+    ) {
         return ev;
     }
     return {
@@ -105,6 +150,7 @@ function buildEventContent(selectedUserIds: number[]): (info: {
         id: string;
         extendedProps?: CalendarEvent['extendedProps'] & {
             isTimeOff?: boolean;
+            isLfwRange?: boolean;
         };
         title: string;
         start: string | Date;
@@ -118,6 +164,28 @@ function buildEventContent(selectedUserIds: number[]): (info: {
             const label = ev.title || 'Need off';
             return (
                 <div className="flex min-w-0 items-center justify-center truncate rounded-lg bg-slate-200/80 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-600/30 dark:text-slate-300">
+                    <span className="truncate font-medium">{label}</span>
+                </div>
+            );
+        }
+        if (ev.id?.startsWith('lfw-post-') || p?.isLfwPost) {
+            const label = ev.title || 'LFW post';
+            return (
+                <div
+                    className="flex min-w-0 items-center justify-center truncate rounded-lg border border-amber-600/50 bg-amber-200/90 px-2 py-0.5 text-xs font-medium text-amber-950 dark:border-amber-400/50 dark:bg-amber-900/55 dark:text-amber-50"
+                    title={p?.notes ? String(p.notes) : undefined}
+                >
+                    <span className="truncate">{label}</span>
+                </div>
+            );
+        }
+        if (
+            (ev.id?.startsWith('lfw-') && !ev.id.startsWith('lfw-post-')) ||
+            p?.isLfwRange
+        ) {
+            const label = ev.title || 'Looking for work';
+            return (
+                <div className="flex min-w-0 items-center justify-center truncate rounded-lg border border-dashed border-amber-500/45 bg-amber-100/85 px-2 py-0.5 text-xs text-amber-950 dark:border-amber-400/40 dark:bg-amber-950/35 dark:text-amber-50">
                     <span className="truncate font-medium">{label}</span>
                 </div>
             );
@@ -139,11 +207,47 @@ function buildEventContent(selectedUserIds: number[]): (info: {
                 </div>
             );
         }
+        if (p?.isOverlayLfw && p.overlayUserId != null) {
+            const pi = colorIndexForUserId(p.overlayUserId, selectedUserIds);
+            const pal = OTHERS_BOARD_PALETTE[pi];
+            const label = ev.title || 'Looking for work';
+            return (
+                <div
+                    className={`flex min-w-0 flex-col items-center justify-center gap-0.5 truncate rounded-lg px-2 py-0.5 text-center text-xs ${pal.lfw}`}
+                >
+                    <span className="truncate font-medium">{label}</span>
+                    {p.overlayUserName ? (
+                        <span className="truncate text-[10px] opacity-90">
+                            {p.overlayUserName}
+                        </span>
+                    ) : null}
+                </div>
+            );
+        }
+        if (p?.isOverlayLfwPost && p.overlayUserId != null) {
+            const pi = colorIndexForUserId(p.overlayUserId, selectedUserIds);
+            const pal = OTHERS_BOARD_PALETTE[pi];
+            const label = ev.title || 'LFW post';
+            return (
+                <div
+                    className={`flex min-w-0 flex-col items-center justify-center gap-0.5 truncate rounded-lg px-2 py-0.5 text-center text-xs ${pal.lfwPost}`}
+                >
+                    <span className="truncate font-medium">{label}</span>
+                    {p.overlayUserName ? (
+                        <span className="truncate text-[10px] opacity-90">
+                            {p.overlayUserName}
+                        </span>
+                    ) : null}
+                </div>
+            );
+        }
         const overlayShiftUid =
             p?.overlayUserId ?? overlayUserIdFromShiftEventId(ev.id);
         const isOverlayTimedShift =
             overlayShiftUid != null &&
             !p?.isOverlayTimeOff &&
+            !p?.isOverlayLfw &&
+            !p?.isOverlayLfwPost &&
             (p?.isOverlayOther === true ||
                 (typeof ev.id === 'string' &&
                     ev.id.startsWith('overlay-shift-')));
@@ -215,6 +319,7 @@ export default function OthersBoardsPage() {
     const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
 
     const [timeOffRanges, setTimeOffRanges] = useState<TimeOffRange[]>([]);
+    const [lfwDateRanges, setLfwDateRanges] = useState<LfwDateRangeRow[]>([]);
     const [myEvents, setMyEvents] = useState<CalendarEvent[]>([]);
     const [overlayEvents, setOverlayEvents] = useState<CalendarEvent[]>([]);
     const [calendarLoading, setCalendarLoading] = useState(false);
@@ -290,6 +395,46 @@ export default function OthersBoardsPage() {
                 if (Array.isArray(data)) setTimeOffRanges(data);
             })
             .catch((e) => logClientError('others-boards.timeOff', e));
+    }, []);
+
+    useEffect(() => {
+        fetch('/api/lfw-date-ranges', {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'include',
+        })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (!Array.isArray(data)) return;
+                const rows: LfwDateRangeRow[] = [];
+                for (const item of data) {
+                    if (
+                        item &&
+                        typeof item === 'object' &&
+                        typeof (item as { id: unknown }).id === 'number' &&
+                        typeof (item as { dateFrom: unknown }).dateFrom ===
+                            'string' &&
+                        typeof (item as { dateTo: unknown }).dateTo === 'string'
+                    ) {
+                        const o = item as {
+                            id: number;
+                            title?: string | null;
+                            dateFrom: string;
+                            dateTo: string;
+                        };
+                        rows.push({
+                            id: o.id,
+                            title: o.title ?? null,
+                            dateFrom: o.dateFrom,
+                            dateTo: o.dateTo,
+                        });
+                    }
+                }
+                setLfwDateRanges(rows);
+            })
+            .catch((e) => logClientError('others-boards.lfwRanges', e));
     }, []);
 
     const fetchOverlay = useCallback(async (start: string, end: string) => {
@@ -423,20 +568,22 @@ export default function OthersBoardsPage() {
     const calendarEvents = useMemo(
         () => [
             ...timeOffToCalendarEvents(timeOffRanges),
+            ...lfwToCalendarEvents(lfwDateRanges),
             ...myEvents.map(normalizeEventEnd),
-            ...overlayEvents.map((ev) => {
-                if (ev.extendedProps?.isOverlayTimeOff) return ev;
-                // Keep true UTC range so FullCalendar places timed segments correctly.
-                if (
-                    typeof ev.id === 'string' &&
-                    ev.id.startsWith('overlay-shift-')
-                ) {
-                    return ev;
-                }
-                return normalizeEventEnd(ev);
-            }),
+            ...overlayEvents.map((ev) =>
+                ev.extendedProps?.isOverlayTimeOff ||
+                ev.extendedProps?.isOverlayLfw ||
+                ev.extendedProps?.isOverlayLfwPost
+                    ? ev
+                    : normalizeEventEnd(ev),
+            ),
         ],
-        [timeOffRanges, myEvents, overlayEvents],
+        [timeOffRanges, lfwDateRanges, myEvents, overlayEvents],
+    );
+
+    const showMyLfwPostLegend = useMemo(
+        () => myEvents.some((e) => e.id?.startsWith('lfw-post-')),
+        [myEvents],
     );
 
     return (
@@ -450,8 +597,9 @@ export default function OthersBoardsPage() {
                     </h1>
                     <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
                         Your schedule with optional overlays: coworkers who
-                        share a workgroup with you can show their shifts and
-                        need-off dates. Each person uses a consistent color.
+                        share a workgroup with you can show their shifts,
+                        need-off dates, LFW availability ranges, and open LFW
+                        posts. Each person uses a consistent color.
                     </p>
                 </div>
 
@@ -588,6 +736,18 @@ export default function OthersBoardsPage() {
                                         }}
                                     />{' '}
                                     Your need off
+                                </span>
+                            ) : null}
+                            {lfwDateRanges.length > 0 ? (
+                                <span>
+                                    <span className="mr-1 inline-block h-1.5 w-1.5 rounded-sm border border-dashed border-amber-600/60 bg-amber-200/70 align-middle dark:border-amber-400/50 dark:bg-amber-900/50" />{' '}
+                                    Your LFW ranges
+                                </span>
+                            ) : null}
+                            {showMyLfwPostLegend ? (
+                                <span>
+                                    <span className="mr-1 inline-block h-1.5 w-1.5 rounded-sm border border-amber-600/60 bg-amber-300/80 align-middle dark:border-amber-400/55 dark:bg-amber-800/70" />{' '}
+                                    Your LFW posts (open)
                                 </span>
                             ) : null}
                             {sortedSelectedIds.map((uid) => {

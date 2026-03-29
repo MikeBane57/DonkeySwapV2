@@ -10,6 +10,21 @@ use Illuminate\Support\Facades\Validator;
 
 class LfwDateRangeController extends Controller
 {
+    public function index(Request $request): JsonResponse
+    {
+        $ranges = UserLfwDateRange::where('user_id', $request->user()->id)
+            ->orderBy('date_from')
+            ->get()
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'title' => $r->title,
+                'dateFrom' => $r->date_from->format('Y-m-d'),
+                'dateTo' => $r->date_to->format('Y-m-d'),
+            ]);
+
+        return response()->json($ranges);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [

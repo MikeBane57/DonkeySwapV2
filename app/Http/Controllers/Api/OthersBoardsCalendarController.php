@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\LookingForWorkPost;
 use App\Models\Shift;
 use App\Models\SwapPost;
 use App\Models\User;
+use App\Models\UserLfwDateRange;
 use App\Models\UserTimeOffRange;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -41,7 +43,7 @@ class OthersBoardsCalendarController extends Controller
     }
 
     /**
-     * Shifts and need-off ranges for selected coworkers (same date range as calendar API).
+     * Shifts, need-off, LFW date ranges, and open LFW posts for selected coworkers (same date range as calendar API).
      *
      * Accepts `user_ids` as a comma-separated string (recommended for GET) or as an array
      * (`user_ids[]=1&user_ids[]=2`). Some stacks do not populate PHP's query array for bracket keys.
@@ -169,6 +171,70 @@ class OthersBoardsCalendarController extends Controller
                         'overlayUserName' => $name,
                         'isOverlayOther' => true,
                         'isOverlayTimeOff' => true,
+                    ],
+                ];
+            }
+
+            $lfwRanges = UserLfwDateRange::where('user_id', $userId)
+                ->where('date_from', '<=', $endDt->toDateString())
+                ->where('date_to', '>=', $startDt->toDateString())
+                ->orderBy('date_from')
+                ->get();
+
+            foreach ($lfwRanges as $lr) {
+                $lfwTitle = $lr->title ? trim((string) $lr->title) : '';
+                if ($lfwTitle === '') {
+                    $lfwTitle = 'Looking for work';
+                }
+                $lfwEndExclusive = $lr->date_to->copy()->addDay();
+                $events[] = [
+                    'id' => 'overlay-lfw-'.$userId.'-'.$lr->id,
+                    'title' => $lfwTitle,
+                    'start' => $lr->date_from->format('Y-m-d'),
+                    'end' => $lfwEndExclusive->format('Y-m-d'),
+                    'allDay' => true,
+                    'extendedProps' => [
+                        'overlayUserId' => $userId,
+                        'overlayUserName' => $name,
+                        'isOverlayOther' => true,
+                        'isOverlayLfw' => true,
+                    ],
+                ];
+            }
+
+            $lfwPosts = LookingForWorkPost::query()
+                ->where('user_id', $userId)
+                ->where('status', 'open')
+                ->where('seeking_date', '>=', $startDt->toDateString())
+                ->where('seeking_date', '<=', $endDt->toDateString())
+                ->orderBy('seeking_date')
+                ->get();
+
+            foreach ($lfwPosts as $lp) {
+                $pDate = $lp->seeking_date->format('Y-m-d');
+                $pEndEx = $lp->seeking_date->copy()->addDay();
+                $cash = (float) $lp->seeking_cash;
+                $cashLabel = $cash > 0
+                    ? '$'.(floor($cash) === $cash ? (string) (int) $cash : number_format($cash, 2))
+                    : null;
+                $titleParts = ['LFW post'];
+                if ($cashLabel !== null) {
+                    $titleParts[] = $cashLabel;
+                }
+                if ($lp->seeking_obo) {
+                    $titleParts[] = 'OBO';
+                }
+                $events[] = [
+                    'id' => 'overlay-lfw-post-'.$userId.'-'.$lp->id,
+                    'title' => implode(' · ', $titleParts),
+                    'start' => $pDate,
+                    'end' => $pEndEx->format('Y-m-d'),
+                    'allDay' => true,
+                    'extendedProps' => [
+                        'overlayUserId' => $userId,
+                        'overlayUserName' => $name,
+                        'isOverlayOther' => true,
+                        'isOverlayLfwPost' => true,
                     ],
                 ];
             }

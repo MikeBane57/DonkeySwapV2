@@ -281,8 +281,10 @@ type CalendarEvent = {
     title: string;
     start: string;
     end: string;
+    allDay?: boolean;
+    backgroundColor?: string;
     extendedProps?: {
-        shiftId: number;
+        shiftId?: number;
         position_name?: string;
         desk_type?: string | null;
         regulatory?: boolean;
@@ -308,6 +310,12 @@ type CalendarEvent = {
         /** Shift was received via accepted offer; show as new until user dismisses notification. */
         is_new_shift?: boolean;
         new_shift_notification_id?: number | null;
+        /** Open Looking for work board post (single seeking date). */
+        isLfwPost?: boolean;
+        lfw_post_id?: number;
+        seeking_cash?: number;
+        seeking_obo?: boolean;
+        notes?: string | null;
     };
 };
 
@@ -572,8 +580,38 @@ function timeOffToCalendarEvents(ranges: TimeOffRange[]): Array<{
     });
 }
 
+/** All-day bars for “looking for work” date ranges (same exclusive-end convention as need off). */
+function lfwDateRangesToCalendarEvents(ranges: LfwDateRangePuck[]): Array<{
+    id: string;
+    start: string;
+    end: string;
+    title: string;
+    allDay: boolean;
+    backgroundColor: string;
+    extendedProps?: { isLfwRange: true };
+}> {
+    return ranges.map((r) => {
+        const end = new Date(r.dateTo + 'T12:00:00');
+        const endExclusive = new Date(end);
+        endExclusive.setDate(endExclusive.getDate() + 1);
+        const title = r.title?.trim() || 'Looking for work';
+        return {
+            id: `lfw-${r.id}`,
+            start: r.dateFrom,
+            end: endExclusive.toISOString().slice(0, 10),
+            title,
+            allDay: true,
+            backgroundColor: 'rgba(251, 191, 36, 0.28)',
+            extendedProps: { isLfwRange: true },
+        };
+    });
+}
+
 /** Clamp overnight shifts to end of start day (in local time) so they only appear on the day the shift starts. */
 function normalizeEventEnd(ev: CalendarEvent): CalendarEvent {
+    if (ev.allDay || ev.extendedProps?.isLfwPost) {
+        return ev;
+    }
     return { ...ev, end: normalizeShiftEventEndIso(ev.start, ev.end) };
 }
 
@@ -582,6 +620,8 @@ function eventContent(info: {
         id: string;
         extendedProps?: CalendarEvent['extendedProps'] & {
             isTimeOff?: boolean;
+            isLfwRange?: boolean;
+            isLfwPost?: boolean;
         };
         title: string;
         start: string | Date;
@@ -594,6 +634,28 @@ function eventContent(info: {
         const label = ev.title || 'Need off';
         return (
             <div className="flex min-w-0 items-center justify-center truncate rounded-lg bg-slate-200/80 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-600/30 dark:text-slate-300">
+                <span className="truncate font-medium">{label}</span>
+            </div>
+        );
+    }
+    if (ev.id?.startsWith('lfw-post-') || p?.isLfwPost) {
+        const label = ev.title || 'LFW post';
+        return (
+            <div
+                className="flex min-w-0 items-center justify-center truncate rounded-lg border border-amber-600/50 bg-amber-200/90 px-2 py-0.5 text-xs font-medium text-amber-950 dark:border-amber-400/50 dark:bg-amber-900/55 dark:text-amber-50"
+                title={p?.notes ? String(p.notes) : undefined}
+            >
+                <span className="truncate">{label}</span>
+            </div>
+        );
+    }
+    if (
+        (ev.id?.startsWith('lfw-') && !ev.id.startsWith('lfw-post-')) ||
+        p?.isLfwRange
+    ) {
+        const label = ev.title || 'Looking for work';
+        return (
+            <div className="flex min-w-0 items-center justify-center truncate rounded-lg border border-dashed border-amber-500/45 bg-amber-100/85 px-2 py-0.5 text-xs text-amber-950 dark:border-amber-400/40 dark:bg-amber-950/35 dark:text-amber-50">
                 <span className="truncate font-medium">{label}</span>
             </div>
         );
@@ -860,10 +922,10 @@ export default function AppDashboard() {
     );
     const [expandedPuckId, setExpandedPuckId] = useState<number | null>(null);
     const [bulkLfwRangeTitle, setBulkLfwRangeTitle] = useState('LFW');
-    const [postingLfwDate, setPostingLfwDate] = useState<string | null>(null);
-    const [postingLfwAllPuckId, setPostingLfwAllPuckId] = useState<
-        number | null
-    >(null);
+    /** When set, PostLfwModal posts the same details for each date (puck “post all”). */
+    const [lfwModalBulkDates, setLfwModalBulkDates] = useState<string[] | null>(
+        null,
+    );
     const [addingLfwPuck, setAddingLfwPuck] = useState(false);
 
     useEffect(() => {
@@ -1076,6 +1138,8 @@ export default function AppDashboard() {
             };
         }) => {
             if (arg.event.id?.startsWith('timeoff-')) return;
+            if (arg.event.id?.startsWith('lfw-post-')) return;
+            if (arg.event.id?.startsWith('lfw-')) return;
             if (arg.event.id?.startsWith('pending-incoming-')) return; // Tentative shift from pending offer; not editable
             const ext = arg.event.extendedProps;
             const offerId = ext?.action_required_offer_id;
@@ -3737,64 +3801,25 @@ export default function AppDashboard() {
                                                                                                 variant="outline"
                                                                                                 size="sm"
                                                                                                 className="h-6 px-2 text-[10px]"
-                                                                                                disabled={
-                                                                                                    postingLfwDate !=
-                                                                                                    null
-                                                                                                }
-                                                                                                onClick={async () => {
-                                                                                                    setPostingLfwDate(
+                                                                                                onClick={() => {
+                                                                                                    setLfwModalBulkDates(
+                                                                                                        null,
+                                                                                                    );
+                                                                                                    setLfwModalDate(
                                                                                                         dateStr,
                                                                                                     );
-                                                                                                    try {
-                                                                                                        const res =
-                                                                                                            await fetch(
-                                                                                                                '/api/looking-for-work/posts',
-                                                                                                                {
-                                                                                                                    method: 'POST',
-                                                                                                                    headers:
-                                                                                                                        {
-                                                                                                                            'Content-Type':
-                                                                                                                                'application/json',
-                                                                                                                            Accept: 'application/json',
-                                                                                                                            'X-XSRF-TOKEN':
-                                                                                                                                getCsrfToken(),
-                                                                                                                            'X-Requested-With':
-                                                                                                                                'XMLHttpRequest',
-                                                                                                                        },
-                                                                                                                    credentials:
-                                                                                                                        'include',
-                                                                                                                    body: JSON.stringify(
-                                                                                                                        {
-                                                                                                                            seeking_date:
-                                                                                                                                dateStr,
-                                                                                                                            seeking_cash: 0,
-                                                                                                                            seeking_obo: false,
-                                                                                                                            notes: null,
-                                                                                                                            seeking_desk_types:
-                                                                                                                                null,
-                                                                                                                        },
-                                                                                                                    ),
-                                                                                                                },
-                                                                                                            );
-                                                                                                        if (
-                                                                                                            res.ok
-                                                                                                        )
-                                                                                                            router.reload(
-                                                                                                                {
-                                                                                                                    only: DASHBOARD_RELOAD_ONLY,
-                                                                                                                },
-                                                                                                            );
-                                                                                                    } finally {
-                                                                                                        setPostingLfwDate(
-                                                                                                            null,
-                                                                                                        );
-                                                                                                    }
+                                                                                                    setLfwModalWilling(
+                                                                                                        false,
+                                                                                                    );
+                                                                                                    setLfwModalTimeFrame(
+                                                                                                        null,
+                                                                                                    );
+                                                                                                    setLfwModalOpen(
+                                                                                                        true,
+                                                                                                    );
                                                                                                 }}
                                                                                             >
-                                                                                                {postingLfwDate ===
-                                                                                                dateStr
-                                                                                                    ? '…'
-                                                                                                    : 'Post'}
+                                                                                                Post
                                                                                             </Button>
                                                                                         )}
                                                                                     </div>
@@ -3806,23 +3831,17 @@ export default function AppDashboard() {
                                                                 <Button
                                                                     size="sm"
                                                                     className="mt-2 h-7 w-full"
-                                                                    disabled={
-                                                                        postingLfwAllPuckId !=
-                                                                            null ||
-                                                                        offDates.every(
-                                                                            (
-                                                                                d,
-                                                                            ) =>
-                                                                                activeLookingForWorkPosts.some(
-                                                                                    (
-                                                                                        p,
-                                                                                    ) =>
-                                                                                        p.seeking_date ===
-                                                                                        d,
-                                                                                ),
-                                                                        )
-                                                                    }
-                                                                    onClick={async () => {
+                                                                    disabled={offDates.every(
+                                                                        (d) =>
+                                                                            activeLookingForWorkPosts.some(
+                                                                                (
+                                                                                    p,
+                                                                                ) =>
+                                                                                    p.seeking_date ===
+                                                                                    d,
+                                                                            ),
+                                                                    )}
+                                                                    onClick={() => {
                                                                         const toPost =
                                                                             offDates.filter(
                                                                                 (
@@ -3839,58 +3858,28 @@ export default function AppDashboard() {
                                                                         if (
                                                                             toPost.length ===
                                                                             0
-                                                                        )
+                                                                        ) {
                                                                             return;
-                                                                        setPostingLfwAllPuckId(
-                                                                            puck.id,
-                                                                        );
-                                                                        try {
-                                                                            for (const dateStr of toPost)
-                                                                                await fetch(
-                                                                                    '/api/looking-for-work/posts',
-                                                                                    {
-                                                                                        method: 'POST',
-                                                                                        headers:
-                                                                                            {
-                                                                                                'Content-Type':
-                                                                                                    'application/json',
-                                                                                                Accept: 'application/json',
-                                                                                                'X-XSRF-TOKEN':
-                                                                                                    getCsrfToken(),
-                                                                                                'X-Requested-With':
-                                                                                                    'XMLHttpRequest',
-                                                                                            },
-                                                                                        credentials:
-                                                                                            'include',
-                                                                                        body: JSON.stringify(
-                                                                                            {
-                                                                                                seeking_date:
-                                                                                                    dateStr,
-                                                                                                seeking_cash: 0,
-                                                                                                seeking_obo: false,
-                                                                                                notes: null,
-                                                                                                seeking_desk_types:
-                                                                                                    null,
-                                                                                            },
-                                                                                        ),
-                                                                                    },
-                                                                                );
-                                                                            router.reload(
-                                                                                {
-                                                                                    only: DASHBOARD_RELOAD_ONLY,
-                                                                                },
-                                                                            );
-                                                                        } finally {
-                                                                            setPostingLfwAllPuckId(
-                                                                                null,
-                                                                            );
                                                                         }
+                                                                        setLfwModalBulkDates(
+                                                                            toPost,
+                                                                        );
+                                                                        setLfwModalDate(
+                                                                            toPost[0] ??
+                                                                                '',
+                                                                        );
+                                                                        setLfwModalWilling(
+                                                                            false,
+                                                                        );
+                                                                        setLfwModalTimeFrame(
+                                                                            null,
+                                                                        );
+                                                                        setLfwModalOpen(
+                                                                            true,
+                                                                        );
                                                                     }}
                                                                 >
-                                                                    {postingLfwAllPuckId ===
-                                                                    puck.id
-                                                                        ? 'Posting…'
-                                                                        : `Post all (${offDates.filter((d) => !activeLookingForWorkPosts.some((p) => p.seeking_date === d)).length} dates)`}
+                                                                    {`Post all (${offDates.filter((d) => !activeLookingForWorkPosts.some((p) => p.seeking_date === d)).length} dates)`}
                                                                 </Button>
                                                             </>
                                                         )}
@@ -4118,6 +4107,7 @@ export default function AppDashboard() {
                             }}
                             events={[
                                 ...timeOffToCalendarEvents(timeOffRanges),
+                                ...lfwDateRangesToCalendarEvents(rangePucks),
                                 ...events.map(normalizeEventEnd),
                             ]}
                             eventContent={eventContent}
@@ -4176,6 +4166,18 @@ export default function AppDashboard() {
                                         }}
                                     />{' '}
                                     Need off
+                                </span>
+                            )}
+                            {rangePucks.length > 0 && (
+                                <span>
+                                    <span className="mr-1 inline-block h-1.5 w-1.5 rounded-sm border border-dashed border-amber-600/60 bg-amber-200/70 align-middle dark:border-amber-400/50 dark:bg-amber-900/50" />{' '}
+                                    LFW date range
+                                </span>
+                            )}
+                            {activeLookingForWorkPosts.length > 0 && (
+                                <span>
+                                    <span className="mr-1 inline-block h-1.5 w-1.5 rounded-sm border border-amber-600/60 bg-amber-300/80 align-middle dark:border-amber-400/55 dark:bg-amber-800/70" />{' '}
+                                    LFW post (open)
                                 </span>
                             )}
                         </div>
@@ -4922,8 +4924,10 @@ export default function AppDashboard() {
                                             className="gap-1.5"
                                             onClick={() => {
                                                 if (modalDate) {
+                                                    setLfwModalBulkDates(null);
                                                     setLfwModalDate(modalDate);
                                                     setLfwModalWilling(false);
+                                                    setLfwModalTimeFrame(null);
                                                     setLfwModalOpen(true);
                                                     setModalDate(null);
                                                 }
@@ -5208,6 +5212,7 @@ export default function AppDashboard() {
                                         size="sm"
                                         className="gap-1.5"
                                         onClick={() => {
+                                            setLfwModalBulkDates(null);
                                             setLfwModalDate(ffModalDate);
                                             setLfwModalWilling(true);
                                             setLfwModalTimeFrame(
@@ -5240,13 +5245,19 @@ export default function AppDashboard() {
 
             <PostLfwModal
                 open={lfwModalOpen}
-                onOpenChange={setLfwModalOpen}
+                onOpenChange={(open) => {
+                    setLfwModalOpen(open);
+                    if (!open) {
+                        setLfwModalBulkDates(null);
+                    }
+                }}
                 defaultDate={
                     lfwModalDate || new Date().toISOString().slice(0, 10)
                 }
                 defaultWillingToFollow={lfwModalWilling}
                 defaultWillingToFollowTimeFrame={lfwModalTimeFrame}
                 workgroups={userWorkgroups}
+                bulkDates={lfwModalBulkDates ?? undefined}
                 onSuccess={() => router.reload({ only: DASHBOARD_RELOAD_ONLY })}
             />
 
