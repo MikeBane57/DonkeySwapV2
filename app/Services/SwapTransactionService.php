@@ -121,7 +121,7 @@ class SwapTransactionService
                         'user_id' => $poster->id,
                         'action_type' => 'trade_compliance_failed',
                         'shift_ids' => [$shiftA->id, $shiftB->id],
-                        'rule_violated' => implode('; ', $validPoster['errors']),
+                        'rule_violated' => ComplianceAuditLog::summarizeRuleViolated($validPoster['errors']),
                         'message' => $validPoster['errors'][0] ?? 'Compliance check failed',
                         'metadata' => ['errors' => $validPoster['errors']],
                     ]);
@@ -145,7 +145,7 @@ class SwapTransactionService
                         'user_id' => $offerer->id,
                         'action_type' => 'trade_compliance_failed',
                         'shift_ids' => [$shiftA->id, $shiftB->id],
-                        'rule_violated' => implode('; ', $validOfferer['errors']),
+                        'rule_violated' => ComplianceAuditLog::summarizeRuleViolated($validOfferer['errors']),
                         'message' => $validOfferer['errors'][0] ?? 'Compliance check failed',
                         'metadata' => ['errors' => $validOfferer['errors']],
                     ]);

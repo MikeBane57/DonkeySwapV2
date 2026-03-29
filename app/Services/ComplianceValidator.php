@@ -123,7 +123,7 @@ class ComplianceValidator
                 'user_id' => $userId,
                 'action_type' => 'compliance_validation_failed',
                 'shift_ids' => array_column($shifts, 'id'),
-                'rule_violated' => implode('; ', $errors),
+                'rule_violated' => ComplianceAuditLog::summarizeRuleViolated($errors),
                 'message' => $errors[0] ?? 'Validation failed',
                 'metadata' => ['errors' => $errors],
             ];
