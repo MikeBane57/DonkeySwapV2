@@ -5,7 +5,7 @@ use App\Models\BidScenario;
 use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
 
-test('user can compare two scenarios on the same import', function () {
+test('user can compare multiple scenarios on the same import', function () {
     config(['features.bid_tools' => true]);
 
     $user = User::factory()->create();
@@ -54,62 +54,69 @@ test('user can compare two scenarios on the same import', function () {
         ],
     ]);
 
+    $scenarioC = BidScenario::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Desk focus',
+        'vacation_bank' => 8,
+        'weights' => [
+            'holiday' => 1,
+            'personal' => 1,
+            'start_time' => 1,
+            'desk' => 3,
+            'vacation_penalty' => 1,
+            'criteria_order' => ['desk', 'holiday', 'personal', 'start_time'],
+        ],
+    ]);
+
     $lineIds = BidLine::query()
         ->where('bid_import_id', $import->id)
         ->orderBy('line_num')
         ->pluck('id')
         ->all();
 
+    $scenarioIds = [$scenarioA->id, $scenarioB->id, $scenarioC->id];
+
     $this->actingAs($user)
         ->get(route('bid-tools.scenarios.compare'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('app/bid-tools/scenarios/compare')
-            ->has('scenarios', 2));
+            ->has('scenarios', 3));
 
     $response = $this->actingAs($user)->post(route('bid-tools.scenarios.compare.run'), [
-        'scenario_a_id' => $scenarioA->id,
-        'scenario_b_id' => $scenarioB->id,
+        'scenario_ids' => $scenarioIds,
         'line_ids' => $lineIds,
     ]);
 
     $response->assertRedirect(route('bid-tools.scenarios.compare', [
-        'scenario_a' => $scenarioA->id,
-        'scenario_b' => $scenarioB->id,
+        'scenarios' => implode(',', $scenarioIds),
     ]));
 
     $stored = session('bid_scenario_compare');
     expect($stored)->toBeArray()
+        ->and($stored['scenarios'])->toHaveCount(3)
         ->and($stored['rows'])->toHaveCount(5);
 
     foreach ($stored['rows'] as $row) {
-        expect($row)->toHaveKeys([
-            'bid_line_id',
-            'line_num',
-            'rank_a',
-            'rank_b',
-            'rank_delta',
-            'total_a',
-            'total_b',
-            'total_delta',
-            'parts_a',
-            'parts_b',
-        ]);
-        expect($row['rank_delta'])->toBe($row['rank_b'] - $row['rank_a']);
-        expect($row['total_delta'])->toBe(round($row['total_b'] - $row['total_a'], 2));
+        expect($row)->toHaveKeys(['bid_line_id', 'line_num', 'line', 'scenarios']);
+        expect($row['scenarios'])->toHaveCount(3);
+
+        foreach ($row['scenarios'] as $scenarioRow) {
+            expect($scenarioRow)->toHaveKeys(['scenario_id', 'rank', 'total', 'parts']);
+        }
     }
 
     $this->actingAs($user)
         ->get(route('bid-tools.scenarios.compare', [
-            'scenario_a' => $scenarioA->id,
-            'scenario_b' => $scenarioB->id,
+            'scenarios' => implode(',', $scenarioIds),
         ]))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('app/bid-tools/scenarios/compare')
             ->has('comparison.rows', 5)
-            ->where('comparison.scenario_a.id', $scenarioA->id)
-            ->where('comparison.scenario_b.id', $scenarioB->id));
+            ->has('comparison.scenarios', 3)
+            ->where('comparison.scenarios.0.id', $scenarioA->id));
 });
 
 test('scenario compare rejects scenarios on different imports', function () {
@@ -161,10 +168,43 @@ test('scenario compare rejects scenarios on different imports', function () {
 
     $this->actingAs($user)
         ->post(route('bid-tools.scenarios.compare.run'), [
-            'scenario_a_id' => $scenarioA->id,
-            'scenario_b_id' => $scenarioB->id,
+            'scenario_ids' => [$scenarioA->id, $scenarioB->id],
             'line_ids' => $lineIds,
         ])
         ->assertRedirect(route('bid-tools.scenarios.compare'))
-        ->assertSessionHas('error', 'Both scenarios must use the same master import.');
+        ->assertSessionHas('error', 'All selected scenarios must use the same master import.');
+});
+
+test('scenario compare requires at least two scenarios', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 2);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Import',
+    )['import'];
+    @unlink($path);
+
+    $scenario = BidScenario::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Only one',
+        'vacation_bank' => 10,
+    ]);
+
+    $lineIds = BidLine::query()->where('bid_import_id', $import->id)->pluck('id')->all();
+
+    $this->actingAs($user)
+        ->post(route('bid-tools.scenarios.compare.run'), [
+            'scenario_ids' => [$scenario->id],
+            'line_ids' => $lineIds,
+        ])
+        ->assertSessionHasErrors('scenario_ids');
 });
