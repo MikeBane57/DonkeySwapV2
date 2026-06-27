@@ -1,0 +1,49 @@
+# Manual production sync: pull latest main, install deps, migrate, optimize.
+# Use when you need to deploy/migrate without waiting on the full test gate.
+# GitHub → Actions → Production sync → Run workflow
+
+name: Production sync
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    name: Pull, migrate, and optimize on server
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Verify deploy secrets are set
+        run: |
+          missing=""
+          [ -z "${{ secrets.SSH_HOST }}" ] && missing="$missing SSH_HOST"
+          [ -z "${{ secrets.SSH_USER }}" ] && missing="$missing SSH_USER"
+          [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ] && missing="$missing SSH_PRIVATE_KEY"
+          [ -z "${{ secrets.SERVER_APP_PATH }}" ] && missing="$missing SERVER_APP_PATH"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing GitHub Actions secrets:$missing"
+            exit 1
+          fi
+
+      - name: Sync on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            PHP=/opt/cpanel/ea-php84/root/usr/bin/php
+            COMPOSER=/opt/cpanel/composer/bin/composer
+            cd ${{ secrets.SERVER_APP_PATH }}
+            echo "==> git pull"
+            git pull origin main
+            echo "==> composer install"
+            $PHP $COMPOSER install --no-dev --optimize-autoloader --no-interaction
+            echo "==> migrate"
+            $PHP artisan migrate --force
+            echo "==> optimize"
+            $PHP artisan optimize
+            echo "==> done"
