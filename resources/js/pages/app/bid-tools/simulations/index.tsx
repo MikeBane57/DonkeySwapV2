@@ -1,5 +1,5 @@
-import { Head, Link } from '@inertiajs/react';
-import { Play, Plus, Users } from 'lucide-react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Play, Plus, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
@@ -23,6 +23,8 @@ export default function BidSimulationsIndex({
 }: {
     simulations: SimulationRow[];
 }) {
+    const page = usePage<{ flash?: { success?: string; error?: string } }>();
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Bid simulator" />
@@ -45,6 +47,17 @@ export default function BidSimulationsIndex({
                         </Link>
                     </Button>
                 </div>
+
+                {page.props.flash?.success && (
+                    <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">
+                        {page.props.flash.success}
+                    </p>
+                )}
+                {page.props.flash?.error && (
+                    <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
+                        {page.props.flash.error}
+                    </p>
+                )}
 
                 {simulations.length === 0 ? (
                     <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
@@ -92,6 +105,26 @@ export default function BidSimulationsIndex({
                                             <Play className="mr-2 h-4 w-4" />
                                             View
                                         </Link>
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        type="button"
+                                        className="text-muted-foreground hover:text-destructive"
+                                        aria-label={`Delete ${s.name}`}
+                                        onClick={() => {
+                                            if (
+                                                confirm(
+                                                    `Delete "${s.name}" and all its bidders? This cannot be undone.`,
+                                                )
+                                            ) {
+                                                router.delete(
+                                                    `/app/bid-tools/simulations/${s.id}`,
+                                                );
+                                            }
+                                        }}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </div>
                             </li>

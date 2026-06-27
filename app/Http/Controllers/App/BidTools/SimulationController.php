@@ -115,7 +115,21 @@ class SimulationController extends Controller
     public function destroy(Request $request, int $simulation): RedirectResponse
     {
         $sim = $this->findSimulation($request, $simulation);
-        $sim->delete();
+
+        DB::transaction(function () use ($sim) {
+            $scenarioIds = $sim->participants()->pluck('bid_scenario_id')->unique()->all();
+            $sim->delete();
+
+            foreach ($scenarioIds as $scenarioId) {
+                $stillUsed = BidSimulationParticipant::query()
+                    ->where('bid_scenario_id', $scenarioId)
+                    ->exists();
+
+                if (! $stillUsed) {
+                    BidScenario::query()->whereKey($scenarioId)->delete();
+                }
+            }
+        });
 
         return redirect()
             ->route('bid-tools.simulations.index')

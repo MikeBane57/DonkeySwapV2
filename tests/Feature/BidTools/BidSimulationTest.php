@@ -259,3 +259,44 @@ test('removing bidder deletes unused scenario profile', function () {
     expect(BidSimulationParticipant::count())->toBe(0);
     expect(BidScenario::whereKey($scenarioId)->exists())->toBeFalse();
 });
+
+test('user can delete simulation and linked bidder profiles', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 2);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Sim delete import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Gone soon',
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Alice',
+        'seniority_rank' => 1,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $scenarioId = BidSimulationParticipant::first()->bid_scenario_id;
+
+    $this->actingAs($user)
+        ->delete(route('bid-tools.simulations.destroy', $simulation->id))
+        ->assertRedirect(route('bid-tools.simulations.index'));
+
+    expect(BidSimulation::count())->toBe(0);
+    expect(BidSimulationParticipant::count())->toBe(0);
+    expect(BidScenario::whereKey($scenarioId)->exists())->toBeFalse();
+});

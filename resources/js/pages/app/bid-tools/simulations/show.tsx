@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ListOrdered, Play, Settings } from 'lucide-react';
+import { ListOrdered, Play, Settings, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
@@ -104,6 +104,25 @@ export default function BidSimulationShow({
                         >
                             <Play className="mr-2 h-4 w-4" />
                             Run simulation
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            type="button"
+                            onClick={() => {
+                                if (
+                                    confirm(
+                                        `Delete "${simulation.name}" and all its bidders? This cannot be undone.`,
+                                    )
+                                ) {
+                                    router.delete(
+                                        `/app/bid-tools/simulations/${simulation.id}`,
+                                    );
+                                }
+                            }}
+                        >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
                         </Button>
                     </div>
                 </div>

@@ -223,11 +223,32 @@ export default function BidSimulationEdit({
                                 : ''}
                         </p>
                     </div>
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href={`/app/bid-tools/simulations/${simulation.id}`}>
-                            View simulation
-                        </Link>
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href={`/app/bid-tools/simulations/${simulation.id}`}>
+                                View simulation
+                            </Link>
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            type="button"
+                            onClick={() => {
+                                if (
+                                    confirm(
+                                        `Delete "${simulation.name}" and all its bidders? This cannot be undone.`,
+                                    )
+                                ) {
+                                    router.delete(
+                                        `/app/bid-tools/simulations/${simulation.id}`,
+                                    );
+                                }
+                            }}
+                        >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete simulation
+                        </Button>
+                    </div>
                 </div>
 
                 {page.props.flash?.success && (
