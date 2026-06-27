@@ -46,7 +46,6 @@ type ScoredRow = {
     line_num: string;
     total: number;
     parts: Record<string, number>;
-    breakdown: Record<string, unknown>;
     line: LineFmt | null;
     submitted_externally: boolean;
 };

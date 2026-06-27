@@ -63,7 +63,6 @@ class RankedController extends Controller
                     'line_num' => $row['line_num'],
                     'total' => $row['total'],
                     'parts' => $row['parts'] ?? [],
-                    'breakdown' => $row['breakdown'] ?? [],
                     'line' => $fmt,
                     'submitted_externally' => (bool) ($notes[$id]->submitted_externally ?? false),
                 ];
@@ -100,7 +99,10 @@ class RankedController extends Controller
         }
 
         $scores = $this->scoreService->scoreLines($s, $ids);
-        $request->session()->put($this->scoresSessionKey($scenario), $scores);
+        $request->session()->put(
+            $this->scoresSessionKey($scenario),
+            $this->slimScoresForSession($scores),
+        );
 
         return redirect()->route('bid-tools.scenarios.ranked', $scenario);
     }
@@ -140,5 +142,19 @@ class RankedController extends Controller
     private function scoresSessionKey(int $scenarioId): string
     {
         return 'bid_scores.scenario.'.$scenarioId;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $scores
+     * @return list<array{bid_line_id: int, line_num: string, total: float|int, parts: array<string, float>}>
+     */
+    private function slimScoresForSession(array $scores): array
+    {
+        return array_map(fn (array $row) => [
+            'bid_line_id' => (int) $row['bid_line_id'],
+            'line_num' => (string) $row['line_num'],
+            'total' => $row['total'],
+            'parts' => $row['parts'] ?? [],
+        ], $scores);
     }
 }
