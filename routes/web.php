@@ -30,6 +30,7 @@ use App\Http\Controllers\App\BidTools\LineBrowserController;
 use App\Http\Controllers\App\BidTools\RankedController as BidToolsRankedController;
 use App\Http\Controllers\App\BidTools\ScenarioCompareController as BidToolsScenarioCompareController;
 use App\Http\Controllers\App\BidTools\ScenarioController as BidToolsScenarioController;
+use App\Http\Controllers\App\BidTools\SimulationController as BidToolsSimulationController;
 use App\Http\Controllers\App\DashboardController;
 use App\Http\Controllers\App\LookingForWorkController;
 use App\Http\Controllers\App\NotificationsController as AppNotificationsController;
@@ -148,6 +149,18 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::get('/scenarios/{scenario}/ranked', [BidToolsRankedController::class, 'show'])->name('scenarios.ranked');
         Route::post('/scenarios/{scenario}/score', [BidToolsRankedController::class, 'score'])->name('scenarios.score');
         Route::patch('/scenarios/{scenario}/lines/{line}/submitted', [BidToolsRankedController::class, 'updateSubmitted'])->name('scenarios.line-submitted');
+
+        Route::get('/simulations', [BidToolsSimulationController::class, 'index'])->name('simulations.index');
+        Route::get('/simulations/create', [BidToolsSimulationController::class, 'create'])->name('simulations.create');
+        Route::post('/simulations', [BidToolsSimulationController::class, 'store'])->name('simulations.store');
+        Route::get('/simulations/{simulation}', [BidToolsSimulationController::class, 'show'])->name('simulations.show');
+        Route::get('/simulations/{simulation}/edit', [BidToolsSimulationController::class, 'edit'])->name('simulations.edit');
+        Route::put('/simulations/{simulation}', [BidToolsSimulationController::class, 'update'])->name('simulations.update');
+        Route::delete('/simulations/{simulation}', [BidToolsSimulationController::class, 'destroy'])->name('simulations.destroy');
+        Route::post('/simulations/{simulation}/participants', [BidToolsSimulationController::class, 'storeParticipant'])->name('simulations.participants.store');
+        Route::delete('/simulations/{simulation}/participants/{participant}', [BidToolsSimulationController::class, 'destroyParticipant'])->name('simulations.participants.destroy');
+        Route::post('/simulations/{simulation}/run', [BidToolsSimulationController::class, 'run'])->name('simulations.run');
+        Route::get('/simulations/{simulation}/participants/{participant}/recommendations', [BidToolsSimulationController::class, 'recommendations'])->name('simulations.participants.recommendations');
     });
 
     // Admin panel (admin role required)

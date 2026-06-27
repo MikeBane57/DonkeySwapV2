@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { GitCompare, ListOrdered, Plus, Table, TriangleAlert } from 'lucide-react';
+import { GitCompare, ListOrdered, Play, Plus, Table, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
@@ -27,12 +27,22 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Bid tools', href: '/app/bid-tools' },
 ];
 
+type SimulationRow = {
+    id: number;
+    name: string;
+    bid_year: number;
+    participants_count: number;
+    last_run_at: string | null;
+};
+
 export default function BidToolsIndex({
     currentImports,
     scenarios,
+    simulations = [],
 }: {
     currentImports: CurrentImport[];
     scenarios: ScenarioRow[];
+    simulations?: SimulationRow[];
 }) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -178,6 +188,68 @@ export default function BidToolsIndex({
                                     </div>
                                 </li>
                             ))}
+                        </ul>
+                    )}
+                </section>
+
+                <section className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h2 className="text-sm font-medium text-muted-foreground">
+                            Bid simulator
+                        </h2>
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href="/app/bid-tools/simulations/create">
+                                <Plus className="mr-2 h-4 w-4" />
+                                New simulation
+                            </Link>
+                        </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                        Model seniority bids: assign preference profiles per
+                        person, get suggested bid orders, and simulate picks.
+                    </p>
+                    {simulations.length === 0 ? (
+                        <Button variant="secondary" size="sm" asChild>
+                            <Link href="/app/bid-tools/simulations">
+                                Open bid simulator
+                            </Link>
+                        </Button>
+                    ) : (
+                        <ul className="space-y-2">
+                            {simulations.map((s) => (
+                                <li
+                                    key={s.id}
+                                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sidebar-border/70 p-3"
+                                >
+                                    <div>
+                                        <span className="font-medium">
+                                            {s.name}
+                                        </span>
+                                        <span className="ml-2 text-sm text-muted-foreground">
+                                            bid {s.bid_year} ·{' '}
+                                            {s.participants_count} bidder
+                                            {s.participants_count === 1
+                                                ? ''
+                                                : 's'}
+                                        </span>
+                                    </div>
+                                    <Button variant="outline" size="sm" asChild>
+                                        <Link
+                                            href={`/app/bid-tools/simulations/${s.id}`}
+                                        >
+                                            <Play className="mr-2 h-4 w-4" />
+                                            Open
+                                        </Link>
+                                    </Button>
+                                </li>
+                            ))}
+                            <li>
+                                <Button variant="ghost" size="sm" asChild>
+                                    <Link href="/app/bid-tools/simulations">
+                                        View all simulations
+                                    </Link>
+                                </Button>
+                            </li>
                         </ul>
                     )}
                 </section>

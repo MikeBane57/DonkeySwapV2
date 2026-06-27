@@ -5,6 +5,7 @@ namespace App\Http\Controllers\App\BidTools;
 use App\Http\Controllers\Controller;
 use App\Models\BidImport;
 use App\Models\BidScenario;
+use App\Models\BidSimulation;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -39,6 +40,21 @@ class HubController extends Controller
                 ];
             });
 
+        $simulations = BidSimulation::query()
+            ->where('user_id', $user->id)
+            ->with('import:id,bid_year')
+            ->withCount('participants')
+            ->orderByDesc('updated_at')
+            ->limit(10)
+            ->get()
+            ->map(fn (BidSimulation $s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'bid_year' => $s->import->bid_year,
+                'participants_count' => $s->participants_count,
+                'last_run_at' => $s->last_run_at?->toIso8601String(),
+            ]);
+
         return Inertia::render('app/bid-tools/index', [
             'currentImports' => $currentByYear->map(fn (BidImport $i) => [
                 'id' => $i->id,
@@ -51,6 +67,7 @@ class HubController extends Controller
                 'source_file_count' => ($c = count($i->meta['source_files'] ?? [])) > 0 ? $c : 1,
             ]),
             'scenarios' => $scenarios,
+            'simulations' => $simulations,
         ]);
     }
 }
