@@ -280,7 +280,10 @@ XML);
         'xl/worksheets/sheet1.xml',
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-        .'<sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Bid cover page</t></is></c></row></sheetData>'
+        .'<sheetData>'
+        .'<row r="1"><c r="A1" t="inlineStr"><is><t>Instructions</t></is></c></row>'
+        .'<row r="2"><c r="A2" t="inlineStr"><is><t>Line Number</t></is></c></row>'
+        .'</sheetData>'
         .'</worksheet>',
     );
 

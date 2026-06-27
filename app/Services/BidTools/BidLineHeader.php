@@ -2,6 +2,9 @@
 
 namespace App\Services\BidTools;
 
+use Carbon\CarbonImmutable;
+use DateTime;
+
 final class BidLineHeader
 {
     public static function normalize(string $value): string
@@ -28,22 +31,95 @@ final class BidLineHeader
         return preg_match('/^line\s*(?:num|number|no\.?|#)$/i', $normalized) === 1;
     }
 
+    public static function parseDateHeader(string $label): ?string
+    {
+        $label = self::normalize($label);
+        if ($label === '') {
+            return null;
+        }
+
+        if (is_numeric($label)) {
+            $serial = (float) $label;
+            if ($serial >= 1 && $serial <= 60000) {
+                $base = CarbonImmutable::create(1899, 12, 30);
+                if ($base !== null) {
+                    return $base->addDays((int) floor($serial))->format('Y-m-d');
+                }
+            }
+        }
+
+        foreach (['j-M-y', 'd-M-y', 'j-M-Y', 'd-M-Y', 'Y-m-d', 'm/d/Y', 'n/j/Y'] as $fmt) {
+            $dt = DateTime::createFromFormat('!'.$fmt, $label);
+            if ($dt instanceof DateTime) {
+                return CarbonImmutable::parse($dt->format('Y-m-d'))->format('Y-m-d');
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<list<string>>  $rows
+     * @return array{0: int, 1: int, 2: int}|null
+     */
+    public static function findHeaderRow(array $rows, int $minDateColumns = 20): ?array
+    {
+        $limit = min(count($rows), 100);
+        $best = null;
+        $bestDateCount = -1;
+
+        for ($i = 0; $i < $limit; $i++) {
+            foreach ($rows[$i] as $col => $cell) {
+                if (! self::isLineNumColumn((string) $cell)) {
+                    continue;
+                }
+
+                $dateCount = self::countDateColumnsInRow($rows[$i], (int) $col);
+                if ($dateCount >= $minDateColumns && $dateCount > $bestDateCount) {
+                    $best = [$i, (int) $col, $dateCount];
+                    $bestDateCount = $dateCount;
+                }
+            }
+        }
+
+        return $best;
+    }
+
     /**
      * @param  list<list<string>>  $rows
      * @return array{0: int, 1: int}|null
      */
     public static function findInRows(array $rows): ?array
     {
-        $limit = min(count($rows), 75);
-        for ($i = 0; $i < $limit; $i++) {
-            foreach ($rows[$i] as $col => $cell) {
-                if (self::isLineNumColumn((string) $cell)) {
-                    return [$i, (int) $col];
-                }
+        $found = self::findHeaderRow($rows);
+
+        return $found === null ? null : [$found[0], $found[1]];
+    }
+
+    /**
+     * @param  list<string>  $row
+     */
+    public static function countDateColumnsInRow(array $row, int $lineNumCol): int
+    {
+        $count = 0;
+        $fixedEnd = $lineNumCol + 3;
+
+        foreach ($row as $idx => $label) {
+            if ($idx <= $fixedEnd) {
+                continue;
+            }
+
+            $trim = self::normalize((string) $label);
+            if (strcasecmp($trim, 'workdays') === 0) {
+                continue;
+            }
+
+            if (self::parseDateHeader($trim) !== null) {
+                $count++;
             }
         }
 
-        return null;
+        return $count;
     }
 
     /**

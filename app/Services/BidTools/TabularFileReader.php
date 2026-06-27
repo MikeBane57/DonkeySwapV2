@@ -64,8 +64,10 @@ final class TabularFileReader
         }
 
         $sharedStrings = self::readSharedStrings($zip);
-        $sheetPaths = self::resolveWorksheetPaths($zip);
-        $sheetRows = [];
+        $sheetPaths = self::discoverWorksheetPaths($zip);
+        $bestRows = null;
+        $bestDateCount = -1;
+        $fallbackRows = [];
 
         foreach ($sheetPaths as $sheetPath) {
             $sheetXml = $zip->getFromName($sheetPath);
@@ -74,20 +76,39 @@ final class TabularFileReader
             }
 
             $rows = self::parseSheetXml($sheetXml, $sharedStrings);
-            if ($rows !== []) {
-                $sheetRows[] = $rows;
+            if ($rows === []) {
+                continue;
+            }
+
+            $fallbackRows = $rows;
+
+            $found = BidLineHeader::findHeaderRow($rows);
+            if ($found !== null && $found[2] > $bestDateCount) {
+                $bestDateCount = $found[2];
+                $bestRows = $rows;
             }
         }
 
         $zip->close();
 
-        foreach ($sheetRows as $rows) {
-            if (BidLineHeader::findInRows($rows) !== null) {
-                return $rows;
+        return $bestRows ?? $fallbackRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function discoverWorksheetPaths(ZipArchive $zip): array
+    {
+        $paths = self::resolveWorksheetPaths($zip);
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            if (is_string($name) && preg_match('#^xl/worksheets/sheet\d+\.xml$#', $name) === 1) {
+                $paths[] = $name;
             }
         }
 
-        return $sheetRows[0] ?? [];
+        return array_values(array_unique($paths));
     }
 
     /**

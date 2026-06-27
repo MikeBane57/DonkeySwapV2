@@ -6,7 +6,6 @@ use App\Models\BidImport;
 use App\Models\BidLine;
 use App\Models\BidLineDay;
 use Carbon\CarbonImmutable;
-use DateTime;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
@@ -319,17 +318,17 @@ final class BidLineCsvImportService
      */
     private function detectHeaderAndColumns(array $rows): array
     {
-        $found = BidLineHeader::findInRows($rows);
+        $found = BidLineHeader::findHeaderRow($rows);
 
         if ($found === null) {
             throw new InvalidArgumentException(
-                'Could not find a header row with "Line Num" (or "Line Number"). '
-                .'Check that the spreadsheet matches the SWALife bid-line layout. '
+                'Could not find a bid-line header row with "Line Num" and date columns. '
+                .'If the workbook has multiple sheets, the data tab should include a full year of dates. '
                 .'Preview: '.BidLineHeader::preview($rows)
             );
         }
 
-        [$headerIndex, $lineNumCol] = $found;
+        [$headerIndex, $lineNumCol] = [$found[0], $found[1]];
         $header = $rows[$headerIndex];
         $columnMap = [];
         $workdaysCol = null;
@@ -346,7 +345,7 @@ final class BidLineCsvImportService
                 continue;
             }
 
-            $parsed = $this->parseDateHeader($labelTrim);
+            $parsed = BidLineHeader::parseDateHeader($labelTrim);
             if ($parsed !== null) {
                 $columnMap[$parsed] = $idx;
             }
@@ -359,32 +358,5 @@ final class BidLineCsvImportService
         }
 
         return [$headerIndex, $lineNumCol, $columnMap, $workdaysCol];
-    }
-
-    private function parseDateHeader(string $label): ?string
-    {
-        $label = trim($label);
-        if ($label === '') {
-            return null;
-        }
-
-        if (is_numeric($label)) {
-            $serial = (float) $label;
-            if ($serial >= 1 && $serial <= 60000) {
-                $base = CarbonImmutable::create(1899, 12, 30);
-                if ($base !== null) {
-                    return $base->addDays((int) floor($serial))->format('Y-m-d');
-                }
-            }
-        }
-
-        foreach (['j-M-y', 'd-M-y', 'j-M-Y', 'd-M-Y', 'Y-m-d', 'm/d/Y', 'n/j/Y'] as $fmt) {
-            $dt = DateTime::createFromFormat('!'.$fmt, $label);
-            if ($dt instanceof DateTime) {
-                return CarbonImmutable::parse($dt->format('Y-m-d'))->format('Y-m-d');
-            }
-        }
-
-        return null;
     }
 }
