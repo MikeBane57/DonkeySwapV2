@@ -528,13 +528,60 @@ export function BidderProfileFields({
                 )}
             </div>
 
+            <div className="space-y-2">
+                <Label>Tie-break order</Label>
+                <p className="text-xs text-muted-foreground">
+                    Used when total scores tie. First criteria break ties before
+                    later ones.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                    {value.weights.criteria_order.map((key, idx) => (
+                        <div
+                            key={`${idPrefix}-crit-${idx}`}
+                            className="flex items-center gap-2 text-xs"
+                        >
+                            <span className="w-6 text-muted-foreground">
+                                {idx + 1}.
+                            </span>
+                            <Select
+                                value={key}
+                                onValueChange={(next) => {
+                                    const order = [
+                                        ...value.weights.criteria_order,
+                                    ];
+                                    const existing = order.indexOf(next);
+                                    if (existing >= 0) {
+                                        order[existing] = order[idx];
+                                    }
+                                    order[idx] = next;
+                                    setWeights({ criteria_order: order });
+                                }}
+                            >
+                                <SelectTrigger className="h-8 flex-1 text-xs">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Object.entries(CRITERIA_LABELS).map(
+                                        ([k, label]) => (
+                                            <SelectItem key={k} value={k}>
+                                                {label}
+                                            </SelectItem>
+                                        ),
+                                    )}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
             <Collapsible open={weightsOpen} onOpenChange={setWeightsOpen}>
                 <CollapsibleTrigger asChild>
                     <button
                         type="button"
                         className="flex w-full items-center justify-between rounded-md border border-sidebar-border/60 px-3 py-2 text-left text-sm font-medium"
                     >
-                        <span>Weights &amp; tie-break order</span>
+                        <span>Weights</span>
                         <ChevronDown
                             className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${weightsOpen ? 'rotate-180' : ''}`}
                         />
@@ -574,53 +621,6 @@ export function BidderProfileFields({
                                 setWeights({ vacation_penalty })
                             }
                         />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Tie-break order</Label>
-                        <p className="text-xs text-muted-foreground">
-                            Used when total scores tie. First criteria break ties
-                            before later ones.
-                        </p>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                            {value.weights.criteria_order.map((key, idx) => (
-                                <div
-                                    key={`${idPrefix}-crit-${idx}`}
-                                    className="flex items-center gap-2 text-xs"
-                                >
-                                    <span className="w-6 text-muted-foreground">
-                                        {idx + 1}.
-                                    </span>
-                                    <Select
-                                        value={key}
-                                        onValueChange={(next) => {
-                                            const order = [
-                                                ...value.weights.criteria_order,
-                                            ];
-                                            const existing = order.indexOf(next);
-                                            if (existing >= 0) {
-                                                order[existing] = order[idx];
-                                            }
-                                            order[idx] = next;
-                                            setWeights({ criteria_order: order });
-                                        }}
-                                    >
-                                        <SelectTrigger className="h-8 flex-1 text-xs">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {Object.entries(CRITERIA_LABELS).map(
-                                                ([k, label]) => (
-                                                    <SelectItem key={k} value={k}>
-                                                        {label}
-                                                    </SelectItem>
-                                                ),
-                                            )}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            ))}
-                        </div>
                     </div>
                 </CollapsibleContent>
             </Collapsible>
