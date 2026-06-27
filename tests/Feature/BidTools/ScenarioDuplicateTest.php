@@ -63,7 +63,7 @@ test('user can duplicate a scenario with preferences and vacation ranges', funct
     expect($copy)->not->toBeNull();
     expect($copy->name)->toBe('My prefs (copy)');
     expect($copy->vacation_bank)->toBe(9);
-    expect($copy->weights['holiday'])->toBe(3);
+    expect((float) $copy->weights['holiday'])->toBe(3.0);
     expect($copy->weights['criteria_order'])->toBe(['start_time', 'holiday', 'personal', 'desk']);
     expect($copy->personal_dates)->toHaveCount(1);
     expect($copy->vacationRanges)->toHaveCount(1);
