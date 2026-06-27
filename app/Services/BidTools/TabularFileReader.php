@@ -63,35 +63,76 @@ final class TabularFileReader
             throw new RuntimeException('Could not open XLSX file.');
         }
 
-        $sheetPath = self::resolveFirstSheetPath($zip);
-        $sheetXml = $zip->getFromName($sheetPath);
-        if ($sheetXml === false) {
-            $zip->close();
-            throw new RuntimeException('Could not read worksheet from XLSX file.');
-        }
-
         $sharedStrings = self::readSharedStrings($zip);
-        $zip->close();
+        $sheetPaths = self::resolveWorksheetPaths($zip);
+        $sheetRows = [];
 
-        return self::parseSheetXml($sheetXml, $sharedStrings);
-    }
+        foreach ($sheetPaths as $sheetPath) {
+            $sheetXml = $zip->getFromName($sheetPath);
+            if ($sheetXml === false) {
+                continue;
+            }
 
-    private static function resolveFirstSheetPath(ZipArchive $zip): string
-    {
-        $relsXml = $zip->getFromName('xl/_rels/workbook.xml.rels');
-        if ($relsXml !== false) {
-            $rels = new SimpleXMLElement($relsXml);
-            foreach ($rels->Relationship as $rel) {
-                $type = (string) $rel['Type'];
-                if (str_ends_with($type, '/worksheet')) {
-                    $target = ltrim((string) $rel['Target'], '/');
-
-                    return str_starts_with($target, 'xl/') ? $target : 'xl/'.$target;
-                }
+            $rows = self::parseSheetXml($sheetXml, $sharedStrings);
+            if ($rows !== []) {
+                $sheetRows[] = $rows;
             }
         }
 
-        return 'xl/worksheets/sheet1.xml';
+        $zip->close();
+
+        foreach ($sheetRows as $rows) {
+            if (BidLineHeader::findInRows($rows) !== null) {
+                return $rows;
+            }
+        }
+
+        return $sheetRows[0] ?? [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function resolveWorksheetPaths(ZipArchive $zip): array
+    {
+        $workbookXml = $zip->getFromName('xl/workbook.xml');
+        $relsXml = $zip->getFromName('xl/_rels/workbook.xml.rels');
+
+        if ($workbookXml === false || $relsXml === false) {
+            return ['xl/worksheets/sheet1.xml'];
+        }
+
+        $workbook = new SimpleXMLElement($workbookXml);
+        $rels = new SimpleXMLElement($relsXml);
+        $mainNs = self::mainNamespace($workbook);
+        $relNs = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+        $relMap = [];
+        foreach ($rels->Relationship as $rel) {
+            $relMap[(string) $rel['Id']] = (string) $rel['Target'];
+        }
+
+        $paths = [];
+        $sheets = $workbook->children($mainNs)->sheets;
+        if ($sheets->count() === 0) {
+            return ['xl/worksheets/sheet1.xml'];
+        }
+
+        foreach ($sheets->children($mainNs) as $sheet) {
+            if ($sheet->getName() !== 'sheet') {
+                continue;
+            }
+
+            $relId = (string) ($sheet->attributes($relNs)['id'] ?? '');
+            if ($relId === '' || ! isset($relMap[$relId])) {
+                continue;
+            }
+
+            $target = ltrim($relMap[$relId], '/');
+            $paths[] = str_starts_with($target, 'xl/') ? $target : 'xl/'.$target;
+        }
+
+        return $paths !== [] ? $paths : ['xl/worksheets/sheet1.xml'];
     }
 
     /**
@@ -105,23 +146,34 @@ final class TabularFileReader
         }
 
         $shared = new SimpleXMLElement($xml);
+        $mainNs = self::mainNamespace($shared);
         $strings = [];
 
-        foreach ($shared->si as $si) {
-            if (isset($si->t)) {
-                $strings[] = (string) $si->t;
-
+        foreach ($shared->children($mainNs) as $si) {
+            if ($si->getName() !== 'si') {
                 continue;
             }
 
-            $parts = [];
-            foreach ($si->r as $run) {
-                $parts[] = (string) ($run->t ?? '');
-            }
-            $strings[] = implode('', $parts);
+            $strings[] = self::sharedStringItemText($si, $mainNs);
         }
 
         return $strings;
+    }
+
+    private static function sharedStringItemText(SimpleXMLElement $si, string $mainNs): string
+    {
+        $children = $si->children($mainNs);
+        if (isset($children->t)) {
+            return (string) $children->t;
+        }
+
+        $parts = [];
+        foreach ($children->r as $run) {
+            $runChildren = $run->children($mainNs);
+            $parts[] = (string) ($runChildren->t ?? '');
+        }
+
+        return implode('', $parts);
     }
 
     /**
@@ -131,17 +183,30 @@ final class TabularFileReader
     private static function parseSheetXml(string $sheetXml, array $sharedStrings): array
     {
         $sheet = new SimpleXMLElement($sheetXml);
-        $rows = [];
+        $mainNs = self::mainNamespace($sheet);
+        $sheetData = $sheet->children($mainNs)->sheetData;
 
-        $sheetData = $sheet->sheetData ?? $sheet;
-        foreach ($sheetData->row as $row) {
+        if ($sheetData->count() === 0) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($sheetData->children($mainNs) as $row) {
+            if ($row->getName() !== 'row') {
+                continue;
+            }
+
             $cells = [];
             $maxIndex = -1;
 
-            foreach ($row->c as $cell) {
+            foreach ($row->children($mainNs) as $cell) {
+                if ($cell->getName() !== 'c') {
+                    continue;
+                }
+
                 $ref = (string) ($cell['r'] ?? '');
                 $index = $ref !== '' ? self::columnIndexFromCellRef($ref) : $maxIndex + 1;
-                $cells[$index] = self::cellValue($cell, $sharedStrings);
+                $cells[$index] = self::cellValue($cell, $sharedStrings, $mainNs);
                 $maxIndex = max($maxIndex, $index);
             }
 
@@ -159,6 +224,13 @@ final class TabularFileReader
         }
 
         return $rows;
+    }
+
+    private static function mainNamespace(SimpleXMLElement $element): string
+    {
+        $namespaces = $element->getNamespaces(true);
+
+        return $namespaces[''] ?? 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
     }
 
     private static function columnIndexFromCellRef(string $cellRef): int
@@ -180,26 +252,33 @@ final class TabularFileReader
     /**
      * @param  list<string>  $sharedStrings
      */
-    private static function cellValue(SimpleXMLElement $cell, array $sharedStrings): string
+    private static function cellValue(SimpleXMLElement $cell, array $sharedStrings, string $mainNs): string
     {
         $type = (string) ($cell['t'] ?? '');
+        $children = $cell->children($mainNs);
 
         if ($type === 's') {
-            $idx = (int) ($cell->v ?? 0);
+            $idx = (int) (string) ($children->v ?? 0);
 
             return $sharedStrings[$idx] ?? '';
         }
 
-        if ($type === 'inlineStr') {
-            return (string) ($cell->is->t ?? '');
+        if ($type === 'inlineStr' && isset($children->is)) {
+            $is = $children->is->children($mainNs);
+
+            return (string) ($is->t ?? '');
+        }
+
+        if ($type === 'str') {
+            return trim((string) ($children->v ?? ''));
         }
 
         if ($type === 'b') {
-            return ((string) ($cell->v ?? '0')) === '1' ? 'TRUE' : 'FALSE';
+            return ((string) ($children->v ?? '0')) === '1' ? 'TRUE' : 'FALSE';
         }
 
-        if (isset($cell->v)) {
-            return trim((string) $cell->v);
+        if (isset($children->v)) {
+            return trim((string) $children->v);
         }
 
         return '';

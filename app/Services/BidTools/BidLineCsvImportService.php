@@ -228,7 +228,7 @@ final class BidLineCsvImportService
             throw new InvalidArgumentException('Spreadsheet is empty: '.$originalFilename);
         }
 
-        [$headerIndex, $columnMap, $workdaysCol] = $this->detectHeaderAndColumns($rows);
+        [$headerIndex, $lineNumCol, $columnMap, $workdaysCol] = $this->detectHeaderAndColumns($rows);
 
         ksort($columnMap);
         $expectedDates = $range->eachDate()->map(fn (CarbonImmutable $d) => $d->format('Y-m-d'))->all();
@@ -246,14 +246,14 @@ final class BidLineCsvImportService
 
         for ($i = $headerIndex + 1; $i < count($rows); $i++) {
             $row = $rows[$i];
-            $lineNum = isset($row[0]) ? trim((string) $row[0]) : '';
+            $lineNum = isset($row[$lineNumCol]) ? trim((string) $row[$lineNumCol]) : '';
             if ($lineNum === '') {
                 continue;
             }
 
-            $group = isset($row[1]) ? trim((string) $row[1]) : '';
-            $start = isset($row[2]) ? trim((string) $row[2]) : '';
-            $rotation = isset($row[3]) ? trim((string) $row[3]) : null;
+            $group = isset($row[$lineNumCol + 1]) ? trim((string) $row[$lineNumCol + 1]) : '';
+            $start = isset($row[$lineNumCol + 2]) ? trim((string) $row[$lineNumCol + 2]) : '';
+            $rotation = isset($row[$lineNumCol + 3]) ? trim((string) $row[$lineNumCol + 3]) : null;
             if ($rotation === '') {
                 $rotation = null;
             }
@@ -315,30 +315,29 @@ final class BidLineCsvImportService
 
     /**
      * @param  list<list<string>>  $rows
-     * @return array{0: int, 1: array<string, int>, 2: int|null}
+     * @return array{0: int, 1: int, 2: array<string, int>, 3: int|null}
      */
     private function detectHeaderAndColumns(array $rows): array
     {
-        $headerIndex = null;
-        foreach ($rows as $i => $row) {
-            $first = isset($row[0]) ? trim($row[0]) : '';
-            if (strcasecmp($first, 'Line Num') === 0) {
-                $headerIndex = $i;
-                break;
-            }
+        $found = BidLineHeader::findInRows($rows);
+
+        if ($found === null) {
+            throw new InvalidArgumentException(
+                'Could not find a header row with "Line Num" (or "Line Number"). '
+                .'Check that the spreadsheet matches the SWALife bid-line layout. '
+                .'Preview: '.BidLineHeader::preview($rows)
+            );
         }
 
-        if ($headerIndex === null) {
-            throw new InvalidArgumentException('Could not find a header row starting with "Line Num".');
-        }
-
+        [$headerIndex, $lineNumCol] = $found;
         $header = $rows[$headerIndex];
         $columnMap = [];
         $workdaysCol = null;
+        $fixedEnd = $lineNumCol + 3;
 
         foreach ($header as $idx => $label) {
-            $labelTrim = trim($label);
-            if ($idx <= 3) {
+            $labelTrim = BidLineHeader::normalize((string) $label);
+            if ($idx <= $fixedEnd) {
                 continue;
             }
             if (strcasecmp($labelTrim, 'workdays') === 0) {
@@ -354,10 +353,12 @@ final class BidLineCsvImportService
         }
 
         if ($columnMap === []) {
-            throw new InvalidArgumentException('No date columns found in header row.');
+            throw new InvalidArgumentException(
+                'No date columns found in header row. Preview: '.BidLineHeader::preview($rows)
+            );
         }
 
-        return [$headerIndex, $columnMap, $workdaysCol];
+        return [$headerIndex, $lineNumCol, $columnMap, $workdaysCol];
     }
 
     private function parseDateHeader(string $label): ?string
