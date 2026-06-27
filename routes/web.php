@@ -28,6 +28,7 @@ use App\Http\Controllers\App\AvailableController;
 use App\Http\Controllers\App\BidTools\HubController as BidToolsHubController;
 use App\Http\Controllers\App\BidTools\LineBrowserController;
 use App\Http\Controllers\App\BidTools\RankedController as BidToolsRankedController;
+use App\Http\Controllers\App\BidTools\ScenarioCompareController as BidToolsScenarioCompareController;
 use App\Http\Controllers\App\BidTools\ScenarioController as BidToolsScenarioController;
 use App\Http\Controllers\App\DashboardController;
 use App\Http\Controllers\App\LookingForWorkController;
@@ -137,6 +138,8 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
     Route::middleware('feature:bid_tools')->prefix('bid-tools')->name('bid-tools.')->group(function () {
         Route::get('/', BidToolsHubController::class)->name('index');
         Route::get('/lines', LineBrowserController::class)->name('lines.index');
+        Route::get('/scenarios/compare', [BidToolsScenarioCompareController::class, 'show'])->name('scenarios.compare');
+        Route::post('/scenarios/compare', [BidToolsScenarioCompareController::class, 'compare'])->name('scenarios.compare.run');
         Route::get('/scenarios/create', [BidToolsScenarioController::class, 'create'])->name('scenarios.create');
         Route::post('/scenarios', [BidToolsScenarioController::class, 'store'])->name('scenarios.store');
         Route::get('/scenarios/{scenario}/edit', [BidToolsScenarioController::class, 'edit'])->name('scenarios.edit');

@@ -1,4 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { GitCompare } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -109,6 +110,22 @@ export default function BidScenarioRanked({
 
     const clearSelection = () => setSelected({});
 
+    const compareLineIds = useMemo(() => {
+        if (scoredRows && scoredRows.length > 0) {
+            return scoredRows.map((row) => row.bid_line_id);
+        }
+
+        return selectedIds;
+    }, [scoredRows, selectedIds]);
+
+    const scenarioCompareHref =
+        compareLineIds.length > 0
+            ? `/app/bid-tools/scenarios/compare?${new URLSearchParams({
+                  scenario_a: String(scenario.id),
+                  line_ids: compareLineIds.join(','),
+              }).toString()}`
+            : null;
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Compare · ${scenario.name}`} />
@@ -125,7 +142,15 @@ export default function BidScenarioRanked({
                             </p>
                         )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                        {scenarioCompareHref && (
+                            <Button variant="outline" size="sm" asChild>
+                                <Link href={scenarioCompareHref}>
+                                    <GitCompare className="mr-2 h-4 w-4" />
+                                    Compare with another scenario
+                                </Link>
+                            </Button>
+                        )}
                         <Button variant="outline" size="sm" asChild>
                             <Link
                                 href={`/app/bid-tools/scenarios/${scenario.id}/edit`}

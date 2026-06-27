@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { ListOrdered, Plus, Table, TriangleAlert } from 'lucide-react';
+import { GitCompare, ListOrdered, Plus, Table, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
@@ -106,12 +106,22 @@ export default function BidToolsIndex({
                         <h2 className="text-sm font-medium text-muted-foreground">
                             Your scenarios
                         </h2>
-                        <Button size="sm" asChild>
-                            <Link href="/app/bid-tools/scenarios/create">
-                                <Plus className="mr-2 h-4 w-4" />
-                                New scenario
-                            </Link>
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                            {scenarios.length >= 2 && (
+                                <Button variant="outline" size="sm" asChild>
+                                    <Link href="/app/bid-tools/scenarios/compare">
+                                        <GitCompare className="mr-2 h-4 w-4" />
+                                        Compare scenarios
+                                    </Link>
+                                </Button>
+                            )}
+                            <Button size="sm" asChild>
+                                <Link href="/app/bid-tools/scenarios/create">
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    New scenario
+                                </Link>
+                            </Button>
+                        </div>
                     </div>
                     {scenarios.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
@@ -162,7 +172,7 @@ export default function BidToolsIndex({
                                                 href={`/app/bid-tools/scenarios/${s.id}/ranked`}
                                             >
                                                 <ListOrdered className="mr-2 h-4 w-4" />
-                                                Compare
+                                                Rank lines
                                             </Link>
                                         </Button>
                                     </div>
