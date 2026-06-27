@@ -60,7 +60,7 @@ final class CondensedBidderProfileMapper
     public function expandProfile(BidImport $import, array $profile): array
     {
         $bidYear = (int) $import->bid_year;
-        $deskKeys = app(BidLinePreferenceCatalog::class)->deskKeysForImport($import->id);
+        $deskKeys = app(CondensedDeskClassifier::class)->bucketsPresentInImport($import->id);
         $startKeys = app(BidLinePreferenceCatalog::class)->startTimeKeysForImport($import->id);
 
         $condensedDefaults = $this->condensedDefaults();
@@ -146,7 +146,7 @@ final class CondensedBidderProfileMapper
     }
 
     /**
-     * Mix desk lines follow XR preference (same rank slot).
+     * Expand condensed desk ranks to buckets present in the import.
      *
      * @param  list<array{key: string, priority?: string}>|mixed  $condensed
      * @param  list<string>  $importKeys
@@ -165,11 +165,6 @@ final class CondensedBidderProfileMapper
             if (in_array($key, $importKeys, true) && ! isset($seen[$key])) {
                 $out[] = ['key' => $key, 'priority' => $priority];
                 $seen[$key] = true;
-            }
-
-            if ($key === 'XR' && in_array('mix', $importKeys, true) && ! isset($seen['mix'])) {
-                $out[] = ['key' => 'mix', 'priority' => $priority];
-                $seen['mix'] = true;
             }
         }
 
@@ -270,8 +265,10 @@ final class CondensedBidderProfileMapper
 
         $out = [];
         foreach (self::DESK_KEYS as $deskKey) {
-            $priority = $byKey[$deskKey] ?? ($deskKey === 'XR' ? ($byKey['mix'] ?? 'high') : 'high');
-            $out[] = ['key' => $deskKey, 'priority' => $priority];
+            $out[] = [
+                'key' => $deskKey,
+                'priority' => $byKey[$deskKey] ?? 'high',
+            ];
         }
 
         return $out;

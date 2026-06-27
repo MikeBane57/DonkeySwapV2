@@ -50,7 +50,7 @@ test('expand holiday rank applies same priority to eve and day', function () {
     expect($thanksgiving->pluck('priority')->unique()->all())->toBe(['high']);
 });
 
-test('expand desk rank gives mix lines the same priority as XR', function () {
+test('expand desk rank keeps only condensed buckets present in import', function () {
     $mapper = app(CondensedBidderProfileMapper::class);
 
     $expanded = $mapper->expandDeskRank([
@@ -59,16 +59,12 @@ test('expand desk rank gives mix lines the same priority as XR', function () {
         ['key' => 'XS', 'priority' => 'high'],
         ['key' => 'MID', 'priority' => 'ignore'],
         ['key' => 'RELIEF', 'priority' => 'high'],
-    ], ['XG', 'XR', 'XS', 'MID', 'RELIEF', 'mix']);
+    ], ['XG', 'XR', 'XS']);
 
     $byKey = collect($expanded)->keyBy('key');
 
+    expect($byKey->keys()->all())->toBe(['XG', 'XR', 'XS']);
     expect($byKey['XR']['priority'])->toBe('low');
-    expect($byKey['mix']['priority'])->toBe('low');
-
-    $xrIndex = collect($expanded)->search(fn ($row) => $row['key'] === 'XR');
-    $mixIndex = collect($expanded)->search(fn ($row) => $row['key'] === 'mix');
-    expect($mixIndex)->toBe($xrIndex + 1);
 });
 
 test('expand start time rank maps hour keys to import start keys', function () {
@@ -89,12 +85,12 @@ test('expand start time rank maps hour keys to import start keys', function () {
     expect($byKey['t_1400']['priority'])->toBe('ignore');
 });
 
-test('to condensed desk rank reads mix priority from XR slot', function () {
+test('to condensed desk rank preserves stored bucket priorities', function () {
     $mapper = app(CondensedBidderProfileMapper::class);
 
     $condensed = $mapper->toCondensedDeskRank([
         ['key' => 'XG', 'priority' => 'high'],
-        ['key' => 'mix', 'priority' => 'low'],
+        ['key' => 'XR', 'priority' => 'low'],
         ['key' => 'XS', 'priority' => 'ignore'],
     ]);
 

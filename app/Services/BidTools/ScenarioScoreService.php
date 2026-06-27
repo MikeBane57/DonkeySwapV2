@@ -17,6 +17,7 @@ final class ScenarioScoreService
         private readonly FederalHolidayCalendar $holidays,
         private readonly LineMetricsService $lineMetrics,
         private readonly DominantDeskAnalyzer $dominantDesk,
+        private readonly CondensedDeskClassifier $condensedDesk,
         private readonly StartTimeNormalizer $startTimes,
         private readonly VacationCostCalculator $vacation,
     ) {}
@@ -105,7 +106,7 @@ final class ScenarioScoreService
                 * (float) ($weights['start_time'] ?? 1);
 
             $deskInfo = $this->dominantDesk->analyze($line);
-            $bucket = $deskInfo['group_bucket'];
+            $bucket = $this->deskBucketForLine($line, $deskEntries);
             $deskPoints = $this->scoreKeyedPreference($deskEntries, $bucket)
                 * (float) ($weights['desk'] ?? 1);
 
@@ -144,6 +145,7 @@ final class ScenarioScoreService
                     'vacation_over_bank' => $vacCost > $scenario->vacation_bank,
                     'metrics' => $metrics,
                     'group_bucket' => $bucket,
+                    'raw_group_bucket' => $deskInfo['group_bucket'],
                 ],
             ];
         }
@@ -225,6 +227,18 @@ final class ScenarioScoreService
         return collect($this->defaultStartRank())
             ->map(fn (string $k) => ['key' => $k, 'priority' => 'high'])
             ->all();
+    }
+
+    /**
+     * @param  list<array{key: string, priority?: string}>  $deskEntries
+     */
+    private function deskBucketForLine(BidLine $line, array $deskEntries): string
+    {
+        if ($this->condensedDesk->usesCondensedBuckets($deskEntries)) {
+            return $this->condensedDesk->bucketForLine($line);
+        }
+
+        return $this->dominantDesk->analyze($line)['group_bucket'];
     }
 
     /**
