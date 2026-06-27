@@ -19,3 +19,9 @@ test('authenticated user can open bid tools hub when feature enabled', function 
 
     $this->get('/app/bid-tools')->assertOk();
 });
+
+test('bid tools is enabled in production', function () {
+    config(['app.env' => 'production']);
+
+    expect(config('features.bid_tools'))->toBeTrue();
+});
