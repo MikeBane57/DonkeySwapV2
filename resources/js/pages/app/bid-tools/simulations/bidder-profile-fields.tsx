@@ -68,10 +68,10 @@ const HOLIDAY_LABELS: Record<string, string> = {
 };
 
 const DESK_LABELS: Record<string, string> = {
-    XG: 'XG — regional (AG, DG)',
-    XR: 'XR — router (AR, DR, AM/PM mix)',
-    XS: 'XS — sectors (AS, DS)',
-    MID: 'Mid — midnight (MS, MG, mid mix)',
+    XG: 'Regional',
+    XR: 'Router',
+    XS: 'Sector',
+    MID: 'Midnight',
     RELIEF: 'Relief',
 };
 
@@ -336,7 +336,7 @@ export function BidderProfileFields({
             <KeyedRankList
                 idPrefix={`${idPrefix}-desk`}
                 label="Desk type preference"
-                hint="Drag to set importance order. Lines are classified from desk codes: AG/DG → XG, AR/DR and AM/PM mix → XR, AS/DS → XS, MS/MG and mid mix → Mid."
+                hint="Drag to set importance order. Regional = AG/DG, Router = AR/DR and AM/PM mix, Sector = AS/DS, Midnight = MS/MG and mid mix."
                 entries={deskRank}
                 labels={DESK_LABELS}
                 onChange={(desk_rank) => onChange({ ...value, desk_rank })}
