@@ -5,14 +5,17 @@ namespace App\Http\Controllers\App\BidTools;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BidTools\StoreBidSimulationParticipantRequest;
 use App\Http\Requests\BidTools\StoreBidSimulationRequest;
+use App\Http\Requests\BidTools\UpdateBidSimulationParticipantRequest;
 use App\Http\Requests\BidTools\UpdateBidSimulationRequest;
 use App\Models\BidImport;
 use App\Models\BidScenario;
 use App\Models\BidSimulation;
 use App\Models\BidSimulationParticipant;
+use App\Services\BidTools\BidScenarioProfileBuilder;
 use App\Services\BidTools\BidSimulationEngine;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,6 +23,7 @@ class SimulationController extends Controller
 {
     public function __construct(
         private readonly BidSimulationEngine $engine,
+        private readonly BidScenarioProfileBuilder $profileBuilder,
     ) {}
 
     public function index(Request $request): Response
@@ -66,7 +70,7 @@ class SimulationController extends Controller
 
         return redirect()
             ->route('bid-tools.simulations.edit', $simulation->id)
-            ->with('success', 'Simulation created. Add bidders and preference profiles.');
+            ->with('success', 'Simulation created. Add bidders below.');
     }
 
     public function show(Request $request, int $simulation): Response
@@ -86,17 +90,15 @@ class SimulationController extends Controller
         $sim = $this->findSimulation($request, $simulation);
         $sim->load(['import', 'participants.scenario']);
 
-        $scenarios = BidScenario::query()
-            ->where('user_id', $request->user()->id)
-            ->where('bid_import_id', $sim->bid_import_id)
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (BidScenario $s) => ['id' => $s->id, 'name' => $s->name]);
-
         return Inertia::render('app/bid-tools/simulations/edit', [
             'simulation' => $this->simulationPayload($sim),
-            'participants' => $sim->participants->map(fn (BidSimulationParticipant $p) => $this->participantPayload($p)),
-            'scenarios' => $scenarios,
+            'profile_defaults' => $this->profileBuilder->defaultsForImport($sim->import),
+            'participants' => $sim->participants->map(fn (BidSimulationParticipant $p) => [
+                ...$this->participantPayload($p),
+                'profile' => $p->scenario
+                    ? $this->profileBuilder->toEditorPayload($p->scenario)
+                    : $this->profileBuilder->defaultsForImport($sim->import),
+            ]),
         ]);
     }
 
@@ -125,29 +127,88 @@ class SimulationController extends Controller
         int $simulation,
     ): RedirectResponse {
         $sim = $this->findSimulation($request, $simulation);
-        $scenario = $this->findScenarioForSimulation($request, $sim, (int) $request->validated('bid_scenario_id'));
+        $sim->loadMissing('import');
 
-        BidSimulationParticipant::create([
-            'bid_simulation_id' => $sim->id,
-            'display_name' => $request->validated('display_name'),
-            'seniority_rank' => (int) $request->validated('seniority_rank'),
-            'bid_scenario_id' => $scenario->id,
-        ]);
+        DB::transaction(function () use ($request, $sim) {
+            $displayName = $request->validated('display_name');
+            $scenarioName = "{$displayName} · {$sim->name}";
 
-        $sim->update(['last_run_at' => null, 'last_run_results' => null]);
+            $scenario = $this->profileBuilder->createForSimulation(
+                $request->user()->id,
+                $sim->import,
+                $scenarioName,
+                $request->validated('profile'),
+            );
+
+            BidSimulationParticipant::create([
+                'bid_simulation_id' => $sim->id,
+                'display_name' => $displayName,
+                'seniority_rank' => (int) $request->validated('seniority_rank'),
+                'bid_scenario_id' => $scenario->id,
+            ]);
+
+            $sim->update(['last_run_at' => null, 'last_run_results' => null]);
+        });
 
         return redirect()
             ->route('bid-tools.simulations.edit', $sim->id)
             ->with('success', 'Bidder added.');
     }
 
+    public function updateParticipant(
+        UpdateBidSimulationParticipantRequest $request,
+        int $simulation,
+        int $participant,
+    ): RedirectResponse {
+        $sim = $this->findSimulation($request, $simulation);
+        $p = $this->findParticipant($sim, $participant);
+        $p->load('scenario');
+
+        DB::transaction(function () use ($request, $sim, $p) {
+            $displayName = $request->validated('display_name');
+
+            $p->update([
+                'display_name' => $displayName,
+                'seniority_rank' => (int) $request->validated('seniority_rank'),
+            ]);
+
+            if ($p->scenario) {
+                $p->scenario->update([
+                    'name' => "{$displayName} · {$sim->name}",
+                ]);
+                $this->profileBuilder->applyToScenario(
+                    $p->scenario,
+                    $request->validated('profile'),
+                );
+            }
+
+            $sim->update(['last_run_at' => null, 'last_run_results' => null]);
+        });
+
+        return redirect()
+            ->route('bid-tools.simulations.edit', $sim->id)
+            ->with('success', 'Bidder updated.');
+    }
+
     public function destroyParticipant(Request $request, int $simulation, int $participant): RedirectResponse
     {
         $sim = $this->findSimulation($request, $simulation);
         $p = $this->findParticipant($sim, $participant);
-        $p->delete();
+        $scenarioId = $p->bid_scenario_id;
 
-        $sim->update(['last_run_at' => null, 'last_run_results' => null]);
+        DB::transaction(function () use ($sim, $p, $scenarioId) {
+            $p->delete();
+
+            $stillUsed = BidSimulationParticipant::query()
+                ->where('bid_scenario_id', $scenarioId)
+                ->exists();
+
+            if (! $stillUsed) {
+                BidScenario::query()->whereKey($scenarioId)->delete();
+            }
+
+            $sim->update(['last_run_at' => null, 'last_run_results' => null]);
+        });
 
         return redirect()
             ->route('bid-tools.simulations.edit', $sim->id)
@@ -205,14 +266,6 @@ class SimulationController extends Controller
         return BidSimulationParticipant::query()
             ->where('bid_simulation_id', $simulation->id)
             ->findOrFail($participantId);
-    }
-
-    private function findScenarioForSimulation(Request $request, BidSimulation $simulation, int $scenarioId): BidScenario
-    {
-        return BidScenario::query()
-            ->where('user_id', $request->user()->id)
-            ->where('bid_import_id', $simulation->bid_import_id)
-            ->findOrFail($scenarioId);
     }
 
     /**
