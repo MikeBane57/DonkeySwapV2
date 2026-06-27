@@ -4,32 +4,6 @@ use App\Models\BidLine;
 use App\Models\BidScenario;
 use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
-use App\Services\BidTools\BidYearRange;
-
-function writeMultiLineBidCsv(int $bidYear, int $lineCount): string
-{
-    $range = BidYearRange::fromBidYear($bidYear);
-    $path = tempnam(sys_get_temp_dir(), 'bidcsv').'.csv';
-    $fh = fopen($path, 'wb');
-    $headers = ['Line Num', 'Group', 'Start Time', 'Rotation'];
-    foreach ($range->eachDate() as $d) {
-        $headers[] = $d->format('j-M-y');
-    }
-    $headers[] = 'workdays';
-    fputcsv($fh, $headers);
-
-    for ($i = 1; $i <= $lineCount; $i++) {
-        $row = [(string) (550 + $i), 'DG', '0600', 'A'];
-        foreach ($range->eachDate() as $d) {
-            $row[] = 'x';
-        }
-        $row[] = '0';
-        fputcsv($fh, $row);
-    }
-    fclose($fh);
-
-    return $path;
-}
 
 test('comparing many bid lines stores slim scores in session', function () {
     config(['features.bid_tools' => true]);
