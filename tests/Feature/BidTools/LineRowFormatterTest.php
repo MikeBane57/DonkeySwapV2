@@ -42,7 +42,9 @@ test('schedule callouts include non canonical off dates and desk labels', functi
     $formatted = app(LineRowFormatter::class)->format($line->fresh());
 
     expect($formatted['schedule_callouts'])->toContain('Non–3/5 off (4d)');
-    expect($formatted['schedule_callouts'])->toContain('off');
+    expect($formatted['schedule_callouts'])->toContain('1d work from');
+    expect($formatted['schedule_callouts'])->toContain('S4');
+    expect($formatted['schedule_callouts'])->not->toContain('off.');
 });
 
 test('schedule callouts include relief work dates with desk codes', function () {

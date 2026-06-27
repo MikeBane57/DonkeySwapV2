@@ -18,6 +18,16 @@ final class RotationBreakAnalyzer
      *     end_date: string,
      *     days: list<array{date: string, raw_cell: string, code: string|null}>
      *   }>,
+     *   non_canonical_alerts: list<array{
+     *     off_length: int,
+     *     off_start_date: string,
+     *     off_end_date: string,
+     *     work_length: int,
+     *     position: string,
+     *     date: string,
+     *     raw_cell: string,
+     *     code: string|null
+     *   }>,
      *   training_dates: list<string>,
      *   notes: list<string>,
      * }
@@ -33,6 +43,8 @@ final class RotationBreakAnalyzer
             $runDetails,
             fn (array $run) => $run['length'] !== 3 && $run['length'] !== 5,
         ));
+        $scheduleRuns = $this->scheduleRuns($days->all());
+        $alerts = $this->nonCanonicalAlerts($scheduleRuns);
 
         $trainingDates = [];
         foreach ($days as $d) {
@@ -51,9 +63,133 @@ final class RotationBreakAnalyzer
             'off_run_lengths' => $runs,
             'non_canonical_runs' => $nonCanonical,
             'non_canonical_run_details' => $nonCanonicalDetails,
+            'non_canonical_alerts' => $alerts,
             'training_dates' => $trainingDates,
             'notes' => $notes,
         ];
+    }
+
+    private static function isCanonicalRunLength(int $length): bool
+    {
+        return $length === 3 || $length === 5;
+    }
+
+    /**
+     * @param  list<\App\Models\BidLineDay>  $days
+     * @return list<array{
+     *   type: string,
+     *   length: int,
+     *   start_date: string,
+     *   end_date: string,
+     *   days: list<array{date: string, raw_cell: string, code: string|null}>
+     * }>
+     */
+    private function scheduleRuns(array $days): array
+    {
+        $runs = [];
+        $current = null;
+
+        foreach ($days as $day) {
+            $type = $day->is_off ? 'off' : 'work';
+            $entry = [
+                'date' => $day->assignment_date->format('Y-m-d'),
+                'raw_cell' => (string) $day->raw_cell,
+                'code' => $day->normalized_code,
+            ];
+
+            if ($current === null || $current['type'] !== $type) {
+                if ($current !== null) {
+                    $runs[] = $this->finalizeScheduleRun($current);
+                }
+                $current = ['type' => $type, 'length' => 0, 'days' => []];
+            }
+
+            $current['length']++;
+            $current['days'][] = $entry;
+        }
+
+        if ($current !== null) {
+            $runs[] = $this->finalizeScheduleRun($current);
+        }
+
+        return $runs;
+    }
+
+    /**
+     * @param  array{type: string, length: int, days: list<array{date: string, raw_cell: string, code: string|null}>}  $run
+     * @return array{
+     *   type: string,
+     *   length: int,
+     *   start_date: string,
+     *   end_date: string,
+     *   days: list<array{date: string, raw_cell: string, code: string|null}>
+     * }
+     */
+    private function finalizeScheduleRun(array $run): array
+    {
+        $first = $run['days'][0]['date'];
+        $last = $run['days'][count($run['days']) - 1]['date'];
+
+        return [
+            'type' => $run['type'],
+            'length' => $run['length'],
+            'start_date' => $first,
+            'end_date' => $last,
+            'days' => $run['days'],
+        ];
+    }
+
+    /**
+     * @param  list<array{
+     *   type: string,
+     *   length: int,
+     *   start_date: string,
+     *   end_date: string,
+     *   days: list<array{date: string, raw_cell: string, code: string|null}>
+     * }>  $scheduleRuns
+     * @return list<array{
+     *   off_length: int,
+     *   off_start_date: string,
+     *   off_end_date: string,
+     *   work_length: int,
+     *   position: string,
+     *   date: string,
+     *   raw_cell: string,
+     *   code: string|null
+     * }>
+     */
+    private function nonCanonicalAlerts(array $scheduleRuns): array
+    {
+        $alerts = [];
+
+        foreach ($scheduleRuns as $index => $run) {
+            if ($run['type'] !== 'off' || self::isCanonicalRunLength($run['length'])) {
+                continue;
+            }
+
+            $neighborIndex = $index + 1;
+            $neighbor = $scheduleRuns[$neighborIndex] ?? null;
+            if ($neighbor === null || $neighbor['type'] !== 'work') {
+                continue;
+            }
+            if (self::isCanonicalRunLength($neighbor['length'])) {
+                continue;
+            }
+
+            $firstWorkDay = $neighbor['days'][0];
+            $alerts[] = [
+                'off_length' => $run['length'],
+                'off_start_date' => $run['start_date'],
+                'off_end_date' => $run['end_date'],
+                'work_length' => $neighbor['length'],
+                'position' => 'after',
+                'date' => $firstWorkDay['date'],
+                'raw_cell' => $firstWorkDay['raw_cell'],
+                'code' => $firstWorkDay['code'],
+            ];
+        }
+
+        return $alerts;
     }
 
     /**

@@ -161,16 +161,32 @@ final class LineRowFormatter
     private function buildScheduleCallouts(array $rotation, array $reliefDays): string
     {
         $parts = [];
+        $alertedOffRanges = [];
+
+        foreach ($rotation['non_canonical_alerts'] ?? [] as $alert) {
+            $offStart = CarbonImmutable::parse($alert['off_start_date'])->format('n/j/y');
+            $offEnd = CarbonImmutable::parse($alert['off_end_date'])->format('n/j/y');
+            $offRange = $offStart === $offEnd ? $offStart : $offStart.'–'.$offEnd;
+            $workLabel = $this->formatDayDeskLabel(
+                $alert['date'],
+                $alert['raw_cell'],
+                $alert['code'],
+            );
+            $parts[] = 'Non–3/5 off ('.$alert['off_length'].'d) '.$offRange
+                .' → '.$alert['work_length'].'d work from '.$workLabel.'.';
+            $alertedOffRanges[$alert['off_start_date'].'|'.$alert['off_end_date']] = true;
+        }
 
         foreach ($rotation['non_canonical_run_details'] ?? [] as $run) {
+            $key = $run['start_date'].'|'.$run['end_date'];
+            if (isset($alertedOffRanges[$key])) {
+                continue;
+            }
+
             $start = CarbonImmutable::parse($run['start_date'])->format('n/j/y');
             $end = CarbonImmutable::parse($run['end_date'])->format('n/j/y');
             $range = $start === $end ? $start : $start.'–'.$end;
-            $dayBits = [];
-            foreach ($run['days'] as $day) {
-                $dayBits[] = $this->formatDayDeskLabel($day['date'], $day['raw_cell'], $day['code']);
-            }
-            $parts[] = 'Non–3/5 off ('.$run['length'].'d) '.$range.': '.implode(', ', $dayBits).'.';
+            $parts[] = 'Non–3/5 off ('.$run['length'].'d) '.$range.'.';
         }
 
         if ($reliefDays !== []) {
