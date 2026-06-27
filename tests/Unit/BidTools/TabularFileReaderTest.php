@@ -1,6 +1,9 @@
 <?php
 
 use App\Services\BidTools\TabularFileReader;
+use Tests\TestCase;
+
+uses(TestCase::class);
 
 test('tabular file reader reads xlsx rows', function () {
     if (! class_exists(ZipArchive::class)) {

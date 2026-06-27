@@ -170,11 +170,20 @@ final class TabularFileReader
         $mainNs = self::mainNamespace($shared);
         $strings = [];
 
-        foreach ($shared->children($mainNs) as $si) {
-            if ($si->getName() !== 'si') {
-                continue;
+        $items = $shared->xpath('//*[local-name()="si"]');
+        if (! is_array($items) || $items === []) {
+            foreach ($shared->children($mainNs) as $si) {
+                if ($si->getName() !== 'si') {
+                    continue;
+                }
+
+                $strings[] = self::sharedStringItemText($si, $mainNs);
             }
 
+            return $strings;
+        }
+
+        foreach ($items as $si) {
             $strings[] = self::sharedStringItemText($si, $mainNs);
         }
 
@@ -183,6 +192,16 @@ final class TabularFileReader
 
     private static function sharedStringItemText(SimpleXMLElement $si, string $mainNs): string
     {
+        $textNodes = $si->xpath('.//*[local-name()="t"]');
+        if (is_array($textNodes) && $textNodes !== []) {
+            $parts = [];
+            foreach ($textNodes as $node) {
+                $parts[] = (string) $node;
+            }
+
+            return implode('', $parts);
+        }
+
         $children = $si->children($mainNs);
         if (isset($children->t)) {
             return (string) $children->t;
@@ -275,19 +294,18 @@ final class TabularFileReader
      */
     private static function cellValue(SimpleXMLElement $cell, array $sharedStrings, string $mainNs): string
     {
-        $type = (string) ($cell['t'] ?? '');
+        $type = self::cellType($cell);
         $children = $cell->children($mainNs);
 
         if ($type === 's') {
-            $idx = (int) (string) ($children->v ?? 0);
+            $valueNode = $cell->xpath('./*[local-name()="v"]');
+            $idx = (int) (string) (($valueNode[0] ?? null) ?: ($children->v ?? 0));
 
             return $sharedStrings[$idx] ?? '';
         }
 
-        if ($type === 'inlineStr' && isset($children->is)) {
-            $is = $children->is->children($mainNs);
-
-            return (string) ($is->t ?? '');
+        if ($type === 'inlineStr') {
+            return self::inlineStringValue($cell, $mainNs);
         }
 
         if ($type === 'str') {
@@ -303,5 +321,43 @@ final class TabularFileReader
         }
 
         return '';
+    }
+
+    private static function cellType(SimpleXMLElement $cell): string
+    {
+        $attrs = $cell->attributes();
+        if ($attrs !== null && isset($attrs['t'])) {
+            return (string) $attrs['t'];
+        }
+
+        foreach ($cell->attributes() as $name => $value) {
+            if ((string) $name === 't') {
+                return (string) $value;
+            }
+        }
+
+        return '';
+    }
+
+    private static function inlineStringValue(SimpleXMLElement $cell, string $mainNs): string
+    {
+        $textNodes = $cell->xpath('.//*[local-name()="is"]//*[local-name()="t"]');
+        if (is_array($textNodes) && $textNodes !== []) {
+            $parts = [];
+            foreach ($textNodes as $node) {
+                $parts[] = (string) $node;
+            }
+
+            return implode('', $parts);
+        }
+
+        $children = $cell->children($mainNs);
+        if (! isset($children->is)) {
+            return '';
+        }
+
+        $is = $children->is->children($mainNs);
+
+        return (string) ($is->t ?? '');
     }
 }
