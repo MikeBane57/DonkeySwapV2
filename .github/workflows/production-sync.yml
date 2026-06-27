@@ -42,6 +42,14 @@ jobs:
             git pull origin main
             echo "==> composer install"
             $PHP $COMPOSER install --no-dev --optimize-autoloader --no-interaction
+            echo "==> build frontend (required for bid tools UI updates)"
+            if command -v npm >/dev/null 2>&1; then
+              npm ci
+              $PHP artisan wayfinder:generate --with-form
+              npm run build
+            else
+              echo "::warning::npm not found on server — run the Deploy workflow in GitHub Actions to upload frontend assets"
+            fi
             echo "==> migrate"
             $PHP artisan migrate --force
             echo "==> optimize"

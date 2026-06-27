@@ -258,16 +258,44 @@ export function emptyBidderProfile(defaults: BidderProfile): BidderProfile {
     };
 }
 
+function normalizeRankEntries(
+    entries: KeyedRankEntry[] | undefined,
+    fallback: KeyedRankEntry[],
+): KeyedRankEntry[] {
+    if (Array.isArray(entries) && entries.length > 0) {
+        return entries;
+    }
+
+    return fallback.map((entry) => ({ ...entry }));
+}
+
 export function BidderProfileFields({
     value,
     onChange,
     idPrefix = 'profile',
+    rankDefaults,
 }: {
     value: BidderProfile;
     onChange: (profile: BidderProfile) => void;
     idPrefix?: string;
+    rankDefaults?: Pick<
+        BidderProfile,
+        'holiday_rank' | 'desk_rank' | 'start_time_rank'
+    >;
 }) {
     const [weightsOpen, setWeightsOpen] = useState(false);
+    const holidayRank = normalizeRankEntries(
+        value.holiday_rank,
+        rankDefaults?.holiday_rank ?? [],
+    );
+    const deskRank = normalizeRankEntries(
+        value.desk_rank,
+        rankDefaults?.desk_rank ?? [],
+    );
+    const startTimeRank = normalizeRankEntries(
+        value.start_time_rank,
+        rankDefaults?.start_time_rank ?? [],
+    );
     const setWeights = (patch: Partial<BidderProfile['weights']>) => {
         onChange({ ...value, weights: { ...value.weights, ...patch } });
     };
@@ -300,7 +328,7 @@ export function BidderProfileFields({
                 idPrefix={`${idPrefix}-holiday`}
                 label="Holiday preference"
                 hint="Drag to set importance order. Eve and day share the same rank."
-                entries={value.holiday_rank}
+                entries={holidayRank}
                 labels={HOLIDAY_LABELS}
                 onChange={(holiday_rank) => onChange({ ...value, holiday_rank })}
             />
@@ -309,7 +337,7 @@ export function BidderProfileFields({
                 idPrefix={`${idPrefix}-desk`}
                 label="Desk type preference"
                 hint="Drag to set importance order. Mixed-desk lines follow XR."
-                entries={value.desk_rank}
+                entries={deskRank}
                 labels={DESK_LABELS}
                 onChange={(desk_rank) => onChange({ ...value, desk_rank })}
             />
@@ -318,7 +346,7 @@ export function BidderProfileFields({
                 idPrefix={`${idPrefix}-start`}
                 label="Start time preference"
                 hint="Drag to set importance order."
-                entries={value.start_time_rank}
+                entries={startTimeRank}
                 labels={START_TIME_LABELS}
                 onChange={(start_time_rank) =>
                     onChange({ ...value, start_time_rank })

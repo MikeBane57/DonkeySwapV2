@@ -162,14 +162,14 @@ final class CondensedBidderProfileMapper
             $key = strtoupper($entry['key']);
             $priority = $entry['priority'];
 
-            if ($key === 'XR' && in_array('mix', $importKeys, true) && ! isset($seen['mix'])) {
-                $out[] = ['key' => 'mix', 'priority' => $priority];
-                $seen['mix'] = true;
-            }
-
             if (in_array($key, $importKeys, true) && ! isset($seen[$key])) {
                 $out[] = ['key' => $key, 'priority' => $priority];
                 $seen[$key] = true;
+            }
+
+            if ($key === 'XR' && in_array('mix', $importKeys, true) && ! isset($seen['mix'])) {
+                $out[] = ['key' => 'mix', 'priority' => $priority];
+                $seen['mix'] = true;
             }
         }
 

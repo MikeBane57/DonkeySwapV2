@@ -34,9 +34,11 @@ function sanitizeProfile(profile: BidderProfile): BidderProfile {
 function ParticipantEditor({
     simulationId,
     participant,
+    profileDefaults,
 }: {
     simulationId: number;
     participant: Participant;
+    profileDefaults: BidderProfile;
 }) {
     const [open, setOpen] = useState(false);
     const form = useForm({
@@ -127,6 +129,7 @@ function ParticipantEditor({
 
                     <BidderProfileFields
                         idPrefix={`p-${participant.id}`}
+                        rankDefaults={profileDefaults}
                         value={form.data.profile}
                         onChange={(profile) => form.setData('profile', profile)}
                     />
@@ -303,6 +306,7 @@ export default function BidSimulationEdit({
                                     key={p.id}
                                     simulationId={simulation.id}
                                     participant={p}
+                                    profileDefaults={profileDefaults}
                                 />
                             ))}
                         </div>
@@ -361,6 +365,7 @@ export default function BidSimulationEdit({
 
                         <BidderProfileFields
                             idPrefix="new-bidder"
+                            rankDefaults={profileDefaults}
                             value={addForm.data.profile}
                             onChange={(profile) =>
                                 addForm.setData('profile', profile)
