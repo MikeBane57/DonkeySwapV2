@@ -1,0 +1,105 @@
+<?php
+
+use App\Services\BidTools\CondensedBidderProfileMapper;
+
+test('condensed defaults include holiday desk and start time ranks', function () {
+    $defaults = app(CondensedBidderProfileMapper::class)->condensedDefaults();
+
+    expect($defaults['holiday_rank'])->toHaveCount(4);
+    expect(collect($defaults['holiday_rank'])->pluck('key')->all())->toBe([
+        'christmas',
+        'thanksgiving',
+        'new_years',
+        'july_4',
+    ]);
+
+    expect($defaults['desk_rank'])->toHaveCount(5);
+    expect(collect($defaults['desk_rank'])->pluck('key')->all())->toBe([
+        'XG',
+        'XR',
+        'XS',
+        'MID',
+        'RELIEF',
+    ]);
+
+    expect($defaults['start_time_rank'])->toHaveCount(5);
+    expect(collect($defaults['start_time_rank'])->pluck('key')->all())->toBe([
+        '6',
+        '7',
+        '14',
+        '15',
+        '22',
+    ]);
+});
+
+test('expand holiday rank applies same priority to eve and day', function () {
+    $mapper = app(CondensedBidderProfileMapper::class);
+
+    $expanded = $mapper->expandHolidayRank([
+        ['key' => 'christmas', 'priority' => 'low'],
+        ['key' => 'thanksgiving', 'priority' => 'high'],
+        ['key' => 'new_years', 'priority' => 'ignore'],
+        ['key' => 'july_4', 'priority' => 'high'],
+    ], 2026);
+
+    $christmas = collect($expanded)->whereIn('id', ['christmas_eve', 'christmas_day']);
+    expect($christmas)->toHaveCount(2);
+    expect($christmas->pluck('priority')->unique()->all())->toBe(['low']);
+
+    $thanksgiving = collect($expanded)->whereIn('id', ['thanksgiving', 'black_friday']);
+    expect($thanksgiving->pluck('priority')->unique()->all())->toBe(['high']);
+});
+
+test('expand desk rank gives mix lines the same priority as XR', function () {
+    $mapper = app(CondensedBidderProfileMapper::class);
+
+    $expanded = $mapper->expandDeskRank([
+        ['key' => 'XG', 'priority' => 'high'],
+        ['key' => 'XR', 'priority' => 'low'],
+        ['key' => 'XS', 'priority' => 'high'],
+        ['key' => 'MID', 'priority' => 'ignore'],
+        ['key' => 'RELIEF', 'priority' => 'high'],
+    ], ['XG', 'XR', 'XS', 'MID', 'RELIEF', 'mix']);
+
+    $byKey = collect($expanded)->keyBy('key');
+
+    expect($byKey['XR']['priority'])->toBe('low');
+    expect($byKey['mix']['priority'])->toBe('low');
+
+    $xrIndex = collect($expanded)->search(fn ($row) => $row['key'] === 'XR');
+    $mixIndex = collect($expanded)->search(fn ($row) => $row['key'] === 'mix');
+    expect($mixIndex)->toBe($xrIndex + 1);
+});
+
+test('expand start time rank maps hour keys to import start keys', function () {
+    $mapper = app(CondensedBidderProfileMapper::class);
+
+    $expanded = $mapper->expandStartTimeRank([
+        ['key' => '6', 'priority' => 'high'],
+        ['key' => '7', 'priority' => 'low'],
+        ['key' => '14', 'priority' => 'ignore'],
+        ['key' => '15', 'priority' => 'high'],
+        ['key' => '22', 'priority' => 'low'],
+    ], ['t_0600', 't_0700', 't_1400']);
+
+    $byKey = collect($expanded)->keyBy('key');
+
+    expect($byKey['t_0600']['priority'])->toBe('high');
+    expect($byKey['t_0700']['priority'])->toBe('low');
+    expect($byKey['t_1400']['priority'])->toBe('ignore');
+});
+
+test('to condensed desk rank reads mix priority from XR slot', function () {
+    $mapper = app(CondensedBidderProfileMapper::class);
+
+    $condensed = $mapper->toCondensedDeskRank([
+        ['key' => 'XG', 'priority' => 'high'],
+        ['key' => 'mix', 'priority' => 'low'],
+        ['key' => 'XS', 'priority' => 'ignore'],
+    ]);
+
+    $byKey = collect($condensed)->keyBy('key');
+
+    expect($byKey['XR']['priority'])->toBe('low');
+    expect($byKey['XS']['priority'])->toBe('ignore');
+});

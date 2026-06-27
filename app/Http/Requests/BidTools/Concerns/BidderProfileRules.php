@@ -14,6 +14,27 @@ trait BidderProfileRules
         return [
             "{$prefix}" => ['required', 'array'],
             "{$prefix}.vacation_bank" => ['required', 'integer', 'min:0', 'max:255'],
+            "{$prefix}.holiday_rank" => ['required', 'array', 'min:1'],
+            "{$prefix}.holiday_rank.*.key" => [
+                'required',
+                'string',
+                Rule::in(array_keys(\App\Services\BidTools\CondensedBidderProfileMapper::HOLIDAY_GROUPS)),
+            ],
+            "{$prefix}.holiday_rank.*.priority" => ['required', 'string', Rule::in(['ignore', 'low', 'high'])],
+            "{$prefix}.desk_rank" => ['required', 'array', 'min:1'],
+            "{$prefix}.desk_rank.*.key" => [
+                'required',
+                'string',
+                Rule::in(\App\Services\BidTools\CondensedBidderProfileMapper::DESK_KEYS),
+            ],
+            "{$prefix}.desk_rank.*.priority" => ['required', 'string', Rule::in(['ignore', 'low', 'high'])],
+            "{$prefix}.start_time_rank" => ['required', 'array', 'min:1'],
+            "{$prefix}.start_time_rank.*.key" => [
+                'required',
+                'string',
+                Rule::in(\App\Services\BidTools\CondensedBidderProfileMapper::START_TIME_KEYS),
+            ],
+            "{$prefix}.start_time_rank.*.priority" => ['required', 'string', Rule::in(['ignore', 'low', 'high'])],
             "{$prefix}.weights" => ['nullable', 'array'],
             "{$prefix}.weights.holiday" => ['nullable', 'numeric'],
             "{$prefix}.weights.personal" => ['nullable', 'numeric'],

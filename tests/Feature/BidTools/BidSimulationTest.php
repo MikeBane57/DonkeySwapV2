@@ -7,11 +7,17 @@ use App\Models\BidSimulationParticipant;
 use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
 use App\Services\BidTools\BidSimulationEngine;
+use App\Services\BidTools\CondensedBidderProfileMapper;
 
 function sampleBidderProfile(array $overrides = []): array
 {
+    $condensed = app(CondensedBidderProfileMapper::class)->condensedDefaults();
+
     return array_merge([
         'vacation_bank' => 12,
+        'holiday_rank' => $condensed['holiday_rank'],
+        'desk_rank' => $condensed['desk_rank'],
+        'start_time_rank' => $condensed['start_time_rank'],
         'weights' => [
             'holiday' => 2,
             'personal' => 1,

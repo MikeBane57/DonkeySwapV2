@@ -11,6 +11,7 @@ final class BidScenarioProfileBuilder
     public function __construct(
         private readonly ScenarioScoreService $scoreService,
         private readonly BidLinePreferenceCatalog $preferenceCatalog,
+        private readonly CondensedBidderProfileMapper $condensedMapper,
     ) {}
 
     /**
@@ -18,9 +19,7 @@ final class BidScenarioProfileBuilder
      */
     public function defaultsForImport(BidImport $import): array
     {
-        $bidYear = (int) $import->bid_year;
-        $deskKeys = $this->preferenceCatalog->deskKeysForImport($import->id);
-        $startKeys = $this->preferenceCatalog->startTimeKeysForImport($import->id);
+        $condensed = $this->condensedMapper->condensedDefaults();
 
         return [
             'vacation_bank' => 15,
@@ -32,13 +31,9 @@ final class BidScenarioProfileBuilder
                 'vacation_penalty' => 1.0,
                 'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
             ],
-            'holiday_rank' => $this->scoreService->defaultHolidayEntries($bidYear),
-            'desk_rank' => $deskKeys === []
-                ? $this->scoreService->defaultDeskEntries()
-                : $this->scoreService->deskEntriesForEditor([], $deskKeys),
-            'start_time_rank' => $startKeys === []
-                ? $this->scoreService->defaultStartTimeEntries()
-                : $this->scoreService->startTimeEntriesForEditor([], $startKeys),
+            'holiday_rank' => $condensed['holiday_rank'],
+            'desk_rank' => $condensed['desk_rank'],
+            'start_time_rank' => $condensed['start_time_rank'],
             'personal_dates' => [],
             'vacation_ranges' => [],
         ];
@@ -50,9 +45,6 @@ final class BidScenarioProfileBuilder
     public function toEditorPayload(BidScenario $scenario): array
     {
         $scenario->loadMissing(['import', 'vacationRanges']);
-        $bidYear = (int) $scenario->import->bid_year;
-        $deskKeys = $this->preferenceCatalog->deskKeysForImport($scenario->bid_import_id);
-        $startKeys = $this->preferenceCatalog->startTimeKeysForImport($scenario->bid_import_id);
 
         $weights = array_merge([
             'holiday' => 1.0,
@@ -63,12 +55,14 @@ final class BidScenarioProfileBuilder
             'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
         ], $scenario->weights ?? []);
 
+        $condensed = $this->condensedMapper->toCondensedPayload($scenario);
+
         return [
             'vacation_bank' => $scenario->vacation_bank,
             'weights' => $weights,
-            'holiday_rank' => $this->scoreService->holidayEntriesForEditor($scenario->holiday_rank, $bidYear),
-            'desk_rank' => $this->scoreService->deskEntriesForEditor($scenario->desk_rank, $deskKeys),
-            'start_time_rank' => $this->scoreService->startTimeEntriesForEditor($scenario->start_time_rank, $startKeys),
+            'holiday_rank' => $condensed['holiday_rank'],
+            'desk_rank' => $condensed['desk_rank'],
+            'start_time_rank' => $condensed['start_time_rank'],
             'personal_dates' => $this->scoreService->personalDatesForEditor($scenario->personal_dates ?? []),
             'vacation_ranges' => $scenario->vacationRanges->map(fn ($r) => [
                 'title' => $r->title ?? '',
@@ -87,8 +81,7 @@ final class BidScenarioProfileBuilder
         string $scenarioName,
         array $profile,
     ): BidScenario {
-        $defaults = $this->defaultsForImport($import);
-        $merged = $this->mergeProfile($defaults, $profile);
+        $merged = $this->mergeProfile($import, $profile);
 
         $scenario = BidScenario::create([
             'user_id' => $userId,
@@ -114,8 +107,7 @@ final class BidScenarioProfileBuilder
     public function applyToScenario(BidScenario $scenario, array $profile): void
     {
         $scenario->loadMissing('import');
-        $defaults = $this->defaultsForImport($scenario->import);
-        $merged = $this->mergeProfile($defaults, $profile);
+        $merged = $this->mergeProfile($scenario->import, $profile);
 
         $scenario->fill([
             'vacation_bank' => (int) $merged['vacation_bank'],
@@ -131,12 +123,14 @@ final class BidScenarioProfileBuilder
     }
 
     /**
-     * @param  array<string, mixed>  $defaults
      * @param  array<string, mixed>  $profile
      * @return array<string, mixed>
      */
-    private function mergeProfile(array $defaults, array $profile): array
+    private function mergeProfile(BidImport $import, array $profile): array
     {
+        $defaults = $this->defaultsForImport($import);
+        $expanded = $this->condensedMapper->expandProfile($import, $profile);
+
         $weights = array_merge(
             $defaults['weights'],
             is_array($profile['weights'] ?? null) ? $profile['weights'] : [],
@@ -149,15 +143,9 @@ final class BidScenarioProfileBuilder
         return [
             'vacation_bank' => (int) ($profile['vacation_bank'] ?? $defaults['vacation_bank']),
             'weights' => $weights,
-            'holiday_rank' => is_array($profile['holiday_rank'] ?? null)
-                ? $profile['holiday_rank']
-                : $defaults['holiday_rank'],
-            'desk_rank' => is_array($profile['desk_rank'] ?? null)
-                ? $profile['desk_rank']
-                : $defaults['desk_rank'],
-            'start_time_rank' => is_array($profile['start_time_rank'] ?? null)
-                ? $profile['start_time_rank']
-                : $defaults['start_time_rank'],
+            'holiday_rank' => $expanded['holiday_rank'],
+            'desk_rank' => $expanded['desk_rank'],
+            'start_time_rank' => $expanded['start_time_rank'],
             'personal_dates' => is_array($profile['personal_dates'] ?? null)
                 ? $profile['personal_dates']
                 : $defaults['personal_dates'],
