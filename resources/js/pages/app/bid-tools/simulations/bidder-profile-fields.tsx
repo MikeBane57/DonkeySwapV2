@@ -302,8 +302,14 @@ export function BidderProfileFields({
 
     return (
         <div className="space-y-4 rounded-md border border-sidebar-border/50 bg-muted/20 p-3">
-            <p className="text-xs font-medium text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
                 Preference profile
+            </p>
+            <p className="text-xs text-muted-foreground">
+                Drag each list to rank what you want most within that category.
+                Weights (below) control how much each category affects the total
+                score. Overall priority breaks ties when two lines score about
+                the same.
             </p>
 
             <div className="space-y-2">
@@ -327,7 +333,7 @@ export function BidderProfileFields({
             <KeyedRankList
                 idPrefix={`${idPrefix}-holiday`}
                 label="Holiday preference"
-                hint="Drag to set importance order. Eve and day share the same rank."
+                hint="Drag to rank — higher holidays matter more when scoring lines."
                 entries={holidayRank}
                 labels={HOLIDAY_LABELS}
                 onChange={(holiday_rank) => onChange({ ...value, holiday_rank })}
@@ -336,7 +342,7 @@ export function BidderProfileFields({
             <KeyedRankList
                 idPrefix={`${idPrefix}-desk`}
                 label="Desk type preference"
-                hint="Drag to set importance order. Regional = AG/DG, Router = AR/DR and AM/PM mix, Sector = AS/DS, Midnight = MS/MG and mid mix."
+                hint="Drag to rank — higher items matter more. Regional = AG/DG, Router = AR/DR and AM/PM mix, Sector = AS/DS, Midnight = MS/MG and mid mix."
                 entries={deskRank}
                 labels={DESK_LABELS}
                 onChange={(desk_rank) => onChange({ ...value, desk_rank })}
@@ -345,7 +351,7 @@ export function BidderProfileFields({
             <KeyedRankList
                 idPrefix={`${idPrefix}-start`}
                 label="Start time preference"
-                hint="Drag to set importance order."
+                hint="Drag to rank — higher start times matter more when scoring lines."
                 entries={startTimeRank}
                 labels={START_TIME_LABELS}
                 onChange={(start_time_rank) =>
@@ -529,48 +535,29 @@ export function BidderProfileFields({
             </div>
 
             <div className="space-y-2">
-                <Label>Tie-break order</Label>
+                <Label>Overall priority when totals are close</Label>
                 <p className="text-xs text-muted-foreground">
-                    Used when total scores tie. First criteria break ties before
-                    later ones.
+                    Total score comes first. Drag to choose which categories
+                    decide ordering when two lines are very close.
                 </p>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
                     {value.weights.criteria_order.map((key, idx) => (
-                        <div
-                            key={`${idPrefix}-crit-${idx}`}
-                            className="flex items-center gap-2 text-xs"
+                        <DraggableRow
+                            key={`${idPrefix}-crit-${key}`}
+                            index={idx}
+                            onReorder={(from, to) => {
+                                const order = moveIndex(
+                                    value.weights.criteria_order,
+                                    from,
+                                    to,
+                                );
+                                setWeights({ criteria_order: order });
+                            }}
                         >
-                            <span className="w-6 text-muted-foreground">
-                                {idx + 1}.
+                            <span className="text-sm">
+                                {CRITERIA_LABELS[key] ?? key}
                             </span>
-                            <Select
-                                value={key}
-                                onValueChange={(next) => {
-                                    const order = [
-                                        ...value.weights.criteria_order,
-                                    ];
-                                    const existing = order.indexOf(next);
-                                    if (existing >= 0) {
-                                        order[existing] = order[idx];
-                                    }
-                                    order[idx] = next;
-                                    setWeights({ criteria_order: order });
-                                }}
-                            >
-                                <SelectTrigger className="h-8 flex-1 text-xs">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {Object.entries(CRITERIA_LABELS).map(
-                                        ([k, label]) => (
-                                            <SelectItem key={k} value={k}>
-                                                {label}
-                                            </SelectItem>
-                                        ),
-                                    )}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                        </DraggableRow>
                     ))}
                 </div>
             </div>

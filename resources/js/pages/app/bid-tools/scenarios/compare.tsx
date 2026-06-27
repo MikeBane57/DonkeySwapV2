@@ -3,6 +3,10 @@ import { Fragment, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import AppLayout from '@/layouts/app-layout';
+import {
+    BidLinePickerToolbar,
+    type LinePickerRow,
+} from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
 import type { BreadcrumbItem } from '@/types';
 
@@ -28,12 +32,7 @@ type ScenarioOption = {
     import_stale: boolean;
 };
 
-type LinePick = {
-    id: number;
-    line_num: string;
-    desk_group: string;
-    start_time: string;
-};
+type LinePick = LinePickerRow;
 
 type LineFmt = {
     desk_group: string;
@@ -185,12 +184,15 @@ function CompareSetup({
         );
     };
 
-    const selectAllLines = () => {
-        const next: Record<number, boolean> = {};
-        lines.forEach((l) => {
-            next[l.id] = true;
+    const selectLineIds = (ids: number[]) => {
+        setSelectedLines((prev) => {
+            const next = { ...prev };
+            ids.forEach((id) => {
+                next[id] = true;
+            });
+
+            return next;
         });
-        setSelectedLines(next);
     };
 
     const clearLineSelection = () => setSelectedLines({});
@@ -236,19 +238,11 @@ function CompareSetup({
             {lines.length > 0 && (
                 <section className="no-print space-y-3">
                     <h2 className="text-sm font-medium">Lines to compare</h2>
-                    <div className="flex flex-wrap gap-2">
-                        <Button type="button" variant="secondary" size="sm" onClick={selectAllLines}>
-                            Select all
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={clearLineSelection}
-                        >
-                            Clear
-                        </Button>
-                    </div>
+                    <BidLinePickerToolbar
+                        lines={lines}
+                        onSelect={selectLineIds}
+                        onClear={clearLineSelection}
+                    />
                     <div className="max-h-64 overflow-y-auto rounded-lg border border-sidebar-border/70 p-3">
                         <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
                             {lines.map((l) => (

@@ -85,3 +85,14 @@ test('classifies mixed group and start time lines into router or midnight', func
     $midMix = makeClassifierLine([], deskGroup: 'MID MIX', startTime: 'MID-MIX');
     expect($classifier->bucketForLine($midMix))->toBe('MID');
 });
+
+test('maps start times to am pm and mid picker buckets', function () {
+    $classifier = app(CondensedDeskClassifier::class);
+
+    expect($classifier->startShiftBucket('0600'))->toBe('am');
+    expect($classifier->startShiftBucket('AM-MIX 0600 0700'))->toBe('am');
+    expect($classifier->startShiftBucket('1500'))->toBe('pm');
+    expect($classifier->startShiftBucket('PM-MIX'))->toBe('pm');
+    expect($classifier->startShiftBucket('2200'))->toBe('mid');
+    expect($classifier->startShiftBucket('MID-MIX'))->toBe('mid');
+});

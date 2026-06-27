@@ -158,6 +158,38 @@ class ScenarioController extends Controller
             ->with('success', 'Scenario saved.');
     }
 
+    public function duplicate(Request $request, int $scenario): RedirectResponse
+    {
+        $source = $this->findScenario($request, $scenario);
+        $source->load('vacationRanges');
+
+        $copy = BidScenario::create([
+            'user_id' => $request->user()->id,
+            'bid_import_id' => $source->bid_import_id,
+            'name' => $this->duplicateScenarioName($request->user()->id, $source->name),
+            'vacation_bank' => $source->vacation_bank,
+            'weights' => $source->weights,
+            'holiday_rank' => $source->holiday_rank,
+            'desk_rank' => $source->desk_rank,
+            'start_time_rank' => $source->start_time_rank,
+            'personal_dates' => $source->personal_dates,
+            'code_overrides' => $source->code_overrides ?? [],
+        ]);
+
+        foreach ($source->vacationRanges as $range) {
+            BidScenarioVacationRange::create([
+                'bid_scenario_id' => $copy->id,
+                'title' => $range->title,
+                'starts_on' => $range->starts_on,
+                'ends_on' => $range->ends_on,
+            ]);
+        }
+
+        return redirect()
+            ->route('bid-tools.scenarios.edit', $copy->id)
+            ->with('success', 'Scenario duplicated. Adjust the copy as needed.');
+    }
+
     public function destroy(Request $request, int $scenario): RedirectResponse
     {
         $s = $this->findScenario($request, $scenario);
@@ -173,5 +205,22 @@ class ScenarioController extends Controller
         return BidScenario::query()
             ->where('user_id', $request->user()->id)
             ->findOrFail($id);
+    }
+
+    private function duplicateScenarioName(int $userId, string $name): string
+    {
+        $base = preg_replace('/ \(\d+\)$/', '', trim($name)) ?: 'Scenario';
+        $candidate = $base.' (copy)';
+        $suffix = 2;
+
+        while (BidScenario::query()
+            ->where('user_id', $userId)
+            ->where('name', $candidate)
+            ->exists()) {
+            $candidate = $base.' (copy '.$suffix.')';
+            $suffix++;
+        }
+
+        return $candidate;
     }
 }

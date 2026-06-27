@@ -1,5 +1,5 @@
-import { Head, Link } from '@inertiajs/react';
-import { GitCompare, ListOrdered, Play, Plus, Table, TriangleAlert } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { Copy, GitCompare, ListOrdered, Play, Plus, Table, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
@@ -172,6 +172,19 @@ export default function BidToolsIndex({
                                             >
                                                 Edit
                                             </Link>
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            type="button"
+                                            onClick={() =>
+                                                router.post(
+                                                    `/app/bid-tools/scenarios/${s.id}/duplicate`,
+                                                )
+                                            }
+                                        >
+                                            <Copy className="mr-2 h-4 w-4" />
+                                            Duplicate
                                         </Button>
                                         <Button
                                             variant="outline"

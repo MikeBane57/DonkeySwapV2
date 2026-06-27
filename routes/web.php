@@ -145,6 +145,7 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::post('/scenarios', [BidToolsScenarioController::class, 'store'])->name('scenarios.store');
         Route::get('/scenarios/{scenario}/edit', [BidToolsScenarioController::class, 'edit'])->name('scenarios.edit');
         Route::put('/scenarios/{scenario}', [BidToolsScenarioController::class, 'update'])->name('scenarios.update');
+        Route::post('/scenarios/{scenario}/duplicate', [BidToolsScenarioController::class, 'duplicate'])->name('scenarios.duplicate');
         Route::delete('/scenarios/{scenario}', [BidToolsScenarioController::class, 'destroy'])->name('scenarios.destroy');
         Route::get('/scenarios/{scenario}/ranked', [BidToolsRankedController::class, 'show'])->name('scenarios.ranked');
         Route::post('/scenarios/{scenario}/score', [BidToolsRankedController::class, 'score'])->name('scenarios.score');

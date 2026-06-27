@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { GripVertical, Plus, Trash2 } from 'lucide-react';
+import { Copy, GripVertical, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
@@ -309,6 +309,19 @@ export default function BidScenarioEdit({
                             </Link>
                         </Button>
                         <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            onClick={() =>
+                                router.post(
+                                    `/app/bid-tools/scenarios/${scenario.id}/duplicate`,
+                                )
+                            }
+                        >
+                            <Copy className="mr-2 h-4 w-4" />
+                            Duplicate
+                        </Button>
+                        <Button
                             variant="destructive"
                             size="sm"
                             type="button"
@@ -508,10 +521,12 @@ export default function BidScenarioEdit({
                     </section>
 
                     <section className="space-y-3">
-                        <Label>Tie-break order (compare when scores tie)</Label>
+                        <Label>Overall priority when totals are close</Label>
                         <p className="text-xs text-muted-foreground">
-                            First items break ties before later ones (within the
-                            same total score). Drag to reorder.
+                            Lines are ranked by total score first (weights control
+                            how much each category contributes). Drag to set which
+                            categories break ties when two lines score about the
+                            same.
                         </p>
                         <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
                             {criteriaOrder.map((id, idx) => (
@@ -545,8 +560,9 @@ export default function BidScenarioEdit({
                             </Button>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            Higher in the list matters more when priorities tie.
-                            Set &quot;Don&apos;t care&quot; to skip a holiday.
+                            Higher in the list = more important. Priority
+                            (high/low/don&apos;t care) controls how strongly each
+                            item counts. Drag to rank.
                         </p>
                         <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
                             {holidays.map((h, idx) => (

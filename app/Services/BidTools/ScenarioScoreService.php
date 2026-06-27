@@ -151,6 +151,11 @@ final class ScenarioScoreService
         }
 
         usort($out, function ($a, $b) use ($criteriaOrder) {
+            $totalCmp = $b['total'] <=> $a['total'];
+            if ($totalCmp !== 0) {
+                return $totalCmp;
+            }
+
             foreach ($criteriaOrder as $c) {
                 if (! is_string($c)) {
                     continue;
@@ -162,7 +167,7 @@ final class ScenarioScoreService
                 }
             }
 
-            return $b['total'] <=> $a['total'];
+            return 0;
         });
 
         return $out;

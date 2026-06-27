@@ -150,6 +150,50 @@ final class CondensedDeskClassifier
     }
 
     /**
+     * AM, PM, or midnight shift bucket for line-picker filters.
+     */
+    public function startShiftBucket(string $startTime): string
+    {
+        $key = $this->startTimes->rankKey($startTime);
+
+        if ($key === 'am' || str_starts_with($key, 'am_mix') || preg_match('/^t_0[67]/', $key)) {
+            return 'am';
+        }
+
+        if ($key === 'pm' || $key === 'pm_mix' || preg_match('/^t_1[45]/', $key)) {
+            return 'pm';
+        }
+
+        if ($key === 'mid' || $key === 'mid_mix' || preg_match('/^t_22/', $key)) {
+            return 'mid';
+        }
+
+        return 'other';
+    }
+
+    /**
+     * @return array{
+     *   id: int,
+     *   line_num: string,
+     *   desk_group: string,
+     *   start_time: string,
+     *   start_shift: string,
+     *   desk_bucket: string,
+     * }
+     */
+    public function linePickerFields(BidLine $line): array
+    {
+        return [
+            'id' => $line->id,
+            'line_num' => $line->line_num,
+            'desk_group' => $line->desk_group,
+            'start_time' => $line->start_time,
+            'start_shift' => $this->startShiftBucket($line->start_time),
+            'desk_bucket' => $this->bucketForLine($line),
+        ];
+    }
+
+    /**
      * @param  list<array{key: string, priority?: string}>  $deskEntries
      */
     public function usesCondensedBuckets(array $deskEntries): bool

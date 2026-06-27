@@ -7,6 +7,7 @@ use App\Http\Requests\BidTools\CompareScenariosRequest;
 use App\Models\BidImport;
 use App\Models\BidLine;
 use App\Models\BidScenario;
+use App\Services\BidTools\CondensedDeskClassifier;
 use App\Services\BidTools\LineRowFormatter;
 use App\Services\BidTools\ScenarioScoreService;
 use Illuminate\Http\RedirectResponse;
@@ -21,6 +22,7 @@ class ScenarioCompareController extends Controller
     public function __construct(
         private readonly ScenarioScoreService $scoreService,
         private readonly LineRowFormatter $rowFormatter,
+        private readonly CondensedDeskClassifier $deskClassifier,
     ) {}
 
     public function show(Request $request): Response
@@ -179,14 +181,10 @@ class ScenarioCompareController extends Controller
     {
         return BidLine::query()
             ->where('bid_import_id', $importId)
+            ->with('days')
             ->orderBy('line_num')
-            ->get(['id', 'line_num', 'desk_group', 'start_time'])
-            ->map(fn (BidLine $line) => [
-                'id' => $line->id,
-                'line_num' => $line->line_num,
-                'desk_group' => $line->desk_group,
-                'start_time' => $line->start_time,
-            ])
+            ->get()
+            ->map(fn (BidLine $line) => $this->deskClassifier->linePickerFields($line))
             ->all();
     }
 
