@@ -21,7 +21,7 @@ class StoreBidLineImportRequest extends FormRequest
             'bid_year' => ['required', 'integer', 'min:2000', 'max:2100'],
             'batch_title' => ['nullable', 'string', 'max:160'],
             'files' => ['required', 'array', 'min:1', 'max:25'],
-            'files.*' => ['required', 'file', 'max:51200'],
+            'files.*' => ['required', 'file', 'extensions:csv,txt,xlsx', 'max:51200'],
             'titles' => ['nullable', 'array'],
             'titles.*' => ['nullable', 'string', 'max:120'],
         ];
@@ -57,7 +57,7 @@ class StoreBidLineImportRequest extends FormRequest
             }
 
             if ($files === []) {
-                $v->errors()->add('files', 'Choose at least one CSV file to import.');
+                $v->errors()->add('files', 'Choose at least one CSV or XLSX file to import.');
             }
         });
     }

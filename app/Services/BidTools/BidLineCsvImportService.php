@@ -20,12 +20,12 @@ final class BidLineCsvImportService
     public function importFromSources(array $sources, int $uploadedByUserId, int $bidYear, ?string $batchTitle = null): array
     {
         if ($sources === []) {
-            throw new InvalidArgumentException('At least one CSV file is required.');
+            throw new InvalidArgumentException('At least one CSV or XLSX file is required.');
         }
 
         $parsed = [];
         foreach ($sources as $i => $src) {
-            $parsed[] = $this->parseCsvToBuffer(
+            $parsed[] = $this->parseFileToBuffer(
                 $src['path'],
                 $src['original_filename'],
                 $bidYear,
@@ -97,7 +97,7 @@ final class BidLineCsvImportService
             : $sources[0]['original_filename'].' (+'.(count($sources) - 1).' more)';
 
         if (strlen($summaryName) > 255) {
-            $summaryName = count($sources).' CSV files (combined)';
+            $summaryName = count($sources).' spreadsheet files (combined)';
         }
 
         return $this->persistImport(
@@ -209,16 +209,23 @@ final class BidLineCsvImportService
      *   distinct_codes: list<string>
      * }
      */
-    private function parseCsvToBuffer(string $absolutePath, string $originalFilename, int $bidYear, ?string $sourceLabel): array
+    private function parseFileToBuffer(string $absolutePath, string $originalFilename, int $bidYear, ?string $sourceLabel): array
     {
         if (! is_readable($absolutePath)) {
-            throw new RuntimeException('CSV file is not readable: '.$originalFilename);
+            throw new RuntimeException('File is not readable: '.$originalFilename);
         }
 
         $range = BidYearRange::fromBidYear($bidYear);
-        $rows = $this->readCsvRows($absolutePath);
+        try {
+            $rows = TabularFileReader::read($absolutePath);
+        } catch (InvalidArgumentException $e) {
+            throw $e;
+        } catch (RuntimeException $e) {
+            throw new RuntimeException($e->getMessage().' ('.$originalFilename.')', 0, $e);
+        }
+
         if ($rows === []) {
-            throw new InvalidArgumentException('CSV is empty: '.$originalFilename);
+            throw new InvalidArgumentException('Spreadsheet is empty: '.$originalFilename);
         }
 
         [$headerIndex, $columnMap, $workdaysCol] = $this->detectHeaderAndColumns($rows);
@@ -307,30 +314,6 @@ final class BidLineCsvImportService
     }
 
     /**
-     * @return list<list<string>>
-     */
-    private function readCsvRows(string $path): array
-    {
-        $fh = fopen($path, 'rb');
-        if ($fh === false) {
-            throw new RuntimeException('Could not open CSV.');
-        }
-
-        $rows = [];
-        $first = true;
-        while (($row = fgetcsv($fh)) !== false) {
-            if ($first && isset($row[0])) {
-                $row[0] = preg_replace('/^\xEF\xBB\xBF/', '', (string) $row[0]) ?? (string) $row[0];
-                $first = false;
-            }
-            $rows[] = array_map(fn ($c) => (string) $c, $row);
-        }
-        fclose($fh);
-
-        return $rows;
-    }
-
-    /**
      * @param  list<list<string>>  $rows
      * @return array{0: int, 1: array<string, int>, 2: int|null}
      */
@@ -384,7 +367,17 @@ final class BidLineCsvImportService
             return null;
         }
 
-        foreach (['j-M-y', 'd-M-y', 'j-M-Y', 'd-M-Y'] as $fmt) {
+        if (is_numeric($label)) {
+            $serial = (float) $label;
+            if ($serial >= 1 && $serial <= 60000) {
+                $base = CarbonImmutable::create(1899, 12, 30);
+                if ($base !== null) {
+                    return $base->addDays((int) floor($serial))->format('Y-m-d');
+                }
+            }
+        }
+
+        foreach (['j-M-y', 'd-M-y', 'j-M-Y', 'd-M-Y', 'Y-m-d', 'm/d/Y', 'n/j/Y'] as $fmt) {
             $dt = DateTime::createFromFormat('!'.$fmt, $label);
             if ($dt instanceof DateTime) {
                 return CarbonImmutable::parse($dt->format('Y-m-d'))->format('Y-m-d');

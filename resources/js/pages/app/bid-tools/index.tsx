@@ -44,8 +44,8 @@ export default function BidToolsIndex({
                     </h1>
                     <p className="mt-2 text-sm text-muted-foreground">
                         Compare bid lines against your preferences, vacation
-                        windows, and holidays. Master line CSV is uploaded by an
-                        admin.
+                        windows, and holidays. Master line spreadsheet is
+                        uploaded by an admin.
                     </p>
                 </div>
 
@@ -56,7 +56,7 @@ export default function BidToolsIndex({
                     {currentImports.length === 0 ? (
                         <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                             No master file for any bid year yet. Ask an admin to
-                            upload CSV under Admin → Bid line import.
+                            upload a CSV or XLSX under Admin → Bid line import.
                         </p>
                     ) : (
                         <ul className="space-y-2">

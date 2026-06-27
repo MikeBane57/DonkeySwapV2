@@ -97,7 +97,7 @@ export default function AdminBidLineImport({
         setLocalError(null);
 
         if (readyRows.length === 0) {
-            setLocalError('Choose at least one CSV file to import.');
+            setLocalError('Choose at least one CSV or XLSX file to import.');
             return;
         }
 
@@ -134,10 +134,10 @@ export default function AdminBidLineImport({
                             Bid line import
                         </h1>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Upload one or more SWALife-style CSVs for the same
-                            bid year (identical date columns). Each file can
-                            carry a workgroup label; lines are merged into one
-                            master import per year.
+                            Upload one or more SWALife-style CSV or XLSX files
+                            for the same bid year (identical date columns). Each
+                            file can carry a workgroup label; lines are merged
+                            into one master import per year.
                         </p>
                     </div>
                 </div>
@@ -189,7 +189,7 @@ export default function AdminBidLineImport({
 
                     <div className="space-y-3">
                         <div className="flex items-center justify-between gap-2">
-                            <Label>CSV files & workgroup labels</Label>
+                            <Label>Spreadsheet files & workgroup labels</Label>
                             <Button
                                 type="button"
                                 variant="outline"
@@ -231,7 +231,7 @@ export default function AdminBidLineImport({
                                                 className="text-xs"
                                                 htmlFor={`file-${row.key}`}
                                             >
-                                                CSV
+                                                CSV or XLSX
                                             </Label>
                                             <Input
                                                 id={`file-${row.key}`}
@@ -247,8 +247,8 @@ export default function AdminBidLineImport({
                                                 }
                                             />
                                             <p className="text-xs text-muted-foreground">
-                                                SWALife-style CSV (any
-                                                extension is fine).
+                                                SWALife-style spreadsheet (.csv
+                                                or .xlsx).
                                             </p>
                                         </div>
                                         <div className="space-y-1.5">

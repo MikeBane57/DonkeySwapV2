@@ -196,7 +196,7 @@ function withBidLineImportSection(
                     title: 'Bid line import',
                     href: '/app/admin/bid-lines',
                     description:
-                        'Upload one or more bid-line CSVs per bid year (merge workgroup files into one master).',
+                        'Upload one or more bid-line CSV or XLSX files per bid year (merge workgroup files into one master).',
                     icon: FileSpreadsheet,
                 },
             ],
