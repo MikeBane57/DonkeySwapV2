@@ -3,6 +3,7 @@
 namespace App\Http\Requests\BidTools;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class CompareScenariosRequest extends FormRequest
 {
@@ -17,8 +18,12 @@ class CompareScenariosRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'scenario_a_id' => ['required', 'integer', 'different:scenario_b_id'],
-            'scenario_b_id' => ['required', 'integer', 'different:scenario_a_id'],
+            'scenario_ids' => ['required', 'array', 'min:2', 'max:8'],
+            'scenario_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('bid_scenarios', 'id')->where(fn ($q) => $q->where('user_id', $this->user()->id)),
+            ],
             'line_ids' => ['required', 'array', 'min:1', 'max:200'],
             'line_ids.*' => ['integer', 'exists:bid_lines,id'],
         ];
@@ -30,8 +35,9 @@ class CompareScenariosRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'scenario_a_id.different' => 'Choose two different scenarios.',
-            'scenario_b_id.different' => 'Choose two different scenarios.',
+            'scenario_ids.min' => 'Select at least two scenarios to compare.',
+            'scenario_ids.max' => 'You can compare up to eight scenarios at once.',
+            'scenario_ids.*.distinct' => 'Each scenario can only be selected once.',
         ];
     }
 }

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -121,10 +122,12 @@ export default function BidScenarioRanked({
     const scenarioCompareHref =
         compareLineIds.length > 0
             ? `/app/bid-tools/scenarios/compare?${new URLSearchParams({
-                  scenario_a: String(scenario.id),
+                  scenarios: String(scenario.id),
                   line_ids: compareLineIds.join(','),
               }).toString()}`
             : null;
+
+    const printedAt = new Date().toLocaleString();
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -226,14 +229,59 @@ export default function BidScenarioRanked({
 
                 {scoredRows && scoredRows.length > 0 && (
                     <section className="space-y-4">
-                        <h2 className="text-lg font-semibold print:text-xl">
+                        <div className="print-only">
+                            <h2 className="bid-tools-print-title">{scenario.name}</h2>
+                            <p className="bid-tools-print-subtitle">
+                                Recommended bid order · vacation bank {scenario.vacation_bank}
+                            </p>
+                            <p className="bid-tools-print-subtitle">{printedAt}</p>
+                        </div>
+
+                        <h2 className="text-lg font-semibold no-print">
                             Recommended bid order
                         </h2>
                         <p className="no-print text-sm text-muted-foreground">
                             Based on your scenario weights, priorities, and
                             tie-break order. Lower rank # = better fit.
                         </p>
-                        <div className="overflow-x-auto rounded-lg border border-sidebar-border/70">
+
+                        <div className="print-only overflow-x-auto rounded-lg border border-sidebar-border/70">
+                            <table className="bid-tools-print-table w-full text-left">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Line</th>
+                                        <th>Grp</th>
+                                        <th>Start</th>
+                                        <th>Hol</th>
+                                        <th>F/S/S</th>
+                                        <th>Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {scoredRows.map((row) => {
+                                        const fmt = row.line;
+                                        return (
+                                            <tr key={row.bid_line_id}>
+                                                <td>{row.rank}</td>
+                                                <td className="font-mono">{row.line_num}</td>
+                                                <td>{fmt?.desk_group ?? '—'}</td>
+                                                <td>{fmt?.start_time ?? '—'}</td>
+                                                <td>{fmt?.metrics.holidays_off ?? '—'}</td>
+                                                <td>
+                                                    {fmt
+                                                        ? `${fmt.metrics.fri_off}/${fmt.metrics.sat_off}/${fmt.metrics.sun_off}`
+                                                        : '—'}
+                                                </td>
+                                                <td>{row.total}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="no-print overflow-x-auto rounded-lg border border-sidebar-border/70">
                             <table className="w-full min-w-[1280px] text-left text-sm">
                                 <thead>
                                     <tr className="border-b bg-muted/50">
@@ -368,12 +416,7 @@ export default function BidScenarioRanked({
                     </section>
                 )}
 
-                <style>{`
-                    @media print {
-                        .no-print { display: none !important; }
-                        .bid-tools-print { padding: 0; }
-                    }
-                `}</style>
+                <BidToolsPrintStyles />
             </div>
         </AppLayout>
     );

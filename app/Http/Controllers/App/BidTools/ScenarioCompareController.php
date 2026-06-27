@@ -27,11 +27,12 @@ class ScenarioCompareController extends Controller
     {
         $user = $request->user();
         $scenarios = $this->userScenarios($user->id);
-        $prefillA = (int) $request->query('scenario_a', 0);
-        $prefillB = (int) $request->query('scenario_b', 0);
+        $prefillScenarioIds = $this->parseScenarioIds(
+            $request->query('scenarios', $request->query('scenario_ids')),
+        );
         $prefillLineIds = $this->parseLineIds($request->query('line_ids'));
 
-        $activeImportId = $this->resolveImportId($scenarios, $prefillA, $prefillB, $request->session()->get(self::SESSION_KEY));
+        $activeImportId = $this->resolveImportId($scenarios, $prefillScenarioIds, $request->session()->get(self::SESSION_KEY));
         $lines = $activeImportId !== null
             ? $this->linesForImport($activeImportId)
             : [];
@@ -40,15 +41,14 @@ class ScenarioCompareController extends Controller
         $stored = $request->session()->get(self::SESSION_KEY);
         if (is_array($stored) && ($stored['rows'] ?? []) !== []) {
             $comparison = [
-                'scenario_a' => $stored['scenario_a'],
-                'scenario_b' => $stored['scenario_b'],
+                'scenarios' => $stored['scenarios'],
                 'rows' => $stored['rows'],
             ];
-            if ($prefillA === 0) {
-                $prefillA = (int) ($stored['scenario_a']['id'] ?? 0);
-            }
-            if ($prefillB === 0) {
-                $prefillB = (int) ($stored['scenario_b']['id'] ?? 0);
+            if ($prefillScenarioIds === []) {
+                $prefillScenarioIds = collect($stored['scenarios'] ?? [])
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all();
             }
             if ($prefillLineIds === []) {
                 $prefillLineIds = $stored['line_ids'] ?? [];
@@ -60,8 +60,7 @@ class ScenarioCompareController extends Controller
             'lines' => $lines,
             'comparison' => $comparison,
             'prefill' => [
-                'scenario_a_id' => $prefillA > 0 ? $prefillA : null,
-                'scenario_b_id' => $prefillB > 0 ? $prefillB : null,
+                'scenario_ids' => $prefillScenarioIds,
                 'line_ids' => $prefillLineIds,
             ],
         ]);
@@ -69,20 +68,26 @@ class ScenarioCompareController extends Controller
 
     public function compare(CompareScenariosRequest $request): RedirectResponse
     {
-        $scenarioA = $this->findScenario($request, (int) $request->validated('scenario_a_id'));
-        $scenarioB = $this->findScenario($request, (int) $request->validated('scenario_b_id'));
+        $scenarioIds = array_values(array_unique(array_map('intval', $request->validated('scenario_ids'))));
+        $scenarios = collect($scenarioIds)
+            ->map(fn (int $id) => $this->findScenario($request, $id))
+            ->values()
+            ->all();
 
-        if ($scenarioA->bid_import_id !== $scenarioB->bid_import_id) {
-            return redirect()
-                ->route('bid-tools.scenarios.compare')
-                ->with('error', 'Both scenarios must use the same master import.');
+        $importId = $scenarios[0]->bid_import_id;
+        foreach ($scenarios as $scenario) {
+            if ($scenario->bid_import_id !== $importId) {
+                return redirect()
+                    ->route('bid-tools.scenarios.compare')
+                    ->with('error', 'All selected scenarios must use the same master import.');
+            }
         }
 
         $lineIds = array_values(array_filter(
             $request->validated('line_ids'),
             fn ($id) => BidLine::query()
                 ->where('id', $id)
-                ->where('bid_import_id', $scenarioA->bid_import_id)
+                ->where('bid_import_id', $importId)
                 ->exists(),
         ));
 
@@ -92,18 +97,16 @@ class ScenarioCompareController extends Controller
                 ->with('error', 'No valid lines selected.');
         }
 
-        $rows = $this->buildComparisonRows($scenarioA, $scenarioB, $lineIds);
+        $rows = $this->buildComparisonRows($scenarios, $lineIds);
 
         $request->session()->put(self::SESSION_KEY, [
-            'scenario_a' => $this->scenarioSummary($scenarioA),
-            'scenario_b' => $this->scenarioSummary($scenarioB),
+            'scenarios' => array_map(fn (BidScenario $s) => $this->scenarioSummary($s), $scenarios),
             'line_ids' => $lineIds,
             'rows' => $rows,
         ]);
 
         return redirect()->route('bid-tools.scenarios.compare', [
-            'scenario_a' => $scenarioA->id,
-            'scenario_b' => $scenarioB->id,
+            'scenarios' => implode(',', $scenarioIds),
         ]);
     }
 
@@ -141,11 +144,12 @@ class ScenarioCompareController extends Controller
 
     /**
      * @param  list<array<string, mixed>>  $scenarios
+     * @param  list<int>  $prefillScenarioIds
      * @param  array<string, mixed>|null  $stored
      */
-    private function resolveImportId(array $scenarios, int $prefillA, int $prefillB, ?array $stored): ?int
+    private function resolveImportId(array $scenarios, array $prefillScenarioIds, ?array $stored): ?int
     {
-        foreach ([$prefillA, $prefillB] as $id) {
+        foreach ($prefillScenarioIds as $id) {
             if ($id <= 0) {
                 continue;
             }
@@ -156,10 +160,10 @@ class ScenarioCompareController extends Controller
             }
         }
 
-        if (is_array($stored)) {
-            $storedA = (int) ($stored['scenario_a']['id'] ?? 0);
+        if (is_array($stored) && ($stored['scenarios'] ?? []) !== []) {
+            $storedId = (int) ($stored['scenarios'][0]['id'] ?? 0);
             foreach ($scenarios as $scenario) {
-                if ($scenario['id'] === $storedA) {
+                if ($scenario['id'] === $storedId) {
                     return (int) $scenario['bid_import_id'];
                 }
             }
@@ -187,19 +191,27 @@ class ScenarioCompareController extends Controller
     }
 
     /**
+     * @param  list<BidScenario>  $scenarios
      * @param  list<int>  $lineIds
      * @return list<array<string, mixed>>
      */
-    private function buildComparisonRows(BidScenario $scenarioA, BidScenario $scenarioB, array $lineIds): array
+    private function buildComparisonRows(array $scenarios, array $lineIds): array
     {
-        $scoresA = $this->scoreService->scoreLines($scenarioA, $lineIds);
-        $scoresB = $this->scoreService->scoreLines($scenarioB, $lineIds);
+        $scoresByScenario = [];
+        $ranksByScenario = [];
 
-        $byIdB = collect($scoresB)->keyBy('bid_line_id');
-        $rankB = [];
-        foreach ($scoresB as $index => $row) {
-            $rankB[(int) $row['bid_line_id']] = $index + 1;
+        foreach ($scenarios as $scenario) {
+            $scores = $this->scoreService->scoreLines($scenario, $lineIds);
+            $scoresByScenario[$scenario->id] = collect($scores)->keyBy('bid_line_id');
+            $ranks = [];
+            foreach ($scores as $index => $row) {
+                $ranks[(int) $row['bid_line_id']] = $index + 1;
+            }
+            $ranksByScenario[$scenario->id] = $ranks;
         }
+
+        $baseline = $scenarios[0];
+        $baselineScores = $this->scoreService->scoreLines($baseline, $lineIds);
 
         $lineModels = BidLine::query()
             ->whereIn('id', $lineIds)
@@ -207,29 +219,31 @@ class ScenarioCompareController extends Controller
             ->keyBy('id');
 
         $rows = [];
-        foreach ($scoresA as $index => $rowA) {
-            $id = (int) $rowA['bid_line_id'];
-            $rowB = $byIdB->get($id);
-            if ($rowB === null) {
-                continue;
+        foreach ($baselineScores as $rowBaseline) {
+            $id = (int) $rowBaseline['bid_line_id'];
+            $scenarioResults = [];
+
+            foreach ($scenarios as $scenario) {
+                $row = $scoresByScenario[$scenario->id]->get($id);
+                if ($row === null) {
+                    continue 2;
+                }
+
+                $scenarioResults[] = [
+                    'scenario_id' => $scenario->id,
+                    'rank' => $ranksByScenario[$scenario->id][$id],
+                    'total' => $row['total'],
+                    'parts' => $row['parts'] ?? [],
+                ];
             }
 
-            $rankA = $index + 1;
-            $rankInB = $rankB[$id] ?? $rankA;
             $lineModel = $lineModels->get($id);
 
             $rows[] = [
                 'bid_line_id' => $id,
-                'line_num' => $rowA['line_num'],
-                'rank_a' => $rankA,
-                'rank_b' => $rankInB,
-                'rank_delta' => $rankInB - $rankA,
-                'total_a' => $rowA['total'],
-                'total_b' => $rowB['total'],
-                'total_delta' => round((float) $rowB['total'] - (float) $rowA['total'], 2),
-                'parts_a' => $rowA['parts'] ?? [],
-                'parts_b' => $rowB['parts'] ?? [],
+                'line_num' => $rowBaseline['line_num'],
                 'line' => $lineModel ? $this->rowFormatter->format($lineModel) : null,
+                'scenarios' => $scenarioResults,
             ];
         }
 
@@ -286,5 +300,20 @@ class ScenarioCompareController extends Controller
         }
 
         return array_values(array_filter(array_map('intval', $raw)));
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function parseScenarioIds(mixed $raw): array
+    {
+        if (is_string($raw) && $raw !== '') {
+            $raw = explode(',', $raw);
+        }
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map('intval', $raw))));
     }
 }
