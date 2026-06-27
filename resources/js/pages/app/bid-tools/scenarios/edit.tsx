@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -128,6 +128,10 @@ function PrioritySelect({
     );
 }
 
+function flattenErrors(errors: Record<string, string>): string[] {
+    return Object.values(errors);
+}
+
 export default function BidScenarioEdit({
     scenario,
     distinctCodes,
@@ -158,6 +162,14 @@ export default function BidScenarioEdit({
     deskCatalog: { key: string; label: string }[];
     startTimeCatalog: { key: string; label: string }[];
 }) {
+    const page = usePage<{
+        errors?: Record<string, string>;
+        flash?: { success?: string; error?: string };
+    }>();
+    const errors = page.props.errors ?? {};
+    const flash = page.props.flash;
+    const validationMessages = flattenErrors(errors);
+
     const [name, setName] = useState(scenario.name);
     const [vacationBank, setVacationBank] = useState(scenario.vacation_bank);
     const [weights, setWeights] = useState({
@@ -198,6 +210,7 @@ export default function BidScenarioEdit({
     const [endFreeByIdx, setEndFreeByIdx] = useState<Record<number, boolean>>(
         {},
     );
+    const [saving, setSaving] = useState(false);
 
     const deskKeysInUse = useMemo(
         () => new Set(deskRank.map((d) => d.key)),
@@ -214,22 +227,36 @@ export default function BidScenarioEdit({
     );
 
     const submit = useCallback(() => {
+        setSaving(true);
         router.put(
             `/app/bid-tools/scenarios/${scenario.id}`,
             {
-                name,
-                vacation_bank: vacationBank,
+                name: name.trim(),
+                vacation_bank: Math.max(
+                    0,
+                    Math.round(Number(vacationBank) || 0),
+                ),
                 weights: {
-                    ...weights,
+                    holiday: Number(weights.holiday) || 0,
+                    personal: Number(weights.personal) || 0,
+                    start_time: Number(weights.start_time) || 0,
+                    desk: Number(weights.desk) || 0,
+                    vacation_penalty: Number(weights.vacation_penalty) || 0,
                     criteria_order: criteriaOrder,
                 },
                 holiday_rank: holidays,
                 desk_rank: deskRank,
                 start_time_rank: startRank,
                 personal_dates: personalDates.filter((p) => p.date),
-                vacation_ranges: ranges.filter((r) => r.starts_on && r.ends_on),
+                vacation_ranges: ranges.filter(
+                    (r) => r.starts_on && r.ends_on,
+                ),
             },
-            { preserveScroll: true },
+            {
+                preserveScroll: true,
+                onFinish: () => setSaving(false),
+                onError: () => setSaving(false),
+            },
         );
     }, [
         name,
@@ -299,6 +326,29 @@ export default function BidScenarioEdit({
                         </Button>
                     </div>
                 </div>
+
+                {flash?.success && (
+                    <div className="rounded-lg border border-green-500/50 bg-green-50 px-4 py-2 text-sm text-green-800 dark:bg-green-950/50 dark:text-green-200">
+                        {flash.success}
+                    </div>
+                )}
+                {flash?.error && (
+                    <div className="rounded-lg border border-red-500/50 bg-red-50 px-4 py-2 text-sm text-red-800 dark:bg-red-950/50 dark:text-red-200">
+                        {flash.error}
+                    </div>
+                )}
+                {validationMessages.length > 0 && (
+                    <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+                        <p className="font-medium">
+                            Could not save — please fix the following:
+                        </p>
+                        <ul className="mt-1 list-inside list-disc">
+                            {validationMessages.map((message, i) => (
+                                <li key={i}>{message}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
 
                 <form
                     className="space-y-10"
@@ -815,7 +865,9 @@ export default function BidScenarioEdit({
                     </div>
 
                     <div className="flex gap-2">
-                        <Button type="submit">Save scenario</Button>
+                        <Button type="submit" disabled={saving}>
+                            {saving ? 'Saving…' : 'Save scenario'}
+                        </Button>
                         <Button variant="outline" type="button" asChild>
                             <Link href="/app/bid-tools">Hub</Link>
                         </Button>

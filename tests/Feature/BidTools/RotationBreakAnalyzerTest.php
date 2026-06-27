@@ -43,4 +43,7 @@ test('rotation analyzer flags non 3 or 5 off runs', function () {
     $out = (new RotationBreakAnalyzer)->analyze($line);
 
     expect($out['non_canonical_runs'])->toContain(4);
+    expect($out['non_canonical_run_details'])->toHaveCount(1);
+    expect($out['non_canonical_run_details'][0]['length'])->toBe(4);
+    expect($out['non_canonical_run_details'][0]['days'])->toHaveCount(4);
 });

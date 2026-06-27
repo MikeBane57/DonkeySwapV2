@@ -33,13 +33,17 @@ final class LineRowFormatter
         $line->load(['days', 'import']);
         $bidYear = (int) ($line->import?->bid_year ?? 0);
 
-        $reliefDates = [];
+        $reliefDays = [];
         $trainingSlots = [];
         foreach ($line->days as $d) {
             $c = $d->normalized_code;
             $date = CarbonImmutable::parse($d->assignment_date)->startOfDay();
             if (! $d->is_off && $c !== null && stripos($c, 'RELIEF') !== false) {
-                $reliefDates[] = $date;
+                $reliefDays[] = [
+                    'date' => $date,
+                    'code' => $c,
+                    'raw_cell' => (string) $d->raw_cell,
+                ];
             }
             if ($c === 'TAM' || $c === 'TPM') {
                 $season = $bidYear > 0 ? $this->seasonForBidDate($date, $bidYear) : null;
@@ -56,7 +60,7 @@ final class LineRowFormatter
         $metrics = $this->lineMetrics->analyze($line);
         $rotation = $this->rotationBreaks->analyze($line);
         $trainingSummary = $this->formatTrainingSummary($trainingSlots);
-        $callouts = $this->buildScheduleCallouts($rotation, $reliefDates);
+        $callouts = $this->buildScheduleCallouts($rotation, $reliefDays);
 
         return [
             'id' => $line->id,
@@ -152,29 +156,50 @@ final class LineRowFormatter
     }
 
     /**
-     * @param  list<CarbonImmutable>  $reliefDates
+     * @param  list<array{date: CarbonImmutable, code: string, raw_cell: string}>  $reliefDays
      */
-    private function buildScheduleCallouts(array $rotation, array $reliefDates): string
+    private function buildScheduleCallouts(array $rotation, array $reliefDays): string
     {
         $parts = [];
-        if ($rotation['non_canonical_runs'] !== []) {
-            $parts[] = 'Non–3/5 off streaks: '.implode(', ', $rotation['non_canonical_runs']).' day(s).';
+
+        foreach ($rotation['non_canonical_run_details'] ?? [] as $run) {
+            $start = CarbonImmutable::parse($run['start_date'])->format('n/j/y');
+            $end = CarbonImmutable::parse($run['end_date'])->format('n/j/y');
+            $range = $start === $end ? $start : $start.'–'.$end;
+            $dayBits = [];
+            foreach ($run['days'] as $day) {
+                $dayBits[] = $this->formatDayDeskLabel($day['date'], $day['raw_cell'], $day['code']);
+            }
+            $parts[] = 'Non–3/5 off ('.$run['length'].'d) '.$range.': '.implode(', ', $dayBits).'.';
         }
 
-        if ($reliefDates !== []) {
-            $reliefDates = array_values(array_unique(array_map(
-                fn (CarbonImmutable $x) => $x->format('Y-m-d'),
-                $reliefDates
-            )));
-            sort($reliefDates);
-            $fmt = array_map(function (string $ymd) {
-                return CarbonImmutable::parse($ymd)->format('n/j/y');
-            }, $reliefDates);
-            $sample = array_slice($fmt, 0, 12);
-            $more = count($fmt) > 12 ? '…' : '';
-            $parts[] = 'Work outside rotation (relief): '.implode(', ', $sample).$more;
+        if ($reliefDays !== []) {
+            usort($reliefDays, fn (array $a, array $b): int => $a['date']->timestamp <=> $b['date']->timestamp);
+            $bits = [];
+            foreach ($reliefDays as $relief) {
+                $bits[] = $this->formatDayDeskLabel(
+                    $relief['date']->format('Y-m-d'),
+                    $relief['raw_cell'],
+                    $relief['code'],
+                );
+            }
+            $sample = array_slice($bits, 0, 16);
+            $more = count($bits) > 16 ? ' …' : '';
+            $parts[] = 'Work outside rotation: '.implode(', ', $sample).$more.'.';
         }
 
         return $parts === [] ? '—' : implode(' ', $parts);
+    }
+
+    private function formatDayDeskLabel(string $ymd, string $rawCell, ?string $code): string
+    {
+        $date = CarbonImmutable::parse($ymd)->format('n/j/y');
+        $desk = $code !== null && $code !== ''
+            ? $code
+            : (trim($rawCell) !== '' && strcasecmp(trim($rawCell), 'x') !== 0
+                ? trim($rawCell)
+                : 'off');
+
+        return $date.' '.$desk;
     }
 }

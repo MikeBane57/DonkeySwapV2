@@ -146,7 +146,11 @@ class ScenarioController extends Controller
             'name', 'vacation_bank', 'weights', 'holiday_rank', 'desk_rank',
             'start_time_rank', 'personal_dates', 'code_overrides',
         ];
-        $s->fill(Arr::only($data, $fillKeys));
+        $payload = Arr::only($data, $fillKeys);
+        $payload['desk_rank'] = $payload['desk_rank'] ?? [];
+        $payload['start_time_rank'] = $payload['start_time_rank'] ?? [];
+        $payload['personal_dates'] = $payload['personal_dates'] ?? [];
+        $s->fill($payload);
         $s->save();
 
         return redirect()

@@ -228,7 +228,7 @@ export default function BidScenarioRanked({
                                         <th className="max-w-[200px] p-2">
                                             Training (SP/FA)
                                         </th>
-                                        <th className="max-w-[220px] p-2">
+                                        <th className="max-w-[320px] p-2">
                                             Callouts
                                         </th>
                                         <th className="p-2">Score</th>
@@ -328,7 +328,7 @@ export default function BidScenarioRanked({
                                                     {fmt?.training_summary ??
                                                         '—'}
                                                 </td>
-                                                <td className="max-w-[220px] p-2 text-xs leading-snug text-muted-foreground">
+                                                <td className="max-w-[320px] p-2 text-xs leading-snug text-muted-foreground whitespace-pre-wrap">
                                                     {fmt?.schedule_callouts ??
                                                         '—'}
                                                 </td>

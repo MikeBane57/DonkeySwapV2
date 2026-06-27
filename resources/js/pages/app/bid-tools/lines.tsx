@@ -158,7 +158,7 @@ export default function BidToolsLines({
                                     <td className="max-w-[220px] p-2 text-xs leading-snug">
                                         {row.training_summary}
                                     </td>
-                                    <td className="max-w-[280px] p-2 text-xs leading-snug text-muted-foreground">
+                                    <td className="max-w-[320px] p-2 text-xs leading-snug text-muted-foreground whitespace-pre-wrap">
                                         {row.schedule_callouts}
                                     </td>
                                 </tr>
