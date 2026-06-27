@@ -21,10 +21,31 @@ class StoreBidLineImportRequest extends FormRequest
             'bid_year' => ['required', 'integer', 'min:2000', 'max:2100'],
             'batch_title' => ['nullable', 'string', 'max:160'],
             'files' => ['required', 'array', 'min:1', 'max:25'],
-            'files.*' => ['file', 'mimes:csv,txt', 'max:51200'],
-            'titles' => ['required', 'array'],
+            'files.*' => ['required', 'file', 'max:51200'],
+            'titles' => ['nullable', 'array'],
             'titles.*' => ['nullable', 'string', 'max:120'],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $files = $this->file('files', []);
+        if (! is_array($files)) {
+            $files = array_filter([$files]);
+        }
+
+        $titles = $this->input('titles', []);
+        if (! is_array($titles)) {
+            $titles = [];
+        }
+
+        while (count($titles) < count($files)) {
+            $titles[] = '';
+        }
+
+        $this->merge([
+            'titles' => array_slice($titles, 0, count($files)),
+        ]);
     }
 
     public function withValidator(Validator $validator): void
@@ -34,15 +55,9 @@ class StoreBidLineImportRequest extends FormRequest
             if (! is_array($files)) {
                 $files = array_filter([$files]);
             }
-            $titles = $this->input('titles', []);
-            if (! is_array($titles)) {
-                $titles = [];
-            }
-            if (count($files) !== count($titles)) {
-                $v->errors()->add(
-                    'files',
-                    'Each CSV needs a workgroup label (same number of files and titles).'
-                );
+
+            if ($files === []) {
+                $v->errors()->add('files', 'Choose at least one CSV file to import.');
             }
         });
     }

@@ -47,18 +47,30 @@ function newRow(): FileRow {
     };
 }
 
+function collectUploadErrors(errors: Record<string, string>): string[] {
+    return Object.entries(errors)
+        .filter(([key]) => key === 'files' || key.startsWith('files.'))
+        .map(([, message]) => message);
+}
+
 export default function AdminBidLineImport({
     imports,
 }: {
     imports: ImportRow[];
 }) {
-    const page = usePage<{ errors?: Record<string, string> }>();
+    const page = usePage<{
+        errors?: Record<string, string>;
+        flash?: { success?: string; error?: string };
+    }>();
     const errors = page.props.errors ?? {};
+    const flash = page.props.flash;
+    const fileErrors = collectUploadErrors(errors);
 
     const [bidYear, setBidYear] = useState(new Date().getFullYear());
     const [batchTitle, setBatchTitle] = useState('');
     const [rows, setRows] = useState<FileRow[]>(() => [newRow()]);
     const [processing, setProcessing] = useState(false);
+    const [localError, setLocalError] = useState<string | null>(null);
 
     const addRow = useCallback(() => {
         setRows((r) => [...r, newRow()]);
@@ -79,6 +91,33 @@ export default function AdminBidLineImport({
 
     const readyRows = rows.filter((r) => r.file);
     const canSubmit = readyRows.length > 0 && !processing;
+
+    const submitImport = (e: React.FormEvent) => {
+        e.preventDefault();
+        setLocalError(null);
+
+        if (readyRows.length === 0) {
+            setLocalError('Choose at least one CSV file to import.');
+            return;
+        }
+
+        setProcessing(true);
+        router.post(
+            '/app/admin/bid-lines',
+            {
+                bid_year: bidYear,
+                batch_title: batchTitle.trim(),
+                files: readyRows.map((row) => row.file as File),
+                titles: readyRows.map((row) => row.title.trim()),
+            },
+            {
+                forceFormData: true,
+                preserveScroll: true,
+                onError: () => setProcessing(false),
+                onFinish: () => setProcessing(false),
+            },
+        );
+    };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -103,29 +142,20 @@ export default function AdminBidLineImport({
                     </div>
                 </div>
 
+                {flash?.success && (
+                    <div className="rounded-lg border border-green-500/50 bg-green-50 px-4 py-2 text-sm text-green-800 dark:bg-green-950/50 dark:text-green-200">
+                        {flash.success}
+                    </div>
+                )}
+                {flash?.error && (
+                    <div className="rounded-lg border border-red-500/50 bg-red-50 px-4 py-2 text-sm text-red-800 dark:bg-red-950/50 dark:text-red-200">
+                        {flash.error}
+                    </div>
+                )}
+
                 <form
                     className="space-y-4 rounded-xl border border-sidebar-border/70 p-4"
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        const fd = new FormData();
-                        fd.append('bid_year', String(bidYear));
-                        const bt = batchTitle.trim();
-                        if (bt !== '') {
-                            fd.append('batch_title', bt);
-                        }
-                        for (const row of rows) {
-                            if (!row.file) {
-                                continue;
-                            }
-                            fd.append('files[]', row.file);
-                            fd.append('titles[]', row.title.trim());
-                        }
-                        setProcessing(true);
-                        router.post('/app/admin/bid-lines', fd, {
-                            forceFormData: true,
-                            onFinish: () => setProcessing(false),
-                        });
-                    }}
+                    onSubmit={submitImport}
                 >
                     <div className="space-y-2">
                         <Label htmlFor="bid_year">Bid year (Feb start)</Label>
@@ -206,7 +236,6 @@ export default function AdminBidLineImport({
                                             <Input
                                                 id={`file-${row.key}`}
                                                 type="file"
-                                                accept=".csv,.txt,text/csv"
                                                 className="text-sm file:mr-2 file:text-xs"
                                                 onChange={(e) =>
                                                     updateRow(row.key, {
@@ -217,6 +246,10 @@ export default function AdminBidLineImport({
                                                     })
                                                 }
                                             />
+                                            <p className="text-xs text-muted-foreground">
+                                                SWALife-style CSV (any
+                                                extension is fine).
+                                            </p>
                                         </div>
                                         <div className="space-y-1.5">
                                             <Label
@@ -243,10 +276,15 @@ export default function AdminBidLineImport({
                         </ul>
                     </div>
 
-                    {errors.files && (
-                        <p className="text-sm text-destructive">
-                            {errors.files}
-                        </p>
+                    {localError && (
+                        <p className="text-sm text-destructive">{localError}</p>
+                    )}
+                    {fileErrors.length > 0 && (
+                        <ul className="space-y-1 text-sm text-destructive">
+                            {fileErrors.map((message, i) => (
+                                <li key={i}>{message}</li>
+                            ))}
+                        </ul>
                     )}
                     {errors.bid_year && (
                         <p className="text-sm text-destructive">
