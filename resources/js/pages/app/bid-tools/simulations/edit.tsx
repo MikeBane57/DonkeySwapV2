@@ -1,9 +1,16 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { Trash2 } from 'lucide-react';
+import { ChevronDown, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import {
+    BidderProfileFields,
+    emptyBidderProfile
+    
+} from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
+import type {BidderProfile} from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 import type { BreadcrumbItem } from '@/types';
 
 type Participant = {
@@ -11,19 +18,150 @@ type Participant = {
     display_name: string;
     seniority_rank: number;
     minimum_bid_lines: number;
-    bid_scenario_id: number;
-    scenario_name: string | null;
+    profile: BidderProfile;
 };
 
-type ScenarioOption = {
-    id: number;
-    name: string;
-};
+function sanitizeProfile(profile: BidderProfile): BidderProfile {
+    return {
+        ...profile,
+        personal_dates: profile.personal_dates.filter((p) => p.date),
+        vacation_ranges: profile.vacation_ranges.filter(
+            (r) => r.starts_on && r.ends_on,
+        ),
+    };
+}
+
+function ParticipantEditor({
+    simulationId,
+    participant,
+}: {
+    simulationId: number;
+    participant: Participant;
+}) {
+    const [open, setOpen] = useState(false);
+    const form = useForm({
+        display_name: participant.display_name,
+        seniority_rank: participant.seniority_rank,
+        profile: participant.profile,
+    });
+
+    const save = (e: React.FormEvent) => {
+        e.preventDefault();
+        form.transform((data) => ({
+            ...data,
+            profile: sanitizeProfile(data.profile),
+        }));
+        form.put(
+            `/app/bid-tools/simulations/${simulationId}/participants/${participant.id}`,
+            { preserveScroll: true },
+        );
+    };
+
+    const remove = () => {
+        if (!confirm(`Remove ${participant.display_name} from this simulation?`)) {
+            return;
+        }
+        router.delete(
+            `/app/bid-tools/simulations/${simulationId}/participants/${participant.id}`,
+            { preserveScroll: true },
+        );
+    };
+
+    return (
+        <div className="rounded-lg border border-sidebar-border/70">
+            <button
+                type="button"
+                className="flex w-full items-center justify-between gap-2 p-3 text-left text-sm"
+                onClick={() => setOpen((v) => !v)}
+            >
+                <span>
+                    <span className="font-medium">
+                        #{participant.seniority_rank} {participant.display_name}
+                    </span>
+                    <span className="ml-2 text-muted-foreground">
+                        min {participant.minimum_bid_lines} line
+                        {participant.minimum_bid_lines === 1 ? '' : 's'}
+                    </span>
+                </span>
+                <ChevronDown
+                    className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+                />
+            </button>
+            {open && (
+                <form className="space-y-4 border-t border-sidebar-border/50 p-3" onSubmit={save}>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label>Name</Label>
+                            <Input
+                                value={form.data.display_name}
+                                onChange={(e) =>
+                                    form.setData('display_name', e.target.value)
+                                }
+                            />
+                            {form.errors.display_name && (
+                                <p className="text-sm text-destructive">
+                                    {form.errors.display_name}
+                                </p>
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Seniority rank</Label>
+                            <Input
+                                type="number"
+                                min={1}
+                                value={form.data.seniority_rank}
+                                onChange={(e) =>
+                                    form.setData(
+                                        'seniority_rank',
+                                        Number(e.target.value),
+                                    )
+                                }
+                            />
+                            {form.errors.seniority_rank && (
+                                <p className="text-sm text-destructive">
+                                    {form.errors.seniority_rank}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    <BidderProfileFields
+                        idPrefix={`p-${participant.id}`}
+                        value={form.data.profile}
+                        onChange={(profile) => form.setData('profile', profile)}
+                    />
+
+                    <div className="flex flex-wrap gap-2">
+                        <Button type="submit" size="sm" disabled={form.processing}>
+                            Save bidder
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                            <Link
+                                href={`/app/bid-tools/simulations/${simulationId}/participants/${participant.id}/recommendations`}
+                            >
+                                Suggested bid order
+                            </Link>
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={remove}
+                        >
+                            <Trash2 className="mr-1 h-4 w-4" />
+                            Remove
+                        </Button>
+                    </div>
+                </form>
+            )}
+        </div>
+    );
+}
 
 export default function BidSimulationEdit({
     simulation,
+    profile_defaults: profileDefaults,
     participants,
-    scenarios,
 }: {
     simulation: {
         id: number;
@@ -31,8 +169,8 @@ export default function BidSimulationEdit({
         bid_year: number;
         import_title: string | null;
     };
+    profile_defaults: BidderProfile;
     participants: Participant[];
-    scenarios: ScenarioOption[];
 }) {
     const page = usePage<{ flash?: { success?: string; error?: string } }>();
 
@@ -44,37 +182,29 @@ export default function BidSimulationEdit({
     ];
 
     const nameForm = useForm({ name: simulation.name });
-    const participantForm = useForm({
+    const addForm = useForm({
         display_name: '',
         seniority_rank: participants.length + 1,
-        bid_scenario_id: scenarios[0]?.id ?? 0,
+        profile: emptyBidderProfile(profileDefaults),
     });
 
     const addParticipant = (e: React.FormEvent) => {
         e.preventDefault();
-        participantForm.post(
-            `/app/bid-tools/simulations/${simulation.id}/participants`,
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    participantForm.reset();
-                    participantForm.setData(
-                        'seniority_rank',
-                        participants.length + 2,
-                    );
-                },
+        addForm.transform((data) => ({
+            ...data,
+            profile: sanitizeProfile(data.profile),
+        }));
+        addForm.post(`/app/bid-tools/simulations/${simulation.id}/participants`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                addForm.reset();
+                addForm.setData({
+                    display_name: '',
+                    seniority_rank: participants.length + 2,
+                    profile: emptyBidderProfile(profileDefaults),
+                });
             },
-        );
-    };
-
-    const removeParticipant = (participantId: number) => {
-        if (!confirm('Remove this bidder from the simulation?')) {
-            return;
-        }
-        router.delete(
-            `/app/bid-tools/simulations/${simulation.id}/participants/${participantId}`,
-            { preserveScroll: true },
-        );
+        });
     };
 
     return (
@@ -118,11 +248,7 @@ export default function BidSimulationEdit({
                         }}
                     >
                         <div className="min-w-[200px] flex-1 space-y-1">
-                            <Label htmlFor="sim-name" className="sr-only">
-                                Name
-                            </Label>
                             <Input
-                                id="sim-name"
                                 value={nameForm.data.name}
                                 onChange={(e) =>
                                     nameForm.setData('name', e.target.value)
@@ -146,170 +272,84 @@ export default function BidSimulationEdit({
                     </h2>
                     <p className="text-sm text-muted-foreground">
                         Seniority #1 picks first and only needs 1 line on their
-                        bid sheet. #20 needs at least 20 lines ranked.
+                        bid sheet. #20 needs at least 20 lines ranked. Expand a
+                        bidder to edit their preferences inline.
                     </p>
-                    {participants.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                            No bidders yet. Add one below.
-                        </p>
-                    ) : (
-                        <ul className="space-y-2">
+                    {participants.length > 0 && (
+                        <div className="space-y-2">
                             {participants.map((p) => (
-                                <li
+                                <ParticipantEditor
                                     key={p.id}
-                                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sidebar-border/70 p-3 text-sm"
-                                >
-                                    <div>
-                                        <span className="font-medium">
-                                            #{p.seniority_rank} {p.display_name}
-                                        </span>
-                                        <span className="ml-2 text-muted-foreground">
-                                            min {p.minimum_bid_lines} line
-                                            {p.minimum_bid_lines === 1
-                                                ? ''
-                                                : 's'}
-                                            {' · '}
-                                            {p.scenario_name ?? 'No profile'}
-                                        </span>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            asChild
-                                        >
-                                            <Link
-                                                href={`/app/bid-tools/simulations/${simulation.id}/participants/${p.id}/recommendations`}
-                                            >
-                                                Bid order
-                                            </Link>
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            type="button"
-                                            onClick={() =>
-                                                removeParticipant(p.id)
-                                            }
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </li>
+                                    simulationId={simulation.id}
+                                    participant={p}
+                                />
                             ))}
-                        </ul>
+                        </div>
                     )}
                 </section>
 
                 <section className="space-y-4 rounded-lg border border-sidebar-border/70 p-4">
                     <h2 className="text-sm font-medium">Add bidder</h2>
-                    {scenarios.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                            Create a preference profile (scenario) for this bid
-                            year first, then link it here.{' '}
-                            <Link
-                                href="/app/bid-tools/scenarios/create"
-                                className="underline"
-                            >
-                                New scenario
-                            </Link>
-                        </p>
-                    ) : (
-                        <form className="space-y-4" onSubmit={addParticipant}>
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label htmlFor="display_name">Name</Label>
-                                    <Input
-                                        id="display_name"
-                                        value={participantForm.data.display_name}
-                                        onChange={(e) =>
-                                            participantForm.setData(
-                                                'display_name',
-                                                e.target.value,
-                                            )
-                                        }
-                                        placeholder="e.g. Jane Smith"
-                                    />
-                                    {participantForm.errors.display_name && (
-                                        <p className="text-sm text-destructive">
-                                            {
-                                                participantForm.errors
-                                                    .display_name
-                                            }
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="seniority_rank">
-                                        Seniority rank
-                                    </Label>
-                                    <Input
-                                        id="seniority_rank"
-                                        type="number"
-                                        min={1}
-                                        value={
-                                            participantForm.data.seniority_rank
-                                        }
-                                        onChange={(e) =>
-                                            participantForm.setData(
-                                                'seniority_rank',
-                                                Number(e.target.value),
-                                            )
-                                        }
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                        Also minimum lines to rank on bid sheet
-                                    </p>
-                                    {participantForm.errors.seniority_rank && (
-                                        <p className="text-sm text-destructive">
-                                            {
-                                                participantForm.errors
-                                                    .seniority_rank
-                                            }
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
+                    <form className="space-y-4" onSubmit={addParticipant}>
+                        <div className="grid gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
-                                <Label htmlFor="bid_scenario_id">
-                                    Preference profile (scenario)
-                                </Label>
-                                <select
-                                    id="bid_scenario_id"
-                                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
-                                    value={String(
-                                        participantForm.data.bid_scenario_id,
-                                    )}
+                                <Label htmlFor="display_name">Name</Label>
+                                <Input
+                                    id="display_name"
+                                    value={addForm.data.display_name}
                                     onChange={(e) =>
-                                        participantForm.setData(
-                                            'bid_scenario_id',
-                                            Number(e.target.value),
+                                        addForm.setData(
+                                            'display_name',
+                                            e.target.value,
                                         )
                                     }
-                                >
-                                    {scenarios.map((s) => (
-                                        <option key={s.id} value={s.id}>
-                                            {s.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                {participantForm.errors.bid_scenario_id && (
+                                    placeholder="e.g. Jane Smith"
+                                />
+                                {addForm.errors.display_name && (
                                     <p className="text-sm text-destructive">
-                                        {
-                                            participantForm.errors
-                                                .bid_scenario_id
-                                        }
+                                        {addForm.errors.display_name}
                                     </p>
                                 )}
                             </div>
-                            <Button
-                                type="submit"
-                                disabled={participantForm.processing}
-                            >
-                                Add bidder
-                            </Button>
-                        </form>
-                    )}
+                            <div className="space-y-2">
+                                <Label htmlFor="seniority_rank">
+                                    Seniority rank
+                                </Label>
+                                <Input
+                                    id="seniority_rank"
+                                    type="number"
+                                    min={1}
+                                    value={addForm.data.seniority_rank}
+                                    onChange={(e) =>
+                                        addForm.setData(
+                                            'seniority_rank',
+                                            Number(e.target.value),
+                                        )
+                                    }
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Also minimum lines to rank on bid sheet
+                                </p>
+                                {addForm.errors.seniority_rank && (
+                                    <p className="text-sm text-destructive">
+                                        {addForm.errors.seniority_rank}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <BidderProfileFields
+                            idPrefix="new-bidder"
+                            value={addForm.data.profile}
+                            onChange={(profile) =>
+                                addForm.setData('profile', profile)
+                            }
+                        />
+
+                        <Button type="submit" disabled={addForm.processing}>
+                            Add bidder
+                        </Button>
+                    </form>
                 </section>
             </div>
         </AppLayout>

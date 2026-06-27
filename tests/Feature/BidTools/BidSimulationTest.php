@@ -8,7 +8,24 @@ use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
 use App\Services\BidTools\BidSimulationEngine;
 
-test('user can create simulation with participants and run seniority bid', function () {
+function sampleBidderProfile(array $overrides = []): array
+{
+    return array_merge([
+        'vacation_bank' => 12,
+        'weights' => [
+            'holiday' => 2,
+            'personal' => 1,
+            'start_time' => 1,
+            'desk' => 1,
+            'vacation_penalty' => 1,
+            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+        ],
+        'personal_dates' => [],
+        'vacation_ranges' => [],
+    ], $overrides);
+}
+
+test('user can add bidder with inline profile and run simulation', function () {
     config(['features.bid_tools' => true]);
 
     $user = User::factory()->create();
@@ -26,62 +43,53 @@ test('user can create simulation with participants and run seniority bid', funct
 
     @unlink($path);
 
-    $scenarioSenior = BidScenario::create([
-        'user_id' => $user->id,
-        'bid_import_id' => $import->id,
-        'name' => 'Senior prefs',
-        'vacation_bank' => 10,
-        'weights' => [
-            'holiday' => 3,
-            'personal' => 1,
-            'start_time' => 1,
-            'desk' => 1,
-            'vacation_penalty' => 1,
-            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
-        ],
-    ]);
-
-    $scenarioJunior = BidScenario::create([
-        'user_id' => $user->id,
-        'bid_import_id' => $import->id,
-        'name' => 'Junior prefs',
-        'vacation_bank' => 10,
-        'weights' => [
-            'holiday' => 1,
-            'personal' => 1,
-            'start_time' => 3,
-            'desk' => 1,
-            'vacation_penalty' => 1,
-            'criteria_order' => ['start_time', 'holiday', 'personal', 'desk'],
-        ],
-    ]);
-
     $simulation = BidSimulation::create([
         'user_id' => $user->id,
         'bid_import_id' => $import->id,
         'name' => 'Test bid',
     ]);
 
-    BidSimulationParticipant::create([
-        'bid_simulation_id' => $simulation->id,
-        'seniority_rank' => 1,
-        'display_name' => 'Senior Person',
-        'bid_scenario_id' => $scenarioSenior->id,
-    ]);
-
-    BidSimulationParticipant::create([
-        'bid_simulation_id' => $simulation->id,
-        'seniority_rank' => 2,
-        'display_name' => 'Junior Person',
-        'bid_scenario_id' => $scenarioJunior->id,
-    ]);
+    $this->actingAs($user)
+        ->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+            'display_name' => 'Senior Person',
+            'seniority_rank' => 1,
+            'profile' => sampleBidderProfile(['weights' => [
+                'holiday' => 3,
+                'personal' => 1,
+                'start_time' => 1,
+                'desk' => 1,
+                'vacation_penalty' => 1,
+                'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+            ]]),
+        ])
+        ->assertRedirect(route('bid-tools.simulations.edit', $simulation->id));
 
     $this->actingAs($user)
-        ->get(route('bid-tools.simulations.index'))
+        ->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+            'display_name' => 'Junior Person',
+            'seniority_rank' => 2,
+            'profile' => sampleBidderProfile(['weights' => [
+                'holiday' => 1,
+                'personal' => 1,
+                'start_time' => 3,
+                'desk' => 1,
+                'vacation_penalty' => 1,
+                'criteria_order' => ['start_time', 'holiday', 'personal', 'desk'],
+            ]]),
+        ])
+        ->assertRedirect(route('bid-tools.simulations.edit', $simulation->id));
+
+    expect(BidSimulationParticipant::where('bid_simulation_id', $simulation->id)->count())->toBe(2);
+    expect(BidScenario::where('user_id', $user->id)->count())->toBe(2);
+
+    $this->actingAs($user)
+        ->get(route('bid-tools.simulations.edit', $simulation->id))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->component('app/bid-tools/simulations/index')
-            ->has('simulations', 1));
+            ->component('app/bid-tools/simulations/edit')
+            ->has('participants', 2)
+            ->has('participants.0.profile')
+            ->missing('scenarios'));
 
     $this->actingAs($user)
         ->post(route('bid-tools.simulations.run', $simulation->id))
@@ -95,6 +103,57 @@ test('user can create simulation with participants and run seniority bid', funct
     $seniorLineId = $simulation->last_run_results[0]['bid_line_id'];
     $juniorLineId = $simulation->last_run_results[1]['bid_line_id'];
     expect($seniorLineId)->not->toBe($juniorLineId);
+});
+
+test('user can update bidder profile inline', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 3);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Update import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Update test',
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Alice',
+        'seniority_rank' => 1,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $participant = BidSimulationParticipant::first();
+    $scenario = BidScenario::first();
+
+    $this->actingAs($user)->put(
+        route('bid-tools.simulations.participants.update', [$simulation->id, $participant->id]),
+        [
+            'display_name' => 'Alice Updated',
+            'seniority_rank' => 2,
+            'profile' => sampleBidderProfile(['vacation_bank' => 8]),
+        ],
+    )->assertRedirect(route('bid-tools.simulations.edit', $simulation->id));
+
+    $participant->refresh();
+    $scenario->refresh();
+
+    expect($participant->display_name)->toBe('Alice Updated');
+    expect($participant->seniority_rank)->toBe(2);
+    expect($scenario->vacation_bank)->toBe(8);
+    expect($scenario->name)->toBe('Alice Updated · Update test');
 });
 
 test('recommendations mark minimum bid depth by seniority rank', function () {
@@ -154,52 +213,43 @@ test('recommendations mark minimum bid depth by seniority rank', function () {
             ->has('rows', 4));
 });
 
-test('participant scenario must match simulation import', function () {
+test('removing bidder deletes unused scenario profile', function () {
     config(['features.bid_tools' => true]);
 
     $user = User::factory()->create();
     $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 2);
 
-    $pathA = writeMultiLineBidCsv($bidYear, 2);
-    $importA = app(BidLineCsvImportService::class)->importFromPath(
-        $pathA,
-        'a.csv',
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
         $user->id,
         $bidYear,
         null,
-        'A',
+        'Del import',
     )['import'];
-    @unlink($pathA);
 
-    $pathB = writeMultiLineBidCsv($bidYear, 2);
-    $importB = app(BidLineCsvImportService::class)->importFromPath(
-        $pathB,
-        'b.csv',
-        $user->id,
-        $bidYear,
-        null,
-        'B',
-    )['import'];
-    @unlink($pathB);
-
-    $scenarioOnB = BidScenario::create([
-        'user_id' => $user->id,
-        'bid_import_id' => $importB->id,
-        'name' => 'Wrong import',
-        'vacation_bank' => 10,
-    ]);
+    @unlink($path);
 
     $simulation = BidSimulation::create([
         'user_id' => $user->id,
-        'bid_import_id' => $importA->id,
-        'name' => 'Mismatch test',
+        'bid_import_id' => $import->id,
+        'name' => 'Delete test',
     ]);
 
-    $this->actingAs($user)
-        ->post(route('bid-tools.simulations.participants.store', $simulation->id), [
-            'display_name' => 'Test',
-            'seniority_rank' => 1,
-            'bid_scenario_id' => $scenarioOnB->id,
-        ])
-        ->assertNotFound();
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Bob',
+        'seniority_rank' => 1,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $participant = BidSimulationParticipant::first();
+    $scenarioId = $participant->bid_scenario_id;
+
+    $this->actingAs($user)->delete(
+        route('bid-tools.simulations.participants.destroy', [$simulation->id, $participant->id]),
+    );
+
+    expect(BidSimulationParticipant::count())->toBe(0);
+    expect(BidScenario::whereKey($scenarioId)->exists())->toBeFalse();
 });
