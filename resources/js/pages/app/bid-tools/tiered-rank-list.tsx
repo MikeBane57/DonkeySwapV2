@@ -14,11 +14,11 @@ import {
     entriesToTierGroups,
     groupWithAbove,
     moveIndex,
-    startNewGroupBelow,
-    tierGroupsToEntries,
-    type Priority,
-    type TieredRankEntry,
+    startNewGroupBelow
+    
+    
 } from '@/pages/app/bid-tools/rank-tier-utils';
+import type {Priority, TieredRankEntry} from '@/pages/app/bid-tools/rank-tier-utils';
 
 function PrioritySelect({
     value,
