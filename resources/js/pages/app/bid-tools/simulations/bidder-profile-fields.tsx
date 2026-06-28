@@ -38,7 +38,7 @@ export type VacationRange = {
     ends_on: string;
 };
 
-export type SortMode = 'weighted' | 'priority';
+export type SortMode = 'weighted' | 'priority' | 'blended';
 
 export type BidderProfile = {
     vacation_bank: number;
@@ -208,7 +208,7 @@ export function emptyBidderProfile(defaults: BidderProfile): BidderProfile {
         start_time_rank: defaults.start_time_rank.map((e) => ({ ...e })),
         weights: {
             ...defaults.weights,
-            sort_mode: defaults.weights.sort_mode ?? 'weighted',
+            sort_mode: defaults.weights.sort_mode ?? 'blended',
             criteria_order: [...defaults.weights.criteria_order],
         },
         personal_dates: [],
@@ -506,31 +506,34 @@ export function BidderProfileFields({
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                        <SelectItem value="blended">
+                            Blended — groups + category order (recommended)
+                        </SelectItem>
                         <SelectItem value="weighted">
                             Weighted — balance trade-offs
                         </SelectItem>
                         <SelectItem value="priority">
-                            Priority — top categories always win
+                            Priority — same as blended (legacy)
                         </SelectItem>
                     </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                    {value.weights.sort_mode === 'priority'
-                        ? 'Lines are grouped by category order first (e.g. all AM before PM when start time is on top). Weights still scale how far apart lines are within each category.'
-                        : 'Lines are ranked by total weighted score. Category order below only breaks ties when totals match.'}
+                    {value.weights.sort_mode === 'weighted'
+                        ? 'Lines are ranked by total weighted score. Category order below only breaks ties when totals match.'
+                        : 'Uses your category order (e.g. start time, then desk, then holidays). Items in the same preference group are treated as equal at that step — so 06:00 Sector ranks above 06:00 Regional when Sector/Router are grouped above Regional.'}
                 </p>
             </div>
 
             <div className="space-y-2">
                 <Label>
-                    {value.weights.sort_mode === 'priority'
-                        ? 'Category ranking order'
-                        : 'Overall priority when totals are close'}
+                    {value.weights.sort_mode === 'weighted'
+                        ? 'Overall priority when totals are close'
+                        : 'Category ranking order'}
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                    {value.weights.sort_mode === 'priority'
-                        ? 'Drag to set which categories matter most. Higher categories always rank above lower ones.'
-                        : 'Drag to choose which categories decide ordering when two lines have the same total score.'}
+                    {value.weights.sort_mode === 'weighted'
+                        ? 'Drag to choose which categories decide ordering when two lines have the same total score.'
+                        : 'Drag to set which categories matter most. Higher categories decide first; equal groups within a list share the same rank at that step.'}
                 </p>
                 <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
                     {value.weights.criteria_order.map((key, idx) => (

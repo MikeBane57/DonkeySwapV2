@@ -41,7 +41,11 @@ type KeyedEntry = { key: string; priority: Priority; tier?: number };
 
 type PersonalEntry = { date: string; label: string; priority: Priority };
 
-type SortMode = 'weighted' | 'priority';
+type SortMode = 'weighted' | 'priority' | 'blended';
+
+function usesTierGroupSort(mode: SortMode): boolean {
+    return mode === 'priority' || mode === 'blended';
+}
 
 const CRITERIA_LABELS: Record<string, string> = {
     holiday: 'Holidays',
@@ -185,7 +189,11 @@ export default function BidScenarioEdit({
     });
     const [sortMode, setSortMode] = useState<SortMode>(() => {
         const mode = scenario.weights?.sort_mode;
-        return mode === 'priority' ? 'priority' : 'weighted';
+        if (mode === 'priority' || mode === 'blended' || mode === 'weighted') {
+            return mode;
+        }
+
+        return 'blended';
     });
     const [criteriaOrder, setCriteriaOrder] = useState<string[]>(() => {
         const o = scenario.weights?.criteria_order;
@@ -560,30 +568,33 @@ export default function BidScenarioEdit({
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
+                                <SelectItem value="blended">
+                                    Blended — groups + category order (recommended)
+                                </SelectItem>
                                 <SelectItem value="weighted">
                                     Weighted — balance trade-offs
                                 </SelectItem>
                                 <SelectItem value="priority">
-                                    Priority — top categories always win
+                                    Priority — same as blended (legacy)
                                 </SelectItem>
                             </SelectContent>
                         </Select>
                         <p className="text-xs text-muted-foreground">
-                            {sortMode === 'priority'
-                                ? 'Lines are grouped by category order first (e.g. all AM before PM when start time is on top). Weights still scale gaps within each category.'
-                                : 'Lines are ranked by total weighted score. Category order below only breaks ties when totals match.'}
+                            {sortMode === 'weighted'
+                                ? 'Lines are ranked by total weighted score. Category order below only breaks ties when totals match.'
+                                : 'Uses category order with equal preference groups — e.g. 06:00 Sector beats 06:00 Regional when Sector/Router are grouped above Regional.'}
                         </p>
                     </section>
 
                     <section className="space-y-3">
                         <Label>
-                            {sortMode === 'priority'
+                            {usesTierGroupSort(sortMode)
                                 ? 'Category ranking order'
                                 : 'Overall priority when totals are close'}
                         </Label>
                         <p className="text-xs text-muted-foreground">
-                            {sortMode === 'priority'
-                                ? 'Drag to set which categories matter most. Higher categories always rank above lower ones.'
+                            {usesTierGroupSort(sortMode)
+                                ? 'Drag to set which categories matter most. Higher categories decide first; equal groups within a list share the same rank at that step.'
                                 : 'Lines are ranked by total score first (weights control how much each category contributes). Drag to set which categories break ties when two lines score about the same.'}
                         </p>
                         <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">

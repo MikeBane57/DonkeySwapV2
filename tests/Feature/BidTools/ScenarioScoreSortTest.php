@@ -118,9 +118,9 @@ test('priority sort mode ranks by category order before total score', function (
     $priorityScenario = BidScenario::create([
         'user_id' => $user->id,
         'bid_import_id' => $import->id,
-        'name' => 'Priority start time wins',
+        'name' => 'Blended start time wins',
         'vacation_bank' => 10,
-        'weights' => array_merge($baseWeights, ['sort_mode' => 'priority']),
+        'weights' => array_merge($baseWeights, ['sort_mode' => 'blended']),
         'holiday_rank' => app(ScenarioScoreService::class)->defaultHolidayEntries($bidYear),
         'desk_rank' => [],
         'start_time_rank' => $startRank,

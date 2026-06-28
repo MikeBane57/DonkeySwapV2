@@ -366,3 +366,37 @@ function writeStartTimeHolidayTradeoffCsv(int $bidYear): string
     return $path;
 }
 
+/**
+ * Three-line import for blended desk/start sorting tests.
+ * 551: 0600 DG (regional), 552: 0600 DS (sector), 553: 0700 DG.
+ */
+function writeDeskStartTradeoffCsv(int $bidYear): string
+{
+    $range = BidYearRange::fromBidYear($bidYear);
+    $path = tempnam(sys_get_temp_dir(), 'bidcsv').'.csv';
+    $fh = fopen($path, 'wb');
+    $headers = ['Line Num', 'Group', 'Start Time', 'Rotation'];
+    foreach ($range->eachDate() as $d) {
+        $headers[] = $d->format('j-M-y');
+    }
+    $headers[] = 'workdays';
+    fputcsv($fh, $headers);
+
+    foreach ([
+        ['551', 'DG', '0600'],
+        ['552', 'DS', '0600'],
+        ['553', 'DG', '0700'],
+    ] as [$lineNum, $group, $start]) {
+        $row = [$lineNum, $group, $start, 'A'];
+        foreach ($range->eachDate() as $d) {
+            $row[] = $group;
+        }
+        $row[] = '0';
+        fputcsv($fh, $row);
+    }
+
+    fclose($fh);
+
+    return $path;
+}
+

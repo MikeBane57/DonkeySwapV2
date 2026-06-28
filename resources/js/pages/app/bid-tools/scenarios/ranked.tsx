@@ -6,9 +6,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import {
-    BidLinePickerToolbar,
-    type LinePickerRow,
+    BidLinePickerToolbar
+    
 } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import type {LinePickerRow} from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
 import type { BreadcrumbItem } from '@/types';
 

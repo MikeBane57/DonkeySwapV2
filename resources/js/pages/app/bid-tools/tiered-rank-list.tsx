@@ -14,7 +14,7 @@ import {
     entriesToTierGroups,
     groupWithAbove,
     moveIndex,
-    startNewGroupBelow
+    splitAfter
     
     
 } from '@/pages/app/bid-tools/rank-tier-utils';
@@ -128,7 +128,7 @@ export function TieredRankList({
     };
 
     const splitBelow = (index: number) => {
-        onChange(startNewGroupBelow(entries, index));
+        onChange(splitAfter(entries, index));
     };
 
     return (
@@ -139,8 +139,8 @@ export function TieredRankList({
             )}
             <p className="text-xs text-muted-foreground">
                 Drag to reorder. Use &quot;Same group&quot; to treat items as
-                equal (e.g. all AM starts together). Items in one group share
-                the same preference rank.
+                equal (e.g. all AM starts together). &quot;Split after&quot;
+                starts a new group below this row.
             </p>
             <div className="space-y-2">
                 {groups.map((group, groupIndex) => (
@@ -155,8 +155,6 @@ export function TieredRankList({
                         {group.map((entry) => {
                             const flatIndex = flatIndexByKey.get(entry.key) ?? 0;
                             const isFirstInGroup = entry === group[0];
-                            const isLastInGroup =
-                                entry === group[group.length - 1];
 
                             return (
                                 <DraggableRow
@@ -203,22 +201,21 @@ export function TieredRankList({
                                             Merge up
                                         </Button>
                                     )}
-                                    {isLastInGroup &&
-                                        flatIndex < entries.length - 1 && (
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-8 px-2 text-xs"
-                                                title="Start a new preference group below"
-                                                onClick={() =>
-                                                    splitBelow(flatIndex)
-                                                }
-                                            >
-                                                <Ungroup className="mr-1 h-3.5 w-3.5" />
-                                                Split below
-                                            </Button>
-                                        )}
+                                    {flatIndex < entries.length - 1 && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 px-2 text-xs"
+                                            title="Start a new preference group after this row"
+                                            onClick={() =>
+                                                splitBelow(flatIndex)
+                                            }
+                                        >
+                                            <Ungroup className="mr-1 h-3.5 w-3.5" />
+                                            Split after
+                                        </Button>
+                                    )}
                                     {onRemoveKey && (
                                         <Button
                                             type="button"

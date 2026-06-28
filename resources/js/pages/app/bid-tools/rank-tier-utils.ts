@@ -7,17 +7,18 @@ export type TieredRankEntry = {
 };
 
 export function normalizeTierOrder(entries: TieredRankEntry[]): TieredRankEntry[] {
-    const tierMap = new Map<number, number>();
-    let next = 1;
+    if (entries.length === 0) {
+        return [];
+    }
 
-    return entries.map((entry, index) => {
-        const rawTier = entry.tier ?? index + 1;
-        if (!tierMap.has(rawTier)) {
-            tierMap.set(rawTier, next++);
-        }
+    const rawTiers = entries.map((entry, index) => entry.tier ?? index + 1);
+    const unique = [...new Set(rawTiers)].sort((a, b) => a - b);
+    const tierMap = new Map(unique.map((raw, index) => [raw, index + 1]));
 
-        return { ...entry, tier: tierMap.get(rawTier)! };
-    });
+    return entries.map((entry, index) => ({
+        ...entry,
+        tier: tierMap.get(entry.tier ?? index + 1)!,
+    }));
 }
 
 export function entriesToTierGroups(entries: TieredRankEntry[]): TieredRankEntry[][] {
@@ -73,7 +74,7 @@ export function groupWithAbove(
     return normalizeTierOrder(next);
 }
 
-export function startNewGroupBelow(
+export function splitAfter(
     entries: TieredRankEntry[],
     index: number,
 ): TieredRankEntry[] {
@@ -81,13 +82,30 @@ export function startNewGroupBelow(
         return entries;
     }
 
-    const next = entries.map((entry, i) => {
-        if (i <= index) {
-            return entry;
-        }
+    const next = [...entries];
+    const followTier = next[index + 1].tier ?? index + 2;
 
-        return { ...entry, tier: (entry.tier ?? i + 1) + 10_000 };
-    });
+    next[index + 1] = {
+        ...next[index + 1],
+        tier: followTier + 10_000,
+    };
+
+    for (let i = index + 2; i < next.length; i++) {
+        const tier = next[i].tier ?? i + 1;
+        if (tier === followTier) {
+            next[i] = { ...next[i], tier: tier + 10_000 };
+        } else {
+            break;
+        }
+    }
 
     return normalizeTierOrder(next);
+}
+
+/** @deprecated Use splitAfter */
+export function startNewGroupBelow(
+    entries: TieredRankEntry[],
+    index: number,
+): TieredRankEntry[] {
+    return splitAfter(entries, index);
 }

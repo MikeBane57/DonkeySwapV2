@@ -54,7 +54,7 @@ test('equal start time tiers score the same within a tier group', function () {
             'start_time' => 1,
             'desk' => 0,
             'vacation_penalty' => 0,
-            'sort_mode' => 'priority',
+            'sort_mode' => 'blended',
             'criteria_order' => ['start_time', 'holiday', 'personal', 'desk'],
         ],
         'holiday_rank' => [],

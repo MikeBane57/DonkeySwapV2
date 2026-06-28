@@ -13,15 +13,25 @@ final class RankTierHelper
      */
     public static function normalizeTierOrder(array $entries): array
     {
-        $tierMap = [];
-        $next = 1;
-        $out = [];
+        if ($entries === []) {
+            return [];
+        }
 
+        $rawTiers = [];
+        foreach ($entries as $i => $entry) {
+            $rawTiers[] = isset($entry['tier']) ? (int) $entry['tier'] : ($i + 1);
+        }
+
+        $unique = array_values(array_unique($rawTiers));
+        sort($unique);
+        $tierMap = [];
+        foreach ($unique as $i => $raw) {
+            $tierMap[$raw] = $i + 1;
+        }
+
+        $out = [];
         foreach ($entries as $i => $entry) {
             $rawTier = isset($entry['tier']) ? (int) $entry['tier'] : ($i + 1);
-            if (! isset($tierMap[$rawTier])) {
-                $tierMap[$rawTier] = $next++;
-            }
             $out[] = array_merge($entry, ['tier' => $tierMap[$rawTier]]);
         }
 
@@ -65,5 +75,29 @@ final class RankTierHelper
         }
 
         return max(1, $tierCount - $tierIndex);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $entries
+     */
+    public static function tierRankForKey(array $entries, string $lineKey): int
+    {
+        $normalized = self::normalizeTierOrder($entries);
+        $worst = count(self::orderedTiers($normalized)) + 1;
+        $needle = strtoupper($lineKey);
+
+        foreach ($normalized as $entry) {
+            if (strtoupper((string) ($entry['key'] ?? '')) !== $needle) {
+                continue;
+            }
+
+            if (($entry['priority'] ?? 'high') === 'ignore') {
+                return $worst;
+            }
+
+            return (int) ($entry['tier'] ?? $worst);
+        }
+
+        return $worst;
     }
 }

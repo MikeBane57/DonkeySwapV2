@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import AppLayout from '@/layouts/app-layout';
 import {
-    BidLinePickerToolbar,
-    type LinePickerRow,
+    BidLinePickerToolbar
+    
 } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import type {LinePickerRow} from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
 import type { BreadcrumbItem } from '@/types';
 
@@ -28,7 +29,7 @@ type ScenarioOption = {
     bid_import_id: number;
     bid_year: number;
     vacation_bank: number;
-    sort_mode: 'weighted' | 'priority';
+    sort_mode: 'weighted' | 'priority' | 'blended';
     criteria_order: string[];
     import_stale: boolean;
 };
@@ -67,7 +68,7 @@ type ScenarioSummary = {
     bid_year: number;
     vacation_bank: number;
     weights: Record<string, number>;
-    sort_mode: 'weighted' | 'priority';
+    sort_mode: 'weighted' | 'priority' | 'blended';
     criteria_order: string[];
     import_stale: boolean;
 };
@@ -227,7 +228,9 @@ function CompareSetup({
                                     {' · '}
                                     Vac {s.vacation_bank}
                                     {' · '}
-                                    {s.sort_mode === 'priority' ? 'Priority' : 'Weighted'}
+                                    {s.sort_mode === 'weighted'
+                                        ? 'Weighted'
+                                        : 'Blended'}
                                     {' · '}
                                     {s.criteria_order
                                         .map((c) => CRITERIA_LABELS[c] ?? c)

@@ -11,8 +11,14 @@ final class ScenarioScoreService
 
     public const SORT_MODE_PRIORITY = 'priority';
 
+    public const SORT_MODE_BLENDED = 'blended';
+
     /** @var list<string> */
-    public const SORT_MODES = [self::SORT_MODE_WEIGHTED, self::SORT_MODE_PRIORITY];
+    public const SORT_MODES = [
+        self::SORT_MODE_WEIGHTED,
+        self::SORT_MODE_PRIORITY,
+        self::SORT_MODE_BLENDED,
+    ];
 
     private const PRIORITY_MUL = [
         'ignore' => 0.0,
@@ -133,6 +139,10 @@ final class ScenarioScoreService
                     'start_time' => round($startPoints, 2),
                     'desk' => round($deskPoints, 2),
                 ],
+                'tier_ranks' => [
+                    'start_time' => RankTierHelper::tierRankForKey($startEntries, $lineStartKey),
+                    'desk' => RankTierHelper::tierRankForKey($deskEntries, $bucket),
+                ],
                 'breakdown' => [
                     'holiday' => round($holidayPoints, 2),
                     'personal' => round($personalPoints, 2),
@@ -164,7 +174,7 @@ final class ScenarioScoreService
             'start_time' => 1.0,
             'desk' => 1.0,
             'vacation_penalty' => 1.0,
-            'sort_mode' => self::SORT_MODE_WEIGHTED,
+            'sort_mode' => self::SORT_MODE_BLENDED,
             'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
         ];
     }
@@ -210,14 +220,28 @@ final class ScenarioScoreService
      */
     public static function compareScoredLines(array $a, array $b, array $criteriaOrder, string $sortMode): int
     {
-        if ($sortMode === self::SORT_MODE_PRIORITY) {
+        if (self::usesTierGroupSort($sortMode)) {
             foreach ($criteriaOrder as $criterion) {
+                if (! is_string($criterion)) {
+                    continue;
+                }
+
+                if (in_array($criterion, ['start_time', 'desk'], true)) {
+                    $aTier = (int) ($a['tier_ranks'][$criterion] ?? PHP_INT_MAX);
+                    $bTier = (int) ($b['tier_ranks'][$criterion] ?? PHP_INT_MAX);
+                    if ($aTier !== $bTier) {
+                        return $aTier <=> $bTier;
+                    }
+
+                    continue;
+                }
+
                 $cmp = self::compareCriterionParts($a, $b, $criterion);
                 if ($cmp !== 0) {
                     return $cmp;
                 }
             }
-        } else {
+        } elseif ($sortMode === self::SORT_MODE_WEIGHTED) {
             $totalCmp = $b['total'] <=> $a['total'];
             if ($totalCmp !== 0) {
                 return $totalCmp;
@@ -237,6 +261,11 @@ final class ScenarioScoreService
         }
 
         return strcmp((string) ($a['line_num'] ?? ''), (string) ($b['line_num'] ?? ''));
+    }
+
+    public static function usesTierGroupSort(string $sortMode): bool
+    {
+        return in_array($sortMode, [self::SORT_MODE_PRIORITY, self::SORT_MODE_BLENDED], true);
     }
 
     /**
