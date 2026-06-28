@@ -3,7 +3,16 @@
 use App\Models\BidLine;
 use App\Models\BidLineDay;
 use App\Services\BidTools\CondensedDeskClassifier;
+use App\Services\BidTools\StartTimeNormalizer;
 use Carbon\CarbonImmutable;
+use Tests\TestCase;
+
+uses(TestCase::class);
+
+function classifier(): CondensedDeskClassifier
+{
+    return new CondensedDeskClassifier(new StartTimeNormalizer);
+}
 
 function makeClassifierLine(array $workCodes, string $deskGroup = 'DG', string $startTime = '0600'): BidLine
 {
@@ -26,7 +35,7 @@ function makeClassifierLine(array $workCodes, string $deskGroup = 'DG', string $
 }
 
 test('maps regional router sector and midnight desk codes', function () {
-    $classifier = app(CondensedDeskClassifier::class);
+    $classifier = classifier();
 
     expect($classifier->bucketForNormalizedCode('AG1'))->toBe('XG');
     expect($classifier->bucketForNormalizedCode('DG'))->toBe('XG');
@@ -40,7 +49,7 @@ test('maps regional router sector and midnight desk codes', function () {
 });
 
 test('classifies mixed start times into router and midnight buckets', function () {
-    $classifier = app(CondensedDeskClassifier::class);
+    $classifier = classifier();
 
     expect($classifier->bucketForStartTimeMix('AM-MIX 0600 0700'))->toBe('XR');
     expect($classifier->bucketForStartTimeMix('PM-MIX'))->toBe('XR');
@@ -48,7 +57,7 @@ test('classifies mixed start times into router and midnight buckets', function (
 });
 
 test('classifies a line from dominant workday desk codes', function () {
-    $classifier = app(CondensedDeskClassifier::class);
+    $classifier = classifier();
 
     $regional = makeClassifierLine([
         ['code' => 'AG1'],
@@ -77,7 +86,7 @@ test('classifies a line from dominant workday desk codes', function () {
 });
 
 test('classifies mixed group and start time lines into router or midnight', function () {
-    $classifier = app(CondensedDeskClassifier::class);
+    $classifier = classifier();
 
     $amMix = makeClassifierLine([], deskGroup: 'AM/PM MIX', startTime: 'AM-MIX 0600 0700');
     expect($classifier->bucketForLine($amMix))->toBe('XR');
@@ -87,7 +96,7 @@ test('classifies mixed group and start time lines into router or midnight', func
 });
 
 test('maps start times to am pm and mid picker buckets', function () {
-    $classifier = app(CondensedDeskClassifier::class);
+    $classifier = classifier();
 
     expect($classifier->startShiftBucket('0600'))->toBe('am');
     expect($classifier->startShiftBucket('AM-MIX 0600 0700'))->toBe('am');

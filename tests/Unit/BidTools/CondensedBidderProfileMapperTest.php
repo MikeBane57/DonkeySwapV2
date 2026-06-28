@@ -1,9 +1,15 @@
 <?php
 
 use App\Services\BidTools\CondensedBidderProfileMapper;
+use App\Services\BidTools\FederalHolidayCalendar;
+
+function mapper(): CondensedBidderProfileMapper
+{
+    return new CondensedBidderProfileMapper(new FederalHolidayCalendar);
+}
 
 test('condensed defaults include holiday desk and start time ranks', function () {
-    $defaults = app(CondensedBidderProfileMapper::class)->condensedDefaults();
+    $defaults = mapper()->condensedDefaults();
 
     expect($defaults['holiday_rank'])->toHaveCount(4);
     expect(collect($defaults['holiday_rank'])->pluck('key')->all())->toBe([
@@ -33,7 +39,7 @@ test('condensed defaults include holiday desk and start time ranks', function ()
 });
 
 test('expand holiday rank applies same priority to eve and day', function () {
-    $mapper = app(CondensedBidderProfileMapper::class);
+    $mapper = mapper();
 
     $expanded = $mapper->expandHolidayRank([
         ['key' => 'christmas', 'priority' => 'low'],
@@ -51,7 +57,7 @@ test('expand holiday rank applies same priority to eve and day', function () {
 });
 
 test('expand desk rank keeps only condensed buckets present in import', function () {
-    $mapper = app(CondensedBidderProfileMapper::class);
+    $mapper = mapper();
 
     $expanded = $mapper->expandDeskRank([
         ['key' => 'XG', 'priority' => 'high'],
@@ -68,7 +74,7 @@ test('expand desk rank keeps only condensed buckets present in import', function
 });
 
 test('expand start time rank maps hour keys to import start keys', function () {
-    $mapper = app(CondensedBidderProfileMapper::class);
+    $mapper = mapper();
 
     $expanded = $mapper->expandStartTimeRank([
         ['key' => '6', 'priority' => 'high'],
@@ -86,7 +92,7 @@ test('expand start time rank maps hour keys to import start keys', function () {
 });
 
 test('to condensed desk rank preserves stored bucket priorities', function () {
-    $mapper = app(CondensedBidderProfileMapper::class);
+    $mapper = mapper();
 
     $condensed = $mapper->toCondensedDeskRank([
         ['key' => 'XG', 'priority' => 'high'],
