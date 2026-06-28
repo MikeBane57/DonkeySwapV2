@@ -337,8 +337,10 @@ final class ScenarioScoreService
      */
     private function scoreKeyedPreference(array $entries, string $lineKey): float
     {
-        $n = count($entries);
-        foreach ($entries as $i => $e) {
+        $normalized = RankTierHelper::normalizeTierOrder($entries);
+        $tierCount = count(RankTierHelper::orderedTiers($normalized));
+
+        foreach ($normalized as $i => $e) {
             $key = $e['key'];
             $p = $e['priority'] ?? 'high';
             if ($p === 'ignore') {
@@ -346,8 +348,9 @@ final class ScenarioScoreService
             }
             if ($lineKey === $key) {
                 $mul = self::PRIORITY_MUL[$p] ?? 1.0;
+                $tierWeight = RankTierHelper::tierWeight($normalized, $i);
 
-                return $mul * max(1, $n - $i);
+                return $mul * $tierWeight;
             }
         }
 
@@ -502,30 +505,36 @@ final class ScenarioScoreService
     {
         if ($raw === null || $raw === []) {
             return collect($defaultKeys)
-                ->map(fn (string $k) => ['key' => $k, 'priority' => 'high'])
+                ->map(fn (string $k, int $i) => ['key' => $k, 'priority' => 'high', 'tier' => $i + 1])
                 ->all();
         }
         if (isset($raw[0]) && is_string($raw[0])) {
             return collect($raw)
-                ->map(fn (string $k) => ['key' => $k, 'priority' => 'high'])
+                ->map(fn (string $k, int $i) => ['key' => $k, 'priority' => 'high', 'tier' => $i + 1])
                 ->all();
         }
         $out = [];
-        foreach ($raw as $row) {
+        foreach ($raw as $i => $row) {
             if (! is_array($row) || empty($row['key'])) {
                 continue;
             }
-            $out[] = [
+            $entry = [
                 'key' => (string) $row['key'],
                 'priority' => in_array($row['priority'] ?? 'high', ['ignore', 'low', 'high'], true)
                     ? $row['priority']
                     : 'high',
             ];
+            if (isset($row['tier']) && is_numeric($row['tier'])) {
+                $entry['tier'] = max(1, (int) $row['tier']);
+            }
+            $out[] = $entry;
         }
 
-        return $out === [] ? collect($defaultKeys)
-            ->map(fn (string $k) => ['key' => $k, 'priority' => 'high'])
-            ->all() : $out;
+        $out = $out === [] ? collect($defaultKeys)
+            ->map(fn (string $k, int $i) => ['key' => $k, 'priority' => 'high', 'tier' => $i + 1])
+            ->all() : RankTierHelper::normalizeTierOrder($out);
+
+        return $out;
     }
 
     /**

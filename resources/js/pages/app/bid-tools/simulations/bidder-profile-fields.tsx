@@ -16,12 +16,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
 export type Priority = 'ignore' | 'low' | 'high';
 
 export type KeyedRankEntry = {
     key: string;
     priority: Priority;
+    tier?: number;
 };
 
 export type PersonalDate = {
@@ -198,54 +200,6 @@ function WeightSlider({
     );
 }
 
-function KeyedRankList({
-    idPrefix,
-    label,
-    hint,
-    entries,
-    labels,
-    onChange,
-}: {
-    idPrefix: string;
-    label: string;
-    hint?: string;
-    entries: KeyedRankEntry[];
-    labels: Record<string, string>;
-    onChange: (entries: KeyedRankEntry[]) => void;
-}) {
-    return (
-        <div className="space-y-2">
-            <Label>{label}</Label>
-            {hint && (
-                <p className="text-xs text-muted-foreground">{hint}</p>
-            )}
-            <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
-                {entries.map((entry, idx) => (
-                    <DraggableRow
-                        key={`${idPrefix}-${entry.key}`}
-                        index={idx}
-                        onReorder={(from, to) =>
-                            onChange(moveIndex(entries, from, to))
-                        }
-                    >
-                        <span className="min-w-0 flex-1 text-sm">
-                            {labels[entry.key] ?? entry.key}
-                        </span>
-                        <PrioritySelect
-                            value={entry.priority}
-                            onChange={(priority) => {
-                                const next = [...entries];
-                                next[idx] = { ...next[idx], priority };
-                                onChange(next);
-                            }}
-                        />
-                    </DraggableRow>
-                ))}
-            </div>
-        </div>
-    );
-}
-
 export function emptyBidderProfile(defaults: BidderProfile): BidderProfile {
     return {
         vacation_bank: defaults.vacation_bank,
@@ -333,28 +287,28 @@ export function BidderProfileFields({
                 />
             </div>
 
-            <KeyedRankList
+            <TieredRankList
                 idPrefix={`${idPrefix}-holiday`}
                 label="Holiday preference"
-                hint="Drag to rank — higher holidays matter more when scoring lines."
+                hint="Drag to rank — higher groups matter more when scoring lines."
                 entries={holidayRank}
                 labels={HOLIDAY_LABELS}
                 onChange={(holiday_rank) => onChange({ ...value, holiday_rank })}
             />
 
-            <KeyedRankList
+            <TieredRankList
                 idPrefix={`${idPrefix}-desk`}
                 label="Desk type preference"
-                hint="Drag to rank — higher items matter more. Regional = AG/DG, Router = AR/DR and AM/PM mix, Sector = AS/DS, Midnight = MS/MG and mid mix."
+                hint="Group desk types that are equal to you (e.g. Sector + Router). Regional = AG/DG, Router = AR/DR and AM/PM mix, Sector = AS/DS, Midnight = MS/MG and mid mix."
                 entries={deskRank}
                 labels={DESK_LABELS}
                 onChange={(desk_rank) => onChange({ ...value, desk_rank })}
             />
 
-            <KeyedRankList
+            <TieredRankList
                 idPrefix={`${idPrefix}-start`}
                 label="Start time preference"
-                hint="Drag to rank — higher start times matter more when scoring lines."
+                hint="Group start times that are equal (e.g. 06:00 and 07:00 for all AM lines)."
                 entries={startTimeRank}
                 labels={START_TIME_LABELS}
                 onChange={(start_time_rank) =>

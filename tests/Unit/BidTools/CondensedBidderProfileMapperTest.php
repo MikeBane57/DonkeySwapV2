@@ -36,6 +36,13 @@ test('condensed defaults include holiday desk and start time ranks', function ()
         '15',
         '22',
     ]);
+    expect(collect($defaults['start_time_rank'])->pluck('tier')->all())->toBe([
+        1,
+        1,
+        2,
+        2,
+        3,
+    ]);
 });
 
 test('expand holiday rank applies same priority to eve and day', function () {
@@ -77,18 +84,21 @@ test('expand start time rank maps hour keys to import start keys', function () {
     $mapper = mapper();
 
     $expanded = $mapper->expandStartTimeRank([
-        ['key' => '6', 'priority' => 'high'],
-        ['key' => '7', 'priority' => 'low'],
-        ['key' => '14', 'priority' => 'ignore'],
-        ['key' => '15', 'priority' => 'high'],
-        ['key' => '22', 'priority' => 'low'],
+        ['key' => '6', 'priority' => 'high', 'tier' => 1],
+        ['key' => '7', 'priority' => 'high', 'tier' => 1],
+        ['key' => '14', 'priority' => 'ignore', 'tier' => 2],
+        ['key' => '15', 'priority' => 'high', 'tier' => 2],
+        ['key' => '22', 'priority' => 'low', 'tier' => 3],
     ], ['t_0600', 't_0700', 't_1400']);
 
     $byKey = collect($expanded)->keyBy('key');
 
     expect($byKey['t_0600']['priority'])->toBe('high');
-    expect($byKey['t_0700']['priority'])->toBe('low');
+    expect($byKey['t_0700']['priority'])->toBe('high');
+    expect($byKey['t_0600']['tier'])->toBe(1);
+    expect($byKey['t_0700']['tier'])->toBe(1);
     expect($byKey['t_1400']['priority'])->toBe('ignore');
+    expect($byKey['t_1400']['tier'])->toBe(2);
 });
 
 test('to condensed desk rank preserves stored bucket priorities', function () {

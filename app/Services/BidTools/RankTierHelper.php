@@ -1,0 +1,69 @@
+<?php
+
+namespace App\Services\BidTools;
+
+/**
+ * Normalizes rank-list tiers so entries in the same tier score equally.
+ */
+final class RankTierHelper
+{
+    /**
+     * @param  list<array<string, mixed>>  $entries
+     * @return list<array<string, mixed>>
+     */
+    public static function normalizeTierOrder(array $entries): array
+    {
+        $tierMap = [];
+        $next = 1;
+        $out = [];
+
+        foreach ($entries as $i => $entry) {
+            $rawTier = isset($entry['tier']) ? (int) $entry['tier'] : ($i + 1);
+            if (! isset($tierMap[$rawTier])) {
+                $tierMap[$rawTier] = $next++;
+            }
+            $out[] = array_merge($entry, ['tier' => $tierMap[$rawTier]]);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $entries
+     * @return list<int>
+     */
+    public static function orderedTiers(array $entries): array
+    {
+        $normalized = self::normalizeTierOrder($entries);
+        $tiers = [];
+        foreach ($normalized as $entry) {
+            $tier = (int) ($entry['tier'] ?? 1);
+            if (! in_array($tier, $tiers, true)) {
+                $tiers[] = $tier;
+            }
+        }
+
+        return $tiers;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $entries
+     */
+    public static function tierWeight(array $entries, int $entryIndex): int
+    {
+        $normalized = self::normalizeTierOrder($entries);
+        $tiers = self::orderedTiers($normalized);
+        $tierCount = count($tiers);
+        if ($tierCount === 0 || ! isset($normalized[$entryIndex])) {
+            return 1;
+        }
+
+        $entryTier = (int) ($normalized[$entryIndex]['tier'] ?? 1);
+        $tierIndex = array_search($entryTier, $tiers, true);
+        if ($tierIndex === false) {
+            return 1;
+        }
+
+        return max(1, $tierCount - $tierIndex);
+    }
+}

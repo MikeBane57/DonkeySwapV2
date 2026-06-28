@@ -13,6 +13,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
+import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -36,7 +37,7 @@ type HolidayEntry = {
     priority: Priority;
 };
 
-type KeyedEntry = { key: string; priority: Priority };
+type KeyedEntry = { key: string; priority: Priority; tier?: number };
 
 type PersonalEntry = { date: string; label: string; priority: Priority };
 
@@ -231,6 +232,21 @@ export default function BidScenarioEdit({
     const addDeskOptions = deskCatalog.filter((d) => !deskKeysInUse.has(d.key));
     const addStartOptions = startTimeCatalog.filter(
         (d) => !startKeysInUse.has(d.key),
+    );
+
+    const deskLabels = useMemo(
+        () =>
+            Object.fromEntries(
+                deskCatalog.map((d) => [d.key, d.label]),
+            ) as Record<string, string>,
+        [deskCatalog],
+    );
+    const startLabels = useMemo(
+        () =>
+            Object.fromEntries(
+                startTimeCatalog.map((d) => [d.key, d.label]),
+            ) as Record<string, string>,
+        [startTimeCatalog],
     );
 
     const submit = useCallback(() => {
@@ -730,14 +746,17 @@ export default function BidScenarioEdit({
                     </section>
 
                     <section className="space-y-3">
-                        <Label>Desk type preference</Label>
-                        <div className="flex flex-wrap gap-2">
-                            {addDeskOptions.length > 0 && (
+                        {addDeskOptions.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
                                 <Select
                                     onValueChange={(key) => {
                                         setDeskRank([
                                             ...deskRank,
-                                            { key, priority: 'high' },
+                                            {
+                                                key,
+                                                priority: 'high',
+                                                tier: deskRank.length + 1,
+                                            },
                                         ]);
                                     }}
                                 >
@@ -755,64 +774,33 @@ export default function BidScenarioEdit({
                                         ))}
                                     </SelectContent>
                                 </Select>
-                            )}
-                        </div>
-                        <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
-                            {deskRank.map((d, idx) => (
-                                <DraggableRow
-                                    key={d.key}
-                                    index={idx}
-                                    onReorder={(from, to) =>
-                                        setDeskRank((list) =>
-                                            moveIndex(list, from, to),
-                                        )
-                                    }
-                                >
-                                    <span className="flex-1 text-sm">
-                                        {deskCatalog.find(
-                                            (x) => x.key === d.key,
-                                        )?.label ?? d.key}
-                                    </span>
-                                    <PrioritySelect
-                                        value={d.priority}
-                                        onChange={(p) => {
-                                            const next = [...deskRank];
-                                            next[idx] = {
-                                                ...next[idx],
-                                                priority: p,
-                                            };
-                                            setDeskRank(next);
-                                        }}
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={() =>
-                                            setDeskRank(
-                                                deskRank.filter(
-                                                    (_, i) => i !== idx,
-                                                ),
-                                            )
-                                        }
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </DraggableRow>
-                            ))}
-                        </div>
+                            </div>
+                        )}
+                        <TieredRankList
+                            idPrefix="scenario-desk"
+                            label="Desk type preference"
+                            hint="Group desk types that are equal to you (e.g. Sector + Router in the same group)."
+                            entries={deskRank}
+                            labels={deskLabels}
+                            onChange={setDeskRank}
+                            onRemoveKey={(key) =>
+                                setDeskRank(deskRank.filter((d) => d.key !== key))
+                            }
+                        />
                     </section>
 
                     <section className="space-y-3">
-                        <Label>Start time preference</Label>
-                        <div className="flex flex-wrap gap-2">
-                            {addStartOptions.length > 0 && (
+                        {addStartOptions.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
                                 <Select
                                     onValueChange={(key) => {
                                         setStartRank([
                                             ...startRank,
-                                            { key, priority: 'high' },
+                                            {
+                                                key,
+                                                priority: 'high',
+                                                tier: startRank.length + 1,
+                                            },
                                         ]);
                                     }}
                                 >
@@ -830,53 +818,21 @@ export default function BidScenarioEdit({
                                         ))}
                                     </SelectContent>
                                 </Select>
-                            )}
-                        </div>
-                        <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
-                            {startRank.map((d, idx) => (
-                                <DraggableRow
-                                    key={d.key}
-                                    index={idx}
-                                    onReorder={(from, to) =>
-                                        setStartRank((list) =>
-                                            moveIndex(list, from, to),
-                                        )
-                                    }
-                                >
-                                    <span className="flex-1 text-sm">
-                                        {startTimeCatalog.find(
-                                            (x) => x.key === d.key,
-                                        )?.label ?? d.key}
-                                    </span>
-                                    <PrioritySelect
-                                        value={d.priority}
-                                        onChange={(p) => {
-                                            const next = [...startRank];
-                                            next[idx] = {
-                                                ...next[idx],
-                                                priority: p,
-                                            };
-                                            setStartRank(next);
-                                        }}
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={() =>
-                                            setStartRank(
-                                                startRank.filter(
-                                                    (_, i) => i !== idx,
-                                                ),
-                                            )
-                                        }
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </DraggableRow>
-                            ))}
-                        </div>
+                            </div>
+                        )}
+                        <TieredRankList
+                            idPrefix="scenario-start"
+                            label="Start time preference"
+                            hint="Group start times that are equal (e.g. 06:00 and 07:00 for all AM lines)."
+                            entries={startRank}
+                            labels={startLabels}
+                            onChange={setStartRank}
+                            onRemoveKey={(key) =>
+                                setStartRank(
+                                    startRank.filter((d) => d.key !== key),
+                                )
+                            }
+                        />
                     </section>
 
                     <section className="space-y-3">

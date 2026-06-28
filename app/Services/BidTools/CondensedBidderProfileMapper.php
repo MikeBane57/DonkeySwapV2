@@ -49,7 +49,13 @@ final class CondensedBidderProfileMapper
         return [
             'holiday_rank' => $this->defaultKeyedRank(array_keys(self::HOLIDAY_GROUPS)),
             'desk_rank' => $this->defaultKeyedRank(self::DESK_KEYS),
-            'start_time_rank' => $this->defaultKeyedRank(self::START_TIME_KEYS),
+            'start_time_rank' => [
+                ['key' => '6', 'priority' => 'high', 'tier' => 1],
+                ['key' => '7', 'priority' => 'high', 'tier' => 1],
+                ['key' => '14', 'priority' => 'high', 'tier' => 2],
+                ['key' => '15', 'priority' => 'high', 'tier' => 2],
+                ['key' => '22', 'priority' => 'high', 'tier' => 3],
+            ],
         ];
     }
 
@@ -163,7 +169,11 @@ final class CondensedBidderProfileMapper
             $priority = $entry['priority'];
 
             if (in_array($key, $importKeys, true) && ! isset($seen[$key])) {
-                $out[] = ['key' => $key, 'priority' => $priority];
+                $row = ['key' => $key, 'priority' => $priority];
+                if (isset($entry['tier'])) {
+                    $row['tier'] = (int) $entry['tier'];
+                }
+                $out[] = $row;
                 $seen[$key] = true;
             }
         }
@@ -175,7 +185,7 @@ final class CondensedBidderProfileMapper
             $out[] = ['key' => $key, 'priority' => 'ignore'];
         }
 
-        return $out;
+        return RankTierHelper::normalizeTierOrder($out);
     }
 
     /**
@@ -203,7 +213,11 @@ final class CondensedBidderProfileMapper
                 if (isset($seen[$matchKey])) {
                     continue;
                 }
-                $out[] = ['key' => $matchKey, 'priority' => $priority];
+                $row = ['key' => $matchKey, 'priority' => $priority];
+                if (isset($entry['tier'])) {
+                    $row['tier'] = (int) $entry['tier'];
+                }
+                $out[] = $row;
                 $seen[$matchKey] = true;
             }
         }
@@ -215,7 +229,7 @@ final class CondensedBidderProfileMapper
             $out[] = ['key' => $key, 'priority' => 'ignore'];
         }
 
-        return $out;
+        return RankTierHelper::normalizeTierOrder($out);
     }
 
     /**
@@ -260,18 +274,23 @@ final class CondensedBidderProfileMapper
             if (! is_array($row) || empty($row['key'])) {
                 continue;
             }
-            $byKey[$row['key']] = $row['priority'] ?? 'high';
+            $byKey[$row['key']] = $row;
         }
 
         $out = [];
         foreach (self::DESK_KEYS as $deskKey) {
-            $out[] = [
+            $source = $byKey[$deskKey] ?? null;
+            $entry = [
                 'key' => $deskKey,
-                'priority' => $byKey[$deskKey] ?? 'high',
+                'priority' => is_array($source) ? ($source['priority'] ?? 'high') : 'high',
             ];
+            if (is_array($source) && isset($source['tier'])) {
+                $entry['tier'] = (int) $source['tier'];
+            }
+            $out[] = $entry;
         }
 
-        return $out;
+        return RankTierHelper::normalizeTierOrder($out);
     }
 
     /**
@@ -285,19 +304,26 @@ final class CondensedBidderProfileMapper
             if (! is_array($row) || empty($row['key'])) {
                 continue;
             }
-            $byRankKey[$row['key']] = $row['priority'] ?? 'high';
+            $byRankKey[$row['key']] = $row;
         }
 
         $out = [];
         foreach (self::START_TIME_KEYS as $hourKey) {
             $rankKey = self::START_TIME_RANK_KEY_MAP[$hourKey];
-            $priority = $byRankKey[$rankKey]
+            $source = $byRankKey[$rankKey]
                 ?? $byRankKey[str_replace('t_0', 't_', $rankKey)]
-                ?? 'high';
-            $out[] = ['key' => $hourKey, 'priority' => $priority];
+                ?? null;
+            $entry = [
+                'key' => $hourKey,
+                'priority' => is_array($source) ? ($source['priority'] ?? 'high') : 'high',
+            ];
+            if (is_array($source) && isset($source['tier'])) {
+                $entry['tier'] = (int) $source['tier'];
+            }
+            $out[] = $entry;
         }
 
-        return $out;
+        return RankTierHelper::normalizeTierOrder($out);
     }
 
     /**
@@ -307,8 +333,9 @@ final class CondensedBidderProfileMapper
     private function defaultKeyedRank(array $keys): array
     {
         return array_map(
-            fn (string $key) => ['key' => $key, 'priority' => 'high'],
+            fn (string $key, int $index) => ['key' => $key, 'priority' => 'high', 'tier' => $index + 1],
             $keys,
+            array_keys($keys),
         );
     }
 
@@ -333,22 +360,26 @@ final class CondensedBidderProfileMapper
             if (isset($seen[$key])) {
                 continue;
             }
-            $out[] = [
+            $entry = [
                 'key' => $key,
                 'priority' => in_array($row['priority'] ?? 'high', ['ignore', 'low', 'high'], true)
                     ? $row['priority']
                     : 'high',
             ];
+            if (isset($row['tier']) && is_numeric($row['tier'])) {
+                $entry['tier'] = max(1, (int) $row['tier']);
+            }
+            $out[] = $entry;
             $seen[$key] = true;
         }
 
         foreach ($defaultKeys as $key) {
             if (! isset($seen[$key])) {
-                $out[] = ['key' => $key, 'priority' => 'high'];
+                $out[] = ['key' => $key, 'priority' => 'high', 'tier' => count($out) + 1];
             }
         }
 
-        return $out;
+        return RankTierHelper::normalizeTierOrder($out);
     }
 
     /**
