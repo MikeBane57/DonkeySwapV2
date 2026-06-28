@@ -23,14 +23,7 @@ final class BidScenarioProfileBuilder
 
         return [
             'vacation_bank' => 15,
-            'weights' => [
-                'holiday' => 1.0,
-                'personal' => 1.0,
-                'start_time' => 1.0,
-                'desk' => 1.0,
-                'vacation_penalty' => 1.0,
-                'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
-            ],
+            'weights' => ScenarioScoreService::defaultWeights(),
             'holiday_rank' => $condensed['holiday_rank'],
             'desk_rank' => $condensed['desk_rank'],
             'start_time_rank' => $condensed['start_time_rank'],
@@ -46,14 +39,12 @@ final class BidScenarioProfileBuilder
     {
         $scenario->loadMissing(['import', 'vacationRanges']);
 
-        $weights = array_merge([
-            'holiday' => 1.0,
-            'personal' => 1.0,
-            'start_time' => 1.0,
-            'desk' => 1.0,
-            'vacation_penalty' => 1.0,
-            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
-        ], $scenario->weights ?? []);
+        $weights = array_merge(
+            ScenarioScoreService::defaultWeights(),
+            $scenario->weights ?? [],
+        );
+        $weights['criteria_order'] = ScenarioScoreService::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
+        $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
 
         $condensed = $this->condensedMapper->toCondensedPayload($scenario);
 
@@ -139,6 +130,8 @@ final class BidScenarioProfileBuilder
         if (! is_array($weights['criteria_order'] ?? null) || count($weights['criteria_order']) !== 4) {
             $weights['criteria_order'] = $defaults['weights']['criteria_order'];
         }
+        $weights['criteria_order'] = ScenarioScoreService::normalizeCriteriaOrder($weights['criteria_order']);
+        $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
 
         return [
             'vacation_bank' => (int) ($profile['vacation_bank'] ?? $defaults['vacation_bank']),

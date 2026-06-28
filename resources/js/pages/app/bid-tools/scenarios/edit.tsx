@@ -40,6 +40,8 @@ type KeyedEntry = { key: string; priority: Priority };
 
 type PersonalEntry = { date: string; label: string; priority: Priority };
 
+type SortMode = 'weighted' | 'priority';
+
 const CRITERIA_LABELS: Record<string, string> = {
     holiday: 'Holidays',
     personal: 'Personal dates',
@@ -144,6 +146,7 @@ export default function BidScenarioEdit({
         name: string;
         vacation_bank: number;
         weights: Record<string, unknown> & {
+            sort_mode?: SortMode;
             criteria_order?: string[];
         };
         holiday_rank: HolidayEntry[];
@@ -178,6 +181,10 @@ export default function BidScenarioEdit({
         start_time: Number(scenario.weights?.start_time ?? 1),
         desk: Number(scenario.weights?.desk ?? 1),
         vacation_penalty: Number(scenario.weights?.vacation_penalty ?? 1),
+    });
+    const [sortMode, setSortMode] = useState<SortMode>(() => {
+        const mode = scenario.weights?.sort_mode;
+        return mode === 'priority' ? 'priority' : 'weighted';
     });
     const [criteriaOrder, setCriteriaOrder] = useState<string[]>(() => {
         const o = scenario.weights?.criteria_order;
@@ -242,6 +249,7 @@ export default function BidScenarioEdit({
                     start_time: Number(weights.start_time) || 0,
                     desk: Number(weights.desk) || 0,
                     vacation_penalty: Number(weights.vacation_penalty) || 0,
+                    sort_mode: sortMode,
                     criteria_order: criteriaOrder,
                 },
                 holiday_rank: holidays,
@@ -262,6 +270,7 @@ export default function BidScenarioEdit({
         name,
         vacationBank,
         weights,
+        sortMode,
         criteriaOrder,
         holidays,
         deskRank,
@@ -521,12 +530,45 @@ export default function BidScenarioEdit({
                     </section>
 
                     <section className="space-y-3">
-                        <Label>Overall priority when totals are close</Label>
+                        <Label htmlFor="sort-mode">Ranking mode</Label>
+                        <Select
+                            value={sortMode}
+                            onValueChange={(mode) =>
+                                setSortMode(mode as SortMode)
+                            }
+                        >
+                            <SelectTrigger
+                                id="sort-mode"
+                                className="h-8 max-w-[20rem] text-xs"
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="weighted">
+                                    Weighted — balance trade-offs
+                                </SelectItem>
+                                <SelectItem value="priority">
+                                    Priority — top categories always win
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
                         <p className="text-xs text-muted-foreground">
-                            Lines are ranked by total score first (weights control
-                            how much each category contributes). Drag to set which
-                            categories break ties when two lines score about the
-                            same.
+                            {sortMode === 'priority'
+                                ? 'Lines are grouped by category order first (e.g. all AM before PM when start time is on top). Weights still scale gaps within each category.'
+                                : 'Lines are ranked by total weighted score. Category order below only breaks ties when totals match.'}
+                        </p>
+                    </section>
+
+                    <section className="space-y-3">
+                        <Label>
+                            {sortMode === 'priority'
+                                ? 'Category ranking order'
+                                : 'Overall priority when totals are close'}
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                            {sortMode === 'priority'
+                                ? 'Drag to set which categories matter most. Higher categories always rank above lower ones.'
+                                : 'Lines are ranked by total score first (weights control how much each category contributes). Drag to set which categories break ties when two lines score about the same.'}
                         </p>
                         <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
                             {criteriaOrder.map((id, idx) => (

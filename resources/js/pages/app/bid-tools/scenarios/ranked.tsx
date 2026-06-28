@@ -231,8 +231,8 @@ export default function BidScenarioRanked({
                             Recommended bid order
                         </h2>
                         <p className="no-print text-sm text-muted-foreground">
-                            Based on your scenario weights, priorities, and
-                            tie-break order. Lower rank # = better fit.
+                            Based on your scenario ranking mode, weights, and
+                            category order. Lower rank # = better fit.
                         </p>
 
                         <div className="print-only overflow-x-auto rounded-lg border border-sidebar-border/70">

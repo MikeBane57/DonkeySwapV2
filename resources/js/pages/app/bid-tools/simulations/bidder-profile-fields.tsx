@@ -36,6 +36,8 @@ export type VacationRange = {
     ends_on: string;
 };
 
+export type SortMode = 'weighted' | 'priority';
+
 export type BidderProfile = {
     vacation_bank: number;
     holiday_rank: KeyedRankEntry[];
@@ -47,6 +49,7 @@ export type BidderProfile = {
         start_time: number;
         desk: number;
         vacation_penalty: number;
+        sort_mode: SortMode;
         criteria_order: string[];
     };
     personal_dates: PersonalDate[];
@@ -251,6 +254,7 @@ export function emptyBidderProfile(defaults: BidderProfile): BidderProfile {
         start_time_rank: defaults.start_time_rank.map((e) => ({ ...e })),
         weights: {
             ...defaults.weights,
+            sort_mode: defaults.weights.sort_mode ?? 'weighted',
             criteria_order: [...defaults.weights.criteria_order],
         },
         personal_dates: [],
@@ -307,9 +311,8 @@ export function BidderProfileFields({
             </p>
             <p className="text-xs text-muted-foreground">
                 Drag each list to rank what you want most within that category.
-                Weights (below) control how much each category affects the total
-                score. Overall priority breaks ties when two lines score about
-                the same.
+                Weights control how much each category affects scoring. Choose
+                weighted or priority ranking below.
             </p>
 
             <div className="space-y-2">
@@ -535,10 +538,45 @@ export function BidderProfileFields({
             </div>
 
             <div className="space-y-2">
-                <Label>Overall priority when totals are close</Label>
+                <Label htmlFor={`${idPrefix}-sort-mode`}>Ranking mode</Label>
+                <Select
+                    value={value.weights.sort_mode ?? 'weighted'}
+                    onValueChange={(mode) =>
+                        setWeights({ sort_mode: mode as SortMode })
+                    }
+                >
+                    <SelectTrigger
+                        id={`${idPrefix}-sort-mode`}
+                        className="h-8 max-w-[20rem] text-xs"
+                    >
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="weighted">
+                            Weighted — balance trade-offs
+                        </SelectItem>
+                        <SelectItem value="priority">
+                            Priority — top categories always win
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
                 <p className="text-xs text-muted-foreground">
-                    Total score comes first. Drag to choose which categories
-                    decide ordering when two lines are very close.
+                    {value.weights.sort_mode === 'priority'
+                        ? 'Lines are grouped by category order first (e.g. all AM before PM when start time is on top). Weights still scale how far apart lines are within each category.'
+                        : 'Lines are ranked by total weighted score. Category order below only breaks ties when totals match.'}
+                </p>
+            </div>
+
+            <div className="space-y-2">
+                <Label>
+                    {value.weights.sort_mode === 'priority'
+                        ? 'Category ranking order'
+                        : 'Overall priority when totals are close'}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                    {value.weights.sort_mode === 'priority'
+                        ? 'Drag to set which categories matter most. Higher categories always rank above lower ones.'
+                        : 'Drag to choose which categories decide ordering when two lines have the same total score.'}
                 </p>
                 <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
                     {value.weights.criteria_order.map((key, idx) => (

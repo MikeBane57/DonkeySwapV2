@@ -28,6 +28,7 @@ type ScenarioOption = {
     bid_import_id: number;
     bid_year: number;
     vacation_bank: number;
+    sort_mode: 'weighted' | 'priority';
     criteria_order: string[];
     import_stale: boolean;
 };
@@ -66,6 +67,7 @@ type ScenarioSummary = {
     bid_year: number;
     vacation_bank: number;
     weights: Record<string, number>;
+    sort_mode: 'weighted' | 'priority';
     criteria_order: string[];
     import_stale: boolean;
 };
@@ -224,6 +226,8 @@ function CompareSetup({
                                     {s.import_stale ? ' · stale' : ''}
                                     {' · '}
                                     Vac {s.vacation_bank}
+                                    {' · '}
+                                    {s.sort_mode === 'priority' ? 'Priority' : 'Weighted'}
                                     {' · '}
                                     {s.criteria_order
                                         .map((c) => CRITERIA_LABELS[c] ?? c)

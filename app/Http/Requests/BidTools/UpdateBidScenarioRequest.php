@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\BidTools;
 
+use App\Services\BidTools\ScenarioScoreService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -26,6 +27,7 @@ class UpdateBidScenarioRequest extends FormRequest
             'weights.start_time' => ['nullable', 'numeric'],
             'weights.desk' => ['nullable', 'numeric'],
             'weights.vacation_penalty' => ['nullable', 'numeric'],
+            'weights.sort_mode' => ['nullable', 'string', Rule::in(ScenarioScoreService::SORT_MODES)],
             'weights.criteria_order' => ['nullable', 'array'],
             'weights.criteria_order.*' => ['string', Rule::in(['holiday', 'personal', 'start_time', 'desk'])],
             'holiday_rank' => ['required', 'array'],

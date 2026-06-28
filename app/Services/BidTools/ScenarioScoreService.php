@@ -7,6 +7,13 @@ use App\Models\BidScenario;
 
 final class ScenarioScoreService
 {
+    public const SORT_MODE_WEIGHTED = 'weighted';
+
+    public const SORT_MODE_PRIORITY = 'priority';
+
+    /** @var list<string> */
+    public const SORT_MODES = [self::SORT_MODE_WEIGHTED, self::SORT_MODE_PRIORITY];
+
     private const PRIORITY_MUL = [
         'ignore' => 0.0,
         'low' => 1.0,
@@ -31,19 +38,10 @@ final class ScenarioScoreService
         $scenario->loadMissing('import');
 
         $weights = $scenario->weights ?? [];
-        $weights = array_merge([
-            'holiday' => 1.0,
-            'personal' => 1.0,
-            'start_time' => 1.0,
-            'desk' => 1.0,
-            'vacation_penalty' => 1.0,
-            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
-        ], $weights);
+        $weights = array_merge(self::defaultWeights(), $weights);
 
-        $criteriaOrder = $weights['criteria_order'] ?? ['holiday', 'personal', 'start_time', 'desk'];
-        if (! is_array($criteriaOrder)) {
-            $criteriaOrder = ['holiday', 'personal', 'start_time', 'desk'];
-        }
+        $criteriaOrder = self::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
+        $sortMode = self::normalizeSortMode($weights['sort_mode'] ?? null);
 
         $bidYear = (int) $scenario->import->bid_year;
         $holidayEntries = $this->normalizeHolidayRank($scenario->holiday_rank, $bidYear);
@@ -150,27 +148,115 @@ final class ScenarioScoreService
             ];
         }
 
-        usort($out, function ($a, $b) use ($criteriaOrder) {
+        usort($out, fn ($a, $b) => self::compareScoredLines($a, $b, $criteriaOrder, $sortMode));
+
+        return $out;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function defaultWeights(): array
+    {
+        return [
+            'holiday' => 1.0,
+            'personal' => 1.0,
+            'start_time' => 1.0,
+            'desk' => 1.0,
+            'vacation_penalty' => 1.0,
+            'sort_mode' => self::SORT_MODE_WEIGHTED,
+            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+        ];
+    }
+
+    public static function normalizeSortMode(mixed $raw): string
+    {
+        return is_string($raw) && in_array($raw, self::SORT_MODES, true)
+            ? $raw
+            : self::SORT_MODE_WEIGHTED;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function normalizeCriteriaOrder(mixed $raw): array
+    {
+        $default = ['holiday', 'personal', 'start_time', 'desk'];
+        if (! is_array($raw)) {
+            return $default;
+        }
+
+        $allowed = array_flip($default);
+        $order = [];
+        foreach ($raw as $key) {
+            if (is_string($key) && isset($allowed[$key]) && ! in_array($key, $order, true)) {
+                $order[] = $key;
+            }
+        }
+
+        foreach ($default as $key) {
+            if (! in_array($key, $order, true)) {
+                $order[] = $key;
+            }
+        }
+
+        return $order;
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @param  array<string, mixed>  $b
+     * @param  list<string>  $criteriaOrder
+     */
+    public static function compareScoredLines(array $a, array $b, array $criteriaOrder, string $sortMode): int
+    {
+        if ($sortMode === self::SORT_MODE_PRIORITY) {
+            foreach ($criteriaOrder as $criterion) {
+                $cmp = self::compareCriterionParts($a, $b, $criterion);
+                if ($cmp !== 0) {
+                    return $cmp;
+                }
+            }
+        } else {
             $totalCmp = $b['total'] <=> $a['total'];
             if ($totalCmp !== 0) {
                 return $totalCmp;
             }
 
-            foreach ($criteriaOrder as $c) {
-                if (! is_string($c)) {
-                    continue;
-                }
-                $va = (float) ($a['parts'][$c] ?? 0);
-                $vb = (float) ($b['parts'][$c] ?? 0);
-                if ($va !== $vb) {
-                    return $vb <=> $va;
+            foreach ($criteriaOrder as $criterion) {
+                $cmp = self::compareCriterionParts($a, $b, $criterion);
+                if ($cmp !== 0) {
+                    return $cmp;
                 }
             }
+        }
 
+        $totalCmp = $b['total'] <=> $a['total'];
+        if ($totalCmp !== 0) {
+            return $totalCmp;
+        }
+
+        return strcmp((string) ($a['line_num'] ?? ''), (string) ($b['line_num'] ?? ''));
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @param  array<string, mixed>  $b
+     */
+    private static function compareCriterionParts(array $a, array $b, mixed $criterion): int
+    {
+        if (! is_string($criterion)) {
             return 0;
-        });
+        }
 
-        return $out;
+        $left = (float) ($a['parts'][$criterion] ?? 0);
+        $right = (float) ($b['parts'][$criterion] ?? 0);
+
+        if ($left === $right) {
+            return 0;
+        }
+
+        return $right <=> $left;
     }
 
     /**

@@ -330,3 +330,39 @@ function writeMultiLineBidCsv(int $bidYear, int $lineCount): string
     return $path;
 }
 
+/**
+ * Two-line import for priority vs weighted sort tests.
+ * Line A (551): 0600, works every day (low holiday score).
+ * Line B (552): 1500, all off days (high holiday score).
+ */
+function writeStartTimeHolidayTradeoffCsv(int $bidYear): string
+{
+    $range = BidYearRange::fromBidYear($bidYear);
+    $path = tempnam(sys_get_temp_dir(), 'bidcsv').'.csv';
+    $fh = fopen($path, 'wb');
+    $headers = ['Line Num', 'Group', 'Start Time', 'Rotation'];
+    foreach ($range->eachDate() as $d) {
+        $headers[] = $d->format('j-M-y');
+    }
+    $headers[] = 'workdays';
+    fputcsv($fh, $headers);
+
+    $amRow = ['551', 'DG', '0600', 'A'];
+    foreach ($range->eachDate() as $d) {
+        $amRow[] = 'DG';
+    }
+    $amRow[] = '0';
+    fputcsv($fh, $amRow);
+
+    $pmRow = ['552', 'DG', '1500', 'A'];
+    foreach ($range->eachDate() as $d) {
+        $pmRow[] = 'x';
+    }
+    $pmRow[] = '0';
+    fputcsv($fh, $pmRow);
+
+    fclose($fh);
+
+    return $path;
+}
+

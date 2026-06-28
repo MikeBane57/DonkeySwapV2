@@ -55,14 +55,7 @@ class ScenarioController extends Controller
             'bid_import_id' => $import->id,
             'name' => $request->validated('name'),
             'vacation_bank' => 15,
-            'weights' => [
-                'holiday' => 1.0,
-                'personal' => 1.0,
-                'start_time' => 1.0,
-                'desk' => 1.0,
-                'vacation_penalty' => 1.0,
-                'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
-            ],
+            'weights' => ScenarioScoreService::defaultWeights(),
             'holiday_rank' => $this->scoreService->defaultHolidayEntries($bidYear),
             'desk_rank' => $deskRank,
             'start_time_rank' => $startRank,
@@ -81,14 +74,12 @@ class ScenarioController extends Controller
         $s->load(['vacationRanges', 'import']);
         $bidYear = (int) $s->import->bid_year;
 
-        $weights = array_merge([
-            'holiday' => 1.0,
-            'personal' => 1.0,
-            'start_time' => 1.0,
-            'desk' => 1.0,
-            'vacation_penalty' => 1.0,
-            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
-        ], $s->weights ?? []);
+        $weights = array_merge(
+            ScenarioScoreService::defaultWeights(),
+            $s->weights ?? [],
+        );
+        $weights['criteria_order'] = ScenarioScoreService::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
+        $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
 
         $deskKeys = $this->preferenceCatalog->deskKeysForImport($s->bid_import_id);
         $startKeys = $this->preferenceCatalog->startTimeKeysForImport($s->bid_import_id);

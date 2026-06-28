@@ -137,7 +137,8 @@ class ScenarioCompareController extends Controller
                     'bid_import_id' => $s->bid_import_id,
                     'bid_year' => $s->import->bid_year,
                     'vacation_bank' => $s->vacation_bank,
-                    'criteria_order' => is_array($criteriaOrder) ? $criteriaOrder : [],
+                    'sort_mode' => ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null),
+                    'criteria_order' => ScenarioScoreService::normalizeCriteriaOrder($criteriaOrder),
                     'import_stale' => ! $current || $current->id !== $s->bid_import_id,
                 ];
             })
@@ -273,7 +274,8 @@ class ScenarioCompareController extends Controller
                 'desk' => (float) ($weights['desk'] ?? 1),
                 'vacation_penalty' => (float) ($weights['vacation_penalty'] ?? 1),
             ],
-            'criteria_order' => is_array($criteriaOrder) ? $criteriaOrder : [],
+            'sort_mode' => ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null),
+            'criteria_order' => ScenarioScoreService::normalizeCriteriaOrder($criteriaOrder),
             'import_stale' => ! $current || $current->id !== $scenario->bid_import_id,
         ];
     }
