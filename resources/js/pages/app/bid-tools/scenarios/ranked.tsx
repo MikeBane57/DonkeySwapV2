@@ -17,6 +17,7 @@ import {
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
 import {
     ScenarioRankingPanel,
+    rankingStateToSavePayload,
     scenarioToRankingState,
     type ScenarioRankingState,
 } from '@/pages/app/bid-tools/scenario-ranking-panel';
@@ -96,6 +97,9 @@ export default function BidScenarioRanked({
     );
 
     const [rankingOpen, setRankingOpen] = useState(true);
+    const [linesOpen, setLinesOpen] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [saveMessage, setSaveMessage] = useState<string | null>(null);
     const [ranking, setRanking] = useState<ScenarioRankingState>(() =>
         scenarioToRankingState(scenario),
     );
@@ -139,6 +143,20 @@ export default function BidScenarioRanked({
         );
     };
 
+    const saveRanking = () => {
+        setSaving(true);
+        setSaveMessage(null);
+        router.put(
+            `/app/bid-tools/scenarios/${scenario.id}`,
+            rankingStateToSavePayload(scenario.name, ranking),
+            {
+                preserveScroll: true,
+                onSuccess: () => setSaveMessage('Preferences saved.'),
+                onFinish: () => setSaving(false),
+            },
+        );
+    };
+
     const fetchPreview = useCallback(async () => {
         if (selectedIds.length === 0) {
             setScoredRows([]);
@@ -155,10 +173,12 @@ export default function BidScenarioRanked({
                 `/app/bid-tools/scenarios/${scenario.id}/preview-score`,
                 {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: {
                         'Content-Type': 'application/json',
                         Accept: 'application/json',
-                        'X-CSRF-TOKEN': getCsrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-XSRF-TOKEN': getCsrfToken(),
                     },
                     body: JSON.stringify({
                         line_ids: selectedIds,
@@ -175,13 +195,22 @@ export default function BidScenarioRanked({
             );
 
             if (!res.ok) {
-                throw new Error('Could not update ranking preview.');
+                const body = (await res.json().catch(() => null)) as {
+                    message?: string;
+                } | null;
+                throw new Error(
+                    body?.message ?? 'Could not update ranking preview.',
+                );
             }
 
             const data = (await res.json()) as { scored_rows: ScoredRow[] };
             setScoredRows(data.scored_rows);
-        } catch {
-            setPreviewError('Could not update ranking preview.');
+        } catch (error) {
+            setPreviewError(
+                error instanceof Error
+                    ? error.message
+                    : 'Could not update ranking preview.',
+            );
         } finally {
             setLoading(false);
         }
@@ -240,12 +269,14 @@ export default function BidScenarioRanked({
                                 </Link>
                             </Button>
                         )}
-                        <Button variant="outline" size="sm" asChild>
-                            <Link
-                                href={`/app/bid-tools/scenarios/${scenario.id}/edit`}
-                            >
-                                Full scenario editor
-                            </Link>
+                        <Button
+                            variant="default"
+                            size="sm"
+                            type="button"
+                            disabled={saving}
+                            onClick={saveRanking}
+                        >
+                            {saving ? 'Saving…' : 'Save preferences'}
                         </Button>
                         <Button
                             variant="outline"
@@ -284,21 +315,44 @@ export default function BidScenarioRanked({
                             deskCatalog={deskCatalog}
                             startTimeCatalog={startTimeCatalog}
                         />
+                        {saveMessage && (
+                            <p className="mt-3 text-xs text-muted-foreground">
+                                {saveMessage}
+                            </p>
+                        )}
                     </CollapsibleContent>
                 </Collapsible>
 
-                <section className="no-print space-y-3 rounded-lg border border-sidebar-border/70 p-4">
-                    <h2 className="text-sm font-medium">Lines to compare</h2>
-                    <p className="text-xs text-muted-foreground">
-                        AM = desk group starts with D, PM = A, Mid = M. All
-                        lines are selected by default.
-                    </p>
-                    <BidLinePickerToolbar
-                        lines={lines}
-                        onSelect={selectLineIds}
-                        onClear={() => setSelected({})}
-                    />
-                    <div className="max-h-64 overflow-y-auto rounded-lg border border-sidebar-border/60 p-3">
+                <Collapsible
+                    open={linesOpen}
+                    onOpenChange={setLinesOpen}
+                    className="no-print rounded-lg border border-sidebar-border/70"
+                >
+                    <CollapsibleTrigger asChild>
+                        <button
+                            type="button"
+                            className="flex w-full items-center justify-between px-4 py-3 text-left"
+                        >
+                            <span className="text-sm font-medium">
+                                Lines to compare ({selectedIds.length} of{' '}
+                                {lines.length})
+                            </span>
+                            <ChevronDown
+                                className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${linesOpen ? 'rotate-180' : ''}`}
+                            />
+                        </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-3 border-t border-sidebar-border/60 px-4 py-4">
+                        <p className="text-xs text-muted-foreground">
+                            AM = desk group starts with D, PM = A, Mid = M. All
+                            lines are selected by default.
+                        </p>
+                        <BidLinePickerToolbar
+                            lines={lines}
+                            onSelect={selectLineIds}
+                            onClear={() => setSelected({})}
+                        />
+                        <div className="max-h-64 overflow-y-auto rounded-lg border border-sidebar-border/60 p-3">
                         <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
                             {lines.map((l) => (
                                 <label
@@ -326,8 +380,8 @@ export default function BidScenarioRanked({
                                 </label>
                             ))}
                         </div>
-                    </div>
-                </section>
+                    </CollapsibleContent>
+                </Collapsible>
 
                 <section className="space-y-4">
                     <div className="print-only">

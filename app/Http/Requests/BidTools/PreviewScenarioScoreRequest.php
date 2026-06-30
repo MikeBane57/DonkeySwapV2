@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\BidTools;
 
+use App\Services\BidTools\ScenarioScoreService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -27,6 +28,7 @@ class PreviewScenarioScoreRequest extends FormRequest
             'weights.start_time' => ['nullable', 'numeric'],
             'weights.desk' => ['nullable', 'numeric'],
             'weights.vacation_penalty' => ['nullable', 'numeric'],
+            'weights.sort_mode' => ['nullable', 'string', Rule::in(ScenarioScoreService::SORT_MODES)],
             'weights.criteria_order' => ['nullable', 'array'],
             'weights.criteria_order.*' => ['string', Rule::in(['holiday', 'personal', 'start_time', 'desk'])],
             'holiday_rank' => ['nullable', 'array'],
@@ -37,9 +39,11 @@ class PreviewScenarioScoreRequest extends FormRequest
             'desk_rank' => ['nullable', 'array'],
             'desk_rank.*.key' => ['required_with:desk_rank', 'string', 'max:64'],
             'desk_rank.*.priority' => ['required_with:desk_rank', 'string', Rule::in(['ignore', 'low', 'high'])],
+            'desk_rank.*.tier' => ['nullable', 'integer', 'min:1'],
             'start_time_rank' => ['nullable', 'array'],
             'start_time_rank.*.key' => ['required_with:start_time_rank', 'string', 'max:120'],
             'start_time_rank.*.priority' => ['required_with:start_time_rank', 'string', Rule::in(['ignore', 'low', 'high'])],
+            'start_time_rank.*.tier' => ['nullable', 'integer', 'min:1'],
             'personal_dates' => ['nullable', 'array'],
             'personal_dates.*.date' => ['required_with:personal_dates', 'date_format:Y-m-d'],
             'personal_dates.*.label' => ['nullable', 'string', 'max:120'],

@@ -144,9 +144,7 @@ class ScenarioController extends Controller
         $s->fill($payload);
         $s->save();
 
-        return redirect()
-            ->route('bid-tools.scenarios.edit', $s->id)
-            ->with('success', 'Scenario saved.');
+        return back()->with('success', 'Scenario saved.');
     }
 
     public function duplicate(Request $request, int $scenario): RedirectResponse

@@ -11,8 +11,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
 export type Priority = 'ignore' | 'low' | 'high';
+export type SortMode = 'weighted' | 'priority' | 'blended';
 
 export type HolidayEntry = {
     date: string;
@@ -21,7 +23,7 @@ export type HolidayEntry = {
     priority: Priority;
 };
 
-export type KeyedEntry = { key: string; priority: Priority };
+export type KeyedEntry = { key: string; priority: Priority; tier?: number };
 
 export type PersonalEntry = { date: string; label: string; priority: Priority };
 
@@ -33,6 +35,7 @@ export type ScenarioRankingState = {
         start_time: number;
         desk: number;
         vacation_penalty: number;
+        sort_mode: SortMode;
         criteria_order: string[];
     };
     holiday_rank: HolidayEntry[];
@@ -43,13 +46,25 @@ export type ScenarioRankingState = {
 
 const CRITERIA_LABELS: Record<string, string> = {
     holiday: 'Holidays',
-    personal: 'Personal dates',
-    start_time: 'Start time',
-    desk: 'Desk type',
+    personal: 'Personal',
+    start_time: 'Start',
+    desk: 'Desk',
+};
+
+const WEIGHT_LABELS: Record<string, string> = {
+    holiday: 'Hol',
+    personal: 'Per',
+    start_time: 'Start',
+    desk: 'Desk',
+    vacation_penalty: 'Vac',
 };
 
 const dateInputClass =
     'h-8 w-[9.25rem] text-xs [color-scheme:dark] sm:w-[9.5rem]';
+
+function usesTierGroupSort(mode: SortMode): boolean {
+    return mode === 'priority' || mode === 'blended';
+}
 
 function moveIndex<T>(list: T[], from: number, to: number): T[] {
     if (from === to || from < 0 || to < 0) {
@@ -66,14 +81,20 @@ function DraggableRow({
     index,
     onReorder,
     children,
+    compact = false,
 }: {
     index: number;
     onReorder: (from: number, to: number) => void;
     children: ReactNode;
+    compact?: boolean;
 }) {
     return (
         <div
-            className="flex flex-wrap items-center gap-2 rounded-md border border-transparent px-1 py-1"
+            className={
+                compact
+                    ? 'inline-flex items-center gap-1 rounded-md border border-sidebar-border/60 bg-muted/30 px-2 py-1'
+                    : 'flex flex-wrap items-center gap-2 rounded-md border border-transparent px-1 py-1'
+            }
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
                 e.preventDefault();
@@ -94,7 +115,7 @@ function DraggableRow({
                 className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
                 aria-label="Drag to reorder"
             >
-                <GripVertical className="h-4 w-4" />
+                <GripVertical className="h-3.5 w-3.5" />
             </button>
             {children}
         </div>
@@ -122,6 +143,21 @@ function PrioritySelect({
     );
 }
 
+export function rankingStateToSavePayload(
+    scenarioName: string,
+    value: ScenarioRankingState,
+) {
+    return {
+        name: scenarioName,
+        vacation_bank: value.vacation_bank,
+        weights: value.weights,
+        holiday_rank: value.holiday_rank,
+        desk_rank: value.desk_rank,
+        start_time_rank: value.start_time_rank,
+        personal_dates: value.personal_dates.filter((p) => p.date),
+    };
+}
+
 export function ScenarioRankingPanel({
     value,
     onChange,
@@ -135,6 +171,7 @@ export function ScenarioRankingPanel({
     deskCatalog: { key: string; label: string }[];
     startTimeCatalog: { key: string; label: string }[];
 }) {
+    const sortMode = value.weights.sort_mode;
     const deskKeysInUse = useMemo(
         () => new Set(value.desk_rank.map((d) => d.key)),
         [value.desk_rank],
@@ -147,6 +184,21 @@ export function ScenarioRankingPanel({
     const addDeskOptions = deskCatalog.filter((d) => !deskKeysInUse.has(d.key));
     const addStartOptions = startTimeCatalog.filter(
         (d) => !startKeysInUse.has(d.key),
+    );
+
+    const deskLabels = useMemo(
+        () =>
+            Object.fromEntries(
+                deskCatalog.map((d) => [d.key, d.label]),
+            ) as Record<string, string>,
+        [deskCatalog],
+    );
+    const startLabels = useMemo(
+        () =>
+            Object.fromEntries(
+                startTimeCatalog.map((d) => [d.key, d.label]),
+            ) as Record<string, string>,
+        [startTimeCatalog],
     );
 
     const setWeights = (patch: Partial<ScenarioRankingState['weights']>) => {
@@ -169,86 +221,122 @@ export function ScenarioRankingPanel({
     };
 
     return (
-        <div className="space-y-8">
-            <section className="space-y-2">
-                <Label htmlFor="ranked-vacation-bank">Vacation bank</Label>
-                <Input
-                    id="ranked-vacation-bank"
-                    type="number"
-                    min={0}
-                    max={40}
-                    className="max-w-[10rem]"
-                    value={value.vacation_bank}
-                    onChange={(e) =>
-                        onChange({
-                            ...value,
-                            vacation_bank: Math.max(
-                                0,
-                                Number(e.target.value) || 0,
-                            ),
-                        })
-                    }
-                />
-            </section>
-
-            <section className="space-y-2">
-                <Label>Tie-break order</Label>
-                <p className="text-xs text-muted-foreground">
-                    Drag to set which categories break ties when totals match.
-                </p>
-                <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
-                    {value.weights.criteria_order.map((id, idx) => (
-                        <DraggableRow
-                            key={id}
-                            index={idx}
-                            onReorder={(from, to) =>
-                                setWeights({
-                                    criteria_order: moveIndex(
-                                        value.weights.criteria_order,
-                                        from,
-                                        to,
+        <div className="space-y-6">
+            <section className="space-y-3 rounded-lg border border-sidebar-border/60 bg-muted/10 p-3">
+                <div className="flex flex-wrap items-end gap-3">
+                    <div className="space-y-1">
+                        <Label
+                            htmlFor="ranked-vacation-bank"
+                            className="text-xs"
+                        >
+                            Vacation bank
+                        </Label>
+                        <Input
+                            id="ranked-vacation-bank"
+                            type="number"
+                            min={0}
+                            max={40}
+                            className="h-8 w-20 text-sm"
+                            value={value.vacation_bank}
+                            onChange={(e) =>
+                                onChange({
+                                    ...value,
+                                    vacation_bank: Math.max(
+                                        0,
+                                        Number(e.target.value) || 0,
                                     ),
                                 })
                             }
+                        />
+                    </div>
+                    <div className="min-w-[12rem] flex-1 space-y-1">
+                        <Label htmlFor="ranked-sort-mode" className="text-xs">
+                            Ranking mode
+                        </Label>
+                        <Select
+                            value={sortMode}
+                            onValueChange={(mode) =>
+                                setWeights({ sort_mode: mode as SortMode })
+                            }
                         >
-                            <span className="text-sm">
-                                {CRITERIA_LABELS[id] ?? id}
-                            </span>
-                        </DraggableRow>
-                    ))}
+                            <SelectTrigger
+                                id="ranked-sort-mode"
+                                className="h-8 text-xs"
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="blended">
+                                    Blended (recommended)
+                                </SelectItem>
+                                <SelectItem value="weighted">Weighted</SelectItem>
+                                <SelectItem value="priority">Priority</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
-            </section>
 
-            <section className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Label>Category weights</Label>
+                <div className="space-y-1">
+                    <Label className="text-xs">Category weights</Label>
+                    <div className="flex flex-wrap gap-2">
+                        {(
+                            [
+                                'holiday',
+                                'personal',
+                                'start_time',
+                                'desk',
+                                'vacation_penalty',
+                            ] as const
+                        ).map((key) => (
+                            <div key={key} className="space-y-0.5">
+                                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                    {WEIGHT_LABELS[key]}
+                                </span>
+                                <Input
+                                    type="number"
+                                    step={0.5}
+                                    min={0}
+                                    className="h-8 w-16 px-2 text-sm"
+                                    value={value.weights[key]}
+                                    onChange={(e) =>
+                                        setWeights({
+                                            [key]: Number(e.target.value) || 0,
+                                        })
+                                    }
+                                />
+                            </div>
+                        ))}
+                    </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {(
-                        [
-                            ['holiday', 'Holiday'],
-                            ['personal', 'Personal'],
-                            ['start_time', 'Start time'],
-                            ['desk', 'Desk'],
-                            ['vacation_penalty', 'Vacation penalty'],
-                        ] as const
-                    ).map(([key, label]) => (
-                        <div key={key}>
-                            <Label className="text-xs capitalize">{label}</Label>
-                            <Input
-                                type="number"
-                                step={0.5}
-                                min={0}
-                                className="mt-1 h-8"
-                                value={value.weights[key]}
-                                onChange={(e) =>
+
+                <div className="space-y-1">
+                    <Label className="text-xs">
+                        {usesTierGroupSort(sortMode)
+                            ? 'Category order'
+                            : 'Tie-break order'}
+                    </Label>
+                    <div className="flex flex-wrap gap-2">
+                        {value.weights.criteria_order.map((id, idx) => (
+                            <DraggableRow
+                                key={id}
+                                index={idx}
+                                compact
+                                onReorder={(from, to) =>
                                     setWeights({
-                                        [key]: Number(e.target.value) || 0,
+                                        criteria_order: moveIndex(
+                                            value.weights.criteria_order,
+                                            from,
+                                            to,
+                                        ),
                                     })
                                 }
-                            />
-                        </div>
-                    ))}
+                            >
+                                <span className="text-xs font-medium">
+                                    {CRITERIA_LABELS[id] ?? id}
+                                </span>
+                            </DraggableRow>
+                        ))}
+                    </div>
                 </div>
             </section>
 
@@ -264,7 +352,7 @@ export function ScenarioRankingPanel({
                         Reset from calendar
                     </Button>
                 </div>
-                <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
+                <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-sidebar-border/60 p-2">
                     {value.holiday_rank.map((h, idx) => (
                         <DraggableRow
                             key={`${h.date}-${idx}`}
@@ -297,128 +385,101 @@ export function ScenarioRankingPanel({
             </section>
 
             <section className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Label>Desk type preference</Label>
-                    {addDeskOptions.length > 0 && (
-                        <Select
-                            onValueChange={(key) =>
-                                onChange({
-                                    ...value,
-                                    desk_rank: [
-                                        ...value.desk_rank,
-                                        { key, priority: 'high' },
-                                    ],
-                                })
-                            }
-                        >
-                            <SelectTrigger className="h-8 w-[11rem] text-xs">
-                                <SelectValue placeholder="Add desk…" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {addDeskOptions.map((d) => (
-                                    <SelectItem key={d.key} value={d.key}>
-                                        {d.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                </div>
-                <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
-                    {value.desk_rank.map((d, idx) => (
-                        <DraggableRow
-                            key={d.key}
-                            index={idx}
-                            onReorder={(from, to) =>
-                                onChange({
-                                    ...value,
-                                    desk_rank: moveIndex(
-                                        value.desk_rank,
-                                        from,
-                                        to,
-                                    ),
-                                })
-                            }
-                        >
-                            <span className="flex-1 text-sm">
-                                {deskCatalog.find((x) => x.key === d.key)
-                                    ?.label ?? d.key}
-                            </span>
-                            <PrioritySelect
-                                value={d.priority}
-                                onChange={(priority) => {
-                                    const next = [...value.desk_rank];
-                                    next[idx] = { ...next[idx], priority };
-                                    onChange({ ...value, desk_rank: next });
-                                }}
-                            />
-                        </DraggableRow>
-                    ))}
-                </div>
+                {addDeskOptions.length > 0 && (
+                    <Select
+                        onValueChange={(key) =>
+                            onChange({
+                                ...value,
+                                desk_rank: [
+                                    ...value.desk_rank,
+                                    {
+                                        key,
+                                        priority: 'high',
+                                        tier: value.desk_rank.length + 1,
+                                    },
+                                ],
+                            })
+                        }
+                    >
+                        <SelectTrigger className="h-8 w-[11rem] text-xs">
+                            <SelectValue placeholder="Add desk…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {addDeskOptions.map((d) => (
+                                <SelectItem key={d.key} value={d.key}>
+                                    {d.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                )}
+                <TieredRankList
+                    idPrefix="ranked-desk"
+                    label="Desk type preference"
+                    hint="Group desk types that are equal to you."
+                    entries={value.desk_rank}
+                    labels={deskLabels}
+                    onChange={(desk_rank) =>
+                        onChange({ ...value, desk_rank })
+                    }
+                    onRemoveKey={(key) =>
+                        onChange({
+                            ...value,
+                            desk_rank: value.desk_rank.filter(
+                                (d) => d.key !== key,
+                            ),
+                        })
+                    }
+                />
             </section>
 
             <section className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Label>Start time preference</Label>
-                    {addStartOptions.length > 0 && (
-                        <Select
-                            onValueChange={(key) =>
-                                onChange({
-                                    ...value,
-                                    start_time_rank: [
-                                        ...value.start_time_rank,
-                                        { key, priority: 'high' },
-                                    ],
-                                })
-                            }
-                        >
-                            <SelectTrigger className="h-8 w-[12rem] text-xs">
-                                <SelectValue placeholder="Add start…" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {addStartOptions.map((d) => (
-                                    <SelectItem key={d.key} value={d.key}>
-                                        {d.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                </div>
-                <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
-                    {value.start_time_rank.map((d, idx) => (
-                        <DraggableRow
-                            key={d.key}
-                            index={idx}
-                            onReorder={(from, to) =>
-                                onChange({
-                                    ...value,
-                                    start_time_rank: moveIndex(
-                                        value.start_time_rank,
-                                        from,
-                                        to,
-                                    ),
-                                })
-                            }
-                        >
-                            <span className="flex-1 text-sm">
-                                {startTimeCatalog.find((x) => x.key === d.key)
-                                    ?.label ?? d.key}
-                            </span>
-                            <PrioritySelect
-                                value={d.priority}
-                                onChange={(priority) => {
-                                    const next = [...value.start_time_rank];
-                                    next[idx] = { ...next[idx], priority };
-                                    onChange({
-                                        ...value,
-                                        start_time_rank: next,
-                                    });
-                                }}
-                            />
-                        </DraggableRow>
-                    ))}
-                </div>
+                {addStartOptions.length > 0 && (
+                    <Select
+                        onValueChange={(key) =>
+                            onChange({
+                                ...value,
+                                start_time_rank: [
+                                    ...value.start_time_rank,
+                                    {
+                                        key,
+                                        priority: 'high',
+                                        tier: value.start_time_rank.length + 1,
+                                    },
+                                ],
+                            })
+                        }
+                    >
+                        <SelectTrigger className="h-8 w-[12rem] text-xs">
+                            <SelectValue placeholder="Add start…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {addStartOptions.map((d) => (
+                                <SelectItem key={d.key} value={d.key}>
+                                    {d.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                )}
+                <TieredRankList
+                    idPrefix="ranked-start"
+                    label="Start time preference"
+                    hint="Group start times that are equal."
+                    entries={value.start_time_rank}
+                    labels={startLabels}
+                    onChange={(start_time_rank) =>
+                        onChange({ ...value, start_time_rank })
+                    }
+                    onRemoveKey={(key) =>
+                        onChange({
+                            ...value,
+                            start_time_rank: value.start_time_rank.filter(
+                                (d) => d.key !== key,
+                            ),
+                        })
+                    }
+                />
             </section>
 
             <section className="space-y-2">
@@ -516,7 +577,10 @@ export function ScenarioRankingPanel({
 
 export function scenarioToRankingState(scenario: {
     vacation_bank: number;
-    weights: Record<string, unknown> & { criteria_order?: string[] };
+    weights: Record<string, unknown> & {
+        criteria_order?: string[];
+        sort_mode?: string;
+    };
     holiday_rank: HolidayEntry[];
     desk_rank: KeyedEntry[];
     start_time_rank: KeyedEntry[];
@@ -528,6 +592,14 @@ export function scenarioToRankingState(scenario: {
             ? [...criteria]
             : ['holiday', 'personal', 'start_time', 'desk'];
 
+    const sortMode = scenario.weights?.sort_mode;
+    const normalizedSortMode: SortMode =
+        sortMode === 'weighted' ||
+        sortMode === 'priority' ||
+        sortMode === 'blended'
+            ? sortMode
+            : 'blended';
+
     return {
         vacation_bank: scenario.vacation_bank,
         weights: {
@@ -536,6 +608,7 @@ export function scenarioToRankingState(scenario: {
             start_time: Number(scenario.weights?.start_time ?? 1),
             desk: Number(scenario.weights?.desk ?? 1),
             vacation_penalty: Number(scenario.weights?.vacation_penalty ?? 1),
+            sort_mode: normalizedSortMode,
             criteria_order: criteriaOrder,
         },
         holiday_rank: scenario.holiday_rank,
