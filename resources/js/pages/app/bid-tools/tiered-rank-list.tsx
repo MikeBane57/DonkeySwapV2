@@ -165,6 +165,12 @@ export function TieredRankList({
                     after&quot; starts a new group below this row.
                 </p>
             )}
+            {compact && (
+                <p className="text-[11px] text-muted-foreground">
+                    Drag to reorder. = same group, split icon starts a new
+                    group below.
+                </p>
+            )}
             <div className={compact ? 'flex flex-col gap-1.5' : 'space-y-2'}>
                 {groups.map((group, groupIndex) => (
                     <div
@@ -206,6 +212,51 @@ export function TieredRankList({
                                             updateEntry(flatIndex, { priority })
                                         }
                                     />
+                                    {compact && !isFirstInGroup && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 shrink-0 text-muted-foreground"
+                                            title="Same preference group as item above"
+                                            onClick={() =>
+                                                mergeWithAbove(flatIndex)
+                                            }
+                                        >
+                                            <Equal className="h-3.5 w-3.5" />
+                                        </Button>
+                                    )}
+                                    {compact &&
+                                        isFirstInGroup &&
+                                        groupIndex > 0 && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7 shrink-0 text-muted-foreground"
+                                                title="Merge this group with the group above"
+                                                onClick={() =>
+                                                    mergeWithAbove(flatIndex)
+                                                }
+                                            >
+                                                <Equal className="h-3.5 w-3.5" />
+                                            </Button>
+                                        )}
+                                    {compact &&
+                                        flatIndex < entries.length - 1 && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7 shrink-0 text-muted-foreground"
+                                                title="Start a new preference group after this row"
+                                                onClick={() =>
+                                                    splitBelow(flatIndex)
+                                                }
+                                            >
+                                                <Ungroup className="h-3.5 w-3.5" />
+                                            </Button>
+                                        )}
                                     {!compact && !isFirstInGroup && (
                                         <Button
                                             type="button"

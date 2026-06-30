@@ -130,6 +130,65 @@ test('strict shift order ranks am before pm before mid before relief', function 
     expect($scores[0]['total'])->toBeLessThan($scores[1]['total']);
 });
 
+test('strict shift rank order is user configurable', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeStartTimeHolidayTradeoffCsv($bidYear);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'shift-rank-custom.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Custom shift rank import',
+    )['import'];
+
+    @unlink($path);
+
+    $amLine = BidLine::query()
+        ->where('bid_import_id', $import->id)
+        ->where('line_num', '551')
+        ->firstOrFail();
+    $pmLine = BidLine::query()
+        ->where('bid_import_id', $import->id)
+        ->where('line_num', '552')
+        ->firstOrFail();
+
+    $scenario = BidScenario::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'PM first strict shift rank',
+        'vacation_bank' => 10,
+        'weights' => [
+            'holiday' => 100,
+            'personal' => 0,
+            'start_time' => 0,
+            'desk' => 0,
+            'vacation_penalty' => 0,
+            'sort_mode' => 'weighted',
+            'strict_shift_order' => true,
+            'strict_shift_rank' => ['pm', 'mid', 'am', 'relief'],
+            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+        ],
+        'holiday_rank' => app(ScenarioScoreService::class)->defaultHolidayEntries($bidYear),
+        'desk_rank' => [],
+        'start_time_rank' => [],
+        'personal_dates' => [],
+    ]);
+
+    $scores = app(ScenarioScoreService::class)->scoreLines(
+        $scenario,
+        [$amLine->id, $pmLine->id],
+    );
+
+    expect($scores)->toHaveCount(2);
+    expect($scores[0]['bid_line_id'])->toBe($pmLine->id);
+    expect($scores[1]['bid_line_id'])->toBe($amLine->id);
+});
+
 test('without strict shift order holidays can outrank shift class', function () {
     config(['features.bid_tools' => true]);
 

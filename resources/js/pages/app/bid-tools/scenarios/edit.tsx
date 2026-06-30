@@ -26,8 +26,10 @@ import {
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
 import {
     normalizeStrictShiftOrder,
+    normalizeStrictShiftRank,
     StrictShiftOrderField,
 } from '@/pages/app/bid-tools/strict-shift-order-field';
+import type { StrictShiftClass } from '@/pages/app/bid-tools/strict-shift-rank';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 import type { BreadcrumbItem } from '@/types';
 
@@ -169,6 +171,7 @@ export default function BidScenarioEdit({
         weights: Record<string, unknown> & {
             sort_mode?: SortMode;
             strict_shift_order?: boolean;
+            strict_shift_rank?: StrictShiftClass[];
             criteria_order?: string[];
             shift_order?: DeskGroupShift[];
         };
@@ -216,6 +219,9 @@ export default function BidScenarioEdit({
     });
     const [strictShiftOrder, setStrictShiftOrder] = useState(() =>
         normalizeStrictShiftOrder(scenario.weights?.strict_shift_order),
+    );
+    const [strictShiftRank, setStrictShiftRank] = useState<StrictShiftClass[]>(
+        () => normalizeStrictShiftRank(scenario.weights?.strict_shift_rank),
     );
     const [criteriaOrder, setCriteriaOrder] = useState<string[]>(() => {
         const o = scenario.weights?.criteria_order;
@@ -300,6 +306,7 @@ export default function BidScenarioEdit({
                     vacation_penalty: Number(weights.vacation_penalty) || 0,
                     sort_mode: sortMode,
                     strict_shift_order: strictShiftOrder,
+                    strict_shift_rank: strictShiftRank,
                     criteria_order: criteriaOrder,
                     shift_order: shiftOrder,
                 },
@@ -321,6 +328,7 @@ export default function BidScenarioEdit({
         weights,
         sortMode,
         strictShiftOrder,
+        strictShiftRank,
         criteriaOrder,
         shiftOrder,
         holidays,
@@ -343,6 +351,7 @@ export default function BidScenarioEdit({
                 sort_mode: sortMode,
                 criteria_order: criteriaOrder,
                 strict_shift_order: strictShiftOrder,
+                strict_shift_rank: strictShiftRank,
                 shift_order: shiftOrder,
             },
             holiday_rank: holidays,
@@ -357,6 +366,7 @@ export default function BidScenarioEdit({
             sortMode,
             criteriaOrder,
             strictShiftOrder,
+            strictShiftRank,
             shiftOrder,
             holidays,
             deskRank,
@@ -688,6 +698,8 @@ export default function BidScenarioEdit({
                             id="strict-shift-order"
                             checked={strictShiftOrder}
                             onCheckedChange={setStrictShiftOrder}
+                            rank={strictShiftRank}
+                            onRankChange={setStrictShiftRank}
                         />
                     </BidToolsCollapsibleSection>
 

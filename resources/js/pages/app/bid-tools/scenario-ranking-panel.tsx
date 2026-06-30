@@ -21,8 +21,10 @@ import {
 } from '@/pages/app/bid-tools/preference-rank-shared';
 import {
     normalizeStrictShiftOrder,
+    normalizeStrictShiftRank,
     StrictShiftOrderField,
 } from '@/pages/app/bid-tools/strict-shift-order-field';
+import type { StrictShiftClass } from '@/pages/app/bid-tools/strict-shift-rank';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
 export type Priority = 'ignore' | 'low' | 'high';
@@ -49,6 +51,7 @@ export type ScenarioRankingState = {
         vacation_penalty: number;
         sort_mode: SortMode;
         strict_shift_order: boolean;
+        strict_shift_rank?: StrictShiftClass[];
         criteria_order: string[];
         shift_order?: DeskGroupShift[];
     };
@@ -300,6 +303,12 @@ export function ScenarioRankingPanel({
                     checked={value.weights.strict_shift_order}
                     onCheckedChange={(checked) =>
                         setWeights({ strict_shift_order: checked })
+                    }
+                    rank={normalizeStrictShiftRank(
+                        value.weights.strict_shift_rank,
+                    )}
+                    onRankChange={(strict_shift_rank) =>
+                        setWeights({ strict_shift_rank })
                     }
                 />
 
@@ -629,6 +638,9 @@ export function scenarioToRankingState(scenario: {
             sort_mode: normalizedSortMode,
             strict_shift_order: normalizeStrictShiftOrder(
                 scenario.weights?.strict_shift_order,
+            ),
+            strict_shift_rank: normalizeStrictShiftRank(
+                scenario.weights?.strict_shift_rank,
             ),
             criteria_order: criteriaOrder,
             shift_order: normalizeShiftOrder(scenario.weights?.shift_order),

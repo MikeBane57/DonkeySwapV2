@@ -23,8 +23,10 @@ import {
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
 import {
     normalizeStrictShiftOrder,
+    normalizeStrictShiftRank,
     StrictShiftOrderField,
 } from '@/pages/app/bid-tools/strict-shift-order-field';
+import type { StrictShiftClass } from '@/pages/app/bid-tools/strict-shift-rank';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
 export type Priority = 'ignore' | 'low' | 'high';
@@ -62,6 +64,7 @@ export type BidderProfile = {
         vacation_penalty: number;
         sort_mode: SortMode;
         strict_shift_order: boolean;
+        strict_shift_rank?: StrictShiftClass[];
         criteria_order: string[];
         shift_order?: DeskGroupShift[];
     };
@@ -223,6 +226,9 @@ export function emptyBidderProfile(defaults: BidderProfile): BidderProfile {
             sort_mode: defaults.weights.sort_mode ?? 'blended',
             strict_shift_order: normalizeStrictShiftOrder(
                 defaults.weights.strict_shift_order,
+            ),
+            strict_shift_rank: normalizeStrictShiftRank(
+                defaults.weights.strict_shift_rank,
             ),
             criteria_order: [...defaults.weights.criteria_order],
             shift_order: normalizeShiftOrder(defaults.weights.shift_order),
@@ -641,6 +647,12 @@ export function BidderProfileFields({
                     checked={value.weights.strict_shift_order ?? false}
                     onCheckedChange={(checked) =>
                         setWeights({ strict_shift_order: checked })
+                    }
+                    rank={normalizeStrictShiftRank(
+                        value.weights.strict_shift_rank,
+                    )}
+                    onRankChange={(strict_shift_rank) =>
+                        setWeights({ strict_shift_rank })
                     }
                 />
             </BidToolsCollapsibleSection>

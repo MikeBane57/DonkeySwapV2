@@ -33,6 +33,8 @@ class PreviewScoreBidLinesRequest extends FormRequest
             'draft.weights.criteria_order' => ['nullable', 'array'],
             'draft.weights.criteria_order.*' => ['string', Rule::in(['holiday', 'personal', 'start_time', 'desk'])],
             'draft.weights.strict_shift_order' => ['nullable', 'boolean'],
+            'draft.weights.strict_shift_rank' => ['nullable', 'array'],
+            'draft.weights.strict_shift_rank.*' => ['string', Rule::in(['am', 'pm', 'mid', 'relief'])],
             'draft.weights.shift_order' => ['nullable', 'array'],
             'draft.weights.shift_order.*' => ['string', Rule::in(['am', 'pm', 'mid'])],
             'draft.holiday_rank' => ['nullable', 'array'],

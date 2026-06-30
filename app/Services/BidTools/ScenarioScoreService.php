@@ -54,6 +54,7 @@ final class ScenarioScoreService
         $shiftOrder = self::normalizeShiftOrder($weights['shift_order'] ?? null);
         $sortMode = self::normalizeSortMode($weights['sort_mode'] ?? null);
         $strictShiftOrder = self::normalizeStrictShiftOrder($weights['strict_shift_order'] ?? null);
+        $strictShiftRank = self::normalizeStrictShiftRank($weights['strict_shift_rank'] ?? null);
 
         $bidYear = (int) $scenario->import->bid_year;
         $holidayEntries = $this->normalizeHolidayRank($scenario->holiday_rank, $bidYear);
@@ -168,7 +169,7 @@ final class ScenarioScoreService
             ];
         }
 
-        usort($out, fn ($a, $b) => self::compareScoredLines($a, $b, $criteriaOrder, $sortMode, $strictShiftOrder, $shiftOrder));
+        usort($out, fn ($a, $b) => self::compareScoredLines($a, $b, $criteriaOrder, $sortMode, $strictShiftOrder, $shiftOrder, $strictShiftRank));
 
         return $out;
     }
@@ -186,6 +187,7 @@ final class ScenarioScoreService
             'vacation_penalty' => 1.0,
             'sort_mode' => self::SORT_MODE_BLENDED,
             'strict_shift_order' => false,
+            'strict_shift_rank' => ['am', 'pm', 'mid', 'relief'],
             'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
             'shift_order' => ['am', 'pm', 'mid'],
         ];
@@ -197,6 +199,33 @@ final class ScenarioScoreService
     public static function normalizeShiftOrder(mixed $raw): array
     {
         $default = ['am', 'pm', 'mid'];
+        if (! is_array($raw)) {
+            return $default;
+        }
+
+        $allowed = array_flip($default);
+        $order = [];
+        foreach ($raw as $key) {
+            if (is_string($key) && isset($allowed[$key]) && ! in_array($key, $order, true)) {
+                $order[] = $key;
+            }
+        }
+
+        foreach ($default as $key) {
+            if (! in_array($key, $order, true)) {
+                $order[] = $key;
+            }
+        }
+
+        return $order;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function normalizeStrictShiftRank(mixed $raw): array
+    {
+        $default = ['am', 'pm', 'mid', 'relief'];
         if (! is_array($raw)) {
             return $default;
         }
@@ -269,9 +298,10 @@ final class ScenarioScoreService
         string $sortMode,
         bool $strictShiftOrder = false,
         array $shiftOrder = ['am', 'pm', 'mid'],
+        array $strictShiftRank = ['am', 'pm', 'mid', 'relief'],
     ): int {
         if ($strictShiftOrder) {
-            $shiftCmp = self::compareShiftClass($a, $b);
+            $shiftCmp = self::compareShiftClass($a, $b, $strictShiftRank);
             if ($shiftCmp !== 0) {
                 return $shiftCmp;
             }
@@ -331,11 +361,13 @@ final class ScenarioScoreService
     /**
      * @param  array<string, mixed>  $a
      * @param  array<string, mixed>  $b
+     * @param  list<string>  $strictShiftRank
      */
-    private static function compareShiftClass(array $a, array $b): int
+    private static function compareShiftClass(array $a, array $b, array $strictShiftRank): int
     {
-        $order = array_flip(LineShiftClassifier::STRICT_ORDER);
-        $worst = count(LineShiftClassifier::STRICT_ORDER);
+        $orderKeys = array_merge($strictShiftRank, [LineShiftClassifier::SHIFT_OTHER]);
+        $order = array_flip($orderKeys);
+        $worst = count($order);
         $left = $order[$a['shift_class'] ?? LineShiftClassifier::SHIFT_OTHER] ?? $worst;
         $right = $order[$b['shift_class'] ?? LineShiftClassifier::SHIFT_OTHER] ?? $worst;
 
