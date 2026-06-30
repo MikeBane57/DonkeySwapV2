@@ -1,9 +1,26 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import {
+    BidLinePickerToolbar,
+    mapLineToPickerRow,
+    type LinePickerRow,
+} from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import {
+    ScenarioRankingPanel,
+    scenarioToRankingState,
+    type ScenarioRankingState,
+} from '@/pages/app/bid-tools/scenario-ranking-panel';
+import { getCsrfToken } from '@/lib/csrf';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -11,20 +28,10 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Compare', href: '#' },
 ];
 
-type LinePick = {
-    id: number;
-    line_num: string;
-    desk_group: string;
-    start_time: string;
-    submitted_externally: boolean;
-};
-
 type LineFmt = {
-    id: number;
-    line_num: string;
     desk_group: string;
-    source_label: string | null;
     start_time: string;
+    source_label: string | null;
     rotation: string | null;
     workdays_from_file: number | null;
     workdays_computed: number;
@@ -46,26 +53,58 @@ type ScoredRow = {
     line_num: string;
     total: number;
     parts: Record<string, number>;
-    breakdown: Record<string, unknown>;
     line: LineFmt | null;
     submitted_externally: boolean;
 };
 
+function allLineIds(lines: LinePickerRow[]): Record<number, boolean> {
+    const next: Record<number, boolean> = {};
+    lines.forEach((l) => {
+        next[l.id] = true;
+    });
+
+    return next;
+}
+
 export default function BidScenarioRanked({
     scenario,
-    lines,
-    scored_rows: scoredRows,
+    lines: rawLines,
+    holidaysCatalog,
+    deskCatalog,
+    startTimeCatalog,
 }: {
     scenario: {
         id: number;
         name: string;
         vacation_bank: number;
         import_stale: boolean;
+        import: { bid_year: number };
+        weights: Record<string, unknown> & { criteria_order?: string[] };
+        holiday_rank: ScenarioRankingState['holiday_rank'];
+        desk_rank: ScenarioRankingState['desk_rank'];
+        start_time_rank: ScenarioRankingState['start_time_rank'];
+        personal_dates: ScenarioRankingState['personal_dates'];
     };
-    lines: LinePick[];
-    scored_rows: ScoredRow[] | null;
+    lines: LinePickerRow[];
+    holidaysCatalog: { date: string; id: string; label: string }[];
+    deskCatalog: { key: string; label: string }[];
+    startTimeCatalog: { key: string; label: string }[];
 }) {
-    const [selected, setSelected] = useState<Record<number, boolean>>({});
+    const lines = useMemo(
+        () => rawLines.map((l) => mapLineToPickerRow(l)),
+        [rawLines],
+    );
+
+    const [rankingOpen, setRankingOpen] = useState(true);
+    const [ranking, setRanking] = useState<ScenarioRankingState>(() =>
+        scenarioToRankingState(scenario),
+    );
+    const [selected, setSelected] = useState<Record<number, boolean>>(() =>
+        allLineIds(lines),
+    );
+    const [scoredRows, setScoredRows] = useState<ScoredRow[] | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [previewError, setPreviewError] = useState<string | null>(null);
 
     const selectedIds = useMemo(
         () =>
@@ -75,63 +114,111 @@ export default function BidScenarioRanked({
         [selected],
     );
 
-    const [comparing, setComparing] = useState(false);
-
-    const runCompare = () => {
-        setComparing(true);
-        router.post(
-            `/app/bid-tools/scenarios/${scenario.id}/score`,
-            { line_ids: selectedIds },
-            {
-                preserveScroll: true,
-                onFinish: () => setComparing(false),
-            },
-        );
+    const selectLineIds = (ids: number[]) => {
+        const next: Record<number, boolean> = {};
+        ids.forEach((id) => {
+            next[id] = true;
+        });
+        setSelected(next);
     };
 
     const toggleSubmitted = (lineId: number, submitted: boolean): void => {
         router.patch(
             `/app/bid-tools/scenarios/${scenario.id}/lines/${lineId}/submitted`,
             { submitted_externally: submitted },
-            {
-                preserveScroll: true,
-                only: ['lines', 'scored_rows'],
-            },
+            { preserveScroll: true },
+        );
+        setScoredRows((rows) =>
+            rows
+                ? rows.map((row) =>
+                      row.bid_line_id === lineId
+                          ? { ...row, submitted_externally: submitted }
+                          : row,
+                  )
+                : rows,
         );
     };
 
-    const selectAll = () => {
-        const next: Record<number, boolean> = {};
-        lines.forEach((l) => {
-            next[l.id] = true;
-        });
-        setSelected(next);
-    };
+    const fetchPreview = useCallback(async () => {
+        if (selectedIds.length === 0) {
+            setScoredRows([]);
+            setPreviewError(null);
 
-    const clearSelection = () => setSelected({});
+            return;
+        }
+
+        setLoading(true);
+        setPreviewError(null);
+
+        try {
+            const res = await fetch(
+                `/app/bid-tools/scenarios/${scenario.id}/preview-score`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': getCsrfToken(),
+                    },
+                    body: JSON.stringify({
+                        line_ids: selectedIds,
+                        vacation_bank: ranking.vacation_bank,
+                        weights: ranking.weights,
+                        holiday_rank: ranking.holiday_rank,
+                        desk_rank: ranking.desk_rank,
+                        start_time_rank: ranking.start_time_rank,
+                        personal_dates: ranking.personal_dates.filter(
+                            (p) => p.date,
+                        ),
+                    }),
+                },
+            );
+
+            if (!res.ok) {
+                throw new Error('Could not update ranking preview.');
+            }
+
+            const data = (await res.json()) as { scored_rows: ScoredRow[] };
+            setScoredRows(data.scored_rows);
+        } catch {
+            setPreviewError('Could not update ranking preview.');
+        } finally {
+            setLoading(false);
+        }
+    }, [scenario.id, selectedIds, ranking]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            void fetchPreview();
+        }, 300);
+
+        return () => window.clearTimeout(timer);
+    }, [fetchPreview]);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Compare · ${scenario.name}`} />
-            <div className="bid-tools-print space-y-6 p-4 pb-12">
+            <div className="bid-tools-print mx-auto max-w-6xl space-y-6 p-4 pb-12">
                 <div className="no-print flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-semibold tracking-tight">
                             {scenario.name}
                         </h1>
-                        {scenario.import_stale && (
-                            <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
-                                Master import was replaced after this scenario
-                                was created.
-                            </p>
-                        )}
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Bid {scenario.import.bid_year}
+                            {scenario.import_stale && (
+                                <span className="ml-2 text-amber-700 dark:text-amber-300">
+                                    (import replaced — scenario may be stale)
+                                </span>
+                            )}
+                        </p>
                     </div>
                     <div className="flex gap-2">
                         <Button variant="outline" size="sm" asChild>
                             <Link
                                 href={`/app/bid-tools/scenarios/${scenario.id}/edit`}
                             >
-                                Edit scenario
+                                Full scenario editor
                             </Link>
                         </Button>
                         <Button
@@ -145,27 +232,47 @@ export default function BidScenarioRanked({
                     </div>
                 </div>
 
-                <section className="no-print space-y-3">
-                    <h2 className="text-sm font-medium">Select lines</h2>
-                    <div className="flex flex-wrap gap-2">
-                        <Button
+                <Collapsible
+                    open={rankingOpen}
+                    onOpenChange={setRankingOpen}
+                    className="no-print rounded-lg border border-sidebar-border/70"
+                >
+                    <CollapsibleTrigger asChild>
+                        <button
                             type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={selectAll}
+                            className="flex w-full items-center justify-between px-4 py-3 text-left"
                         >
-                            Select all
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={clearSelection}
-                        >
-                            Clear
-                        </Button>
-                    </div>
-                    <div className="max-h-64 overflow-y-auto rounded-lg border border-sidebar-border/70 p-3">
+                            <span className="text-sm font-medium">
+                                Ranking preferences
+                            </span>
+                            <ChevronDown
+                                className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${rankingOpen ? 'rotate-180' : ''}`}
+                            />
+                        </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="border-t border-sidebar-border/60 px-4 py-4">
+                        <ScenarioRankingPanel
+                            value={ranking}
+                            onChange={setRanking}
+                            holidaysCatalog={holidaysCatalog}
+                            deskCatalog={deskCatalog}
+                            startTimeCatalog={startTimeCatalog}
+                        />
+                    </CollapsibleContent>
+                </Collapsible>
+
+                <section className="no-print space-y-3 rounded-lg border border-sidebar-border/70 p-4">
+                    <h2 className="text-sm font-medium">Lines to compare</h2>
+                    <p className="text-xs text-muted-foreground">
+                        AM = desk group starts with D, PM = A, Mid = M. All
+                        lines are selected by default.
+                    </p>
+                    <BidLinePickerToolbar
+                        lines={lines}
+                        onSelect={selectLineIds}
+                        onClear={() => setSelected({})}
+                    />
+                    <div className="max-h-64 overflow-y-auto rounded-lg border border-sidebar-border/60 p-3">
                         <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
                             {lines.map((l) => (
                                 <label
@@ -187,28 +294,34 @@ export default function BidScenarioRanked({
                                     <span className="text-muted-foreground">
                                         {l.desk_group}
                                     </span>
+                                    <span className="text-xs text-muted-foreground">
+                                        {l.start_time}
+                                    </span>
                                 </label>
                             ))}
                         </div>
                     </div>
-                    <Button
-                        type="button"
-                        disabled={selectedIds.length === 0 || comparing}
-                        onClick={() => runCompare()}
-                    >
-                        Compare selected (recommended order)
-                    </Button>
                 </section>
 
-                {scoredRows && scoredRows.length > 0 && (
-                    <section className="space-y-4">
-                        <h2 className="text-lg font-semibold print:text-xl">
+                <section className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h2 className="text-lg font-semibold">
                             Recommended bid order
                         </h2>
-                        <p className="no-print text-sm text-muted-foreground">
-                            Based on your scenario weights, priorities, and
-                            tie-break order. Lower rank # = better fit.
+                        {loading && (
+                            <span className="text-sm text-muted-foreground">
+                                Updating…
+                            </span>
+                        )}
+                    </div>
+                    {previewError && (
+                        <p className="text-sm text-destructive">{previewError}</p>
+                    )}
+                    {selectedIds.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                            Select at least one line to see rankings.
                         </p>
+                    ) : scoredRows && scoredRows.length > 0 ? (
                         <div className="overflow-x-auto rounded-lg border border-sidebar-border/70">
                             <table className="w-full min-w-[1280px] text-left text-sm">
                                 <thead>
@@ -237,30 +350,24 @@ export default function BidScenarioRanked({
                                 <tbody>
                                     {scoredRows.map((row) => {
                                         const fmt = row.line;
+
                                         return (
                                             <tr
                                                 key={row.bid_line_id}
                                                 className="border-b border-sidebar-border/40"
                                             >
                                                 <td className="no-print p-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <Checkbox
-                                                            checked={
-                                                                row.submitted_externally
-                                                            }
-                                                            onCheckedChange={(
-                                                                c,
-                                                            ) => {
-                                                                toggleSubmitted(
-                                                                    row.bid_line_id,
-                                                                    c === true,
-                                                                );
-                                                            }}
-                                                        />
-                                                        <Label className="sr-only">
-                                                            Submitted externally
-                                                        </Label>
-                                                    </div>
+                                                    <Checkbox
+                                                        checked={
+                                                            row.submitted_externally
+                                                        }
+                                                        onCheckedChange={(c) =>
+                                                            toggleSubmitted(
+                                                                row.bid_line_id,
+                                                                c === true,
+                                                            )
+                                                        }
+                                                    />
                                                 </td>
                                                 <td className="p-2 font-medium">
                                                     {row.rank}
@@ -293,32 +400,11 @@ export default function BidScenarioRanked({
                                                 <td className="p-2 text-xs">
                                                     {fmt ? (
                                                         <>
-                                                            {
-                                                                fmt.metrics
-                                                                    .fri_off
-                                                            }
+                                                            {fmt.metrics.fri_off}
                                                             /
-                                                            {
-                                                                fmt.metrics
-                                                                    .sat_off
-                                                            }
+                                                            {fmt.metrics.sat_off}
                                                             /
-                                                            {
-                                                                fmt.metrics
-                                                                    .sun_off
-                                                            }
-                                                            <div className="text-muted-foreground">
-                                                                F–Su{' '}
-                                                                {
-                                                                    fmt.metrics
-                                                                        .fri_sat_sun_all_off
-                                                                }{' '}
-                                                                · Sa–Su{' '}
-                                                                {
-                                                                    fmt.metrics
-                                                                        .sat_sun_both_off
-                                                                }
-                                                            </div>
+                                                            {fmt.metrics.sun_off}
                                                         </>
                                                     ) : (
                                                         '—'
@@ -341,8 +427,12 @@ export default function BidScenarioRanked({
                                 </tbody>
                             </table>
                         </div>
-                    </section>
-                )}
+                    ) : !loading ? (
+                        <p className="text-sm text-muted-foreground">
+                            No ranked lines to show.
+                        </p>
+                    ) : null}
+                </section>
 
                 <style>{`
                     @media print {

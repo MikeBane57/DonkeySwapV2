@@ -143,6 +143,7 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::put('/scenarios/{scenario}', [BidToolsScenarioController::class, 'update'])->name('scenarios.update');
         Route::delete('/scenarios/{scenario}', [BidToolsScenarioController::class, 'destroy'])->name('scenarios.destroy');
         Route::get('/scenarios/{scenario}/ranked', [BidToolsRankedController::class, 'show'])->name('scenarios.ranked');
+        Route::post('/scenarios/{scenario}/preview-score', [BidToolsRankedController::class, 'previewScore'])->name('scenarios.preview-score');
         Route::post('/scenarios/{scenario}/score', [BidToolsRankedController::class, 'score'])->name('scenarios.score');
         Route::patch('/scenarios/{scenario}/lines/{line}/submitted', [BidToolsRankedController::class, 'updateSubmitted'])->name('scenarios.line-submitted');
     });
