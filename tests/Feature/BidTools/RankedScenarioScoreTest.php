@@ -59,6 +59,16 @@ test('comparing many bid lines stores slim scores in session', function () {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('app/bid-tools/scenarios/ranked')
-            ->has('scored_rows', 60)
-            ->where('scored_rows.0.rank', 1));
+            ->has('lines', 60)
+            ->has('scenario')
+            ->has('holidaysCatalog')
+            ->missing('scored_rows'));
+
+    $this->actingAs($user)
+        ->postJson(route('bid-tools.scenarios.preview-score', $scenario->id), [
+            'line_ids' => $lineIds,
+        ])
+        ->assertOk()
+        ->assertJsonCount(60, 'scored_rows')
+        ->assertJsonPath('scored_rows.0.rank', 1);
 });
