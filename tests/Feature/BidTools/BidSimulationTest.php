@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\BidLine;
 use App\Models\BidScenario;
 use App\Models\BidSimulation;
 use App\Models\BidSimulationParticipant;

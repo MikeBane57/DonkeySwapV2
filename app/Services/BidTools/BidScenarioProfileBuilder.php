@@ -44,6 +44,7 @@ final class BidScenarioProfileBuilder
             $scenario->weights ?? [],
         );
         $weights['criteria_order'] = ScenarioScoreService::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
+        $weights['shift_order'] = ScenarioScoreService::normalizeShiftOrder($weights['shift_order'] ?? null);
         $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
 
         $condensed = $this->condensedMapper->toCondensedPayload($scenario);
@@ -111,6 +112,15 @@ final class BidScenarioProfileBuilder
         $scenario->save();
 
         $this->syncVacationRanges($scenario, $merged['vacation_ranges']);
+    }
+
+    /**
+     * @param  array<string, mixed>  $profile
+     * @return array<string, mixed>
+     */
+    public function prepareDraftForScoring(BidImport $import, array $profile): array
+    {
+        return $this->mergeProfile($import, $profile);
     }
 
     /**

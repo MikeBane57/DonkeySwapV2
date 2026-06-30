@@ -4,6 +4,7 @@ use App\Models\BidLine;
 use App\Models\BidScenario;
 use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
+use App\Services\BidTools\ScenarioScoreService;
 
 test('comparing many bid lines stores slim scores in session', function () {
     config(['features.bid_tools' => true]);
@@ -59,6 +60,24 @@ test('comparing many bid lines stores slim scores in session', function () {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('app/bid-tools/scenarios/ranked')
-            ->has('scored_rows', 60)
-            ->where('scored_rows.0.rank', 1));
+            ->has('lines', 60)
+            ->has('scenario')
+            ->has('holidaysCatalog')
+            ->missing('scored_rows'));
+
+    $this->actingAs($user)
+        ->postJson(route('bid-tools.scenarios.preview-score', $scenario->id), [
+            'line_ids' => $lineIds,
+            'vacation_bank' => $scenario->vacation_bank,
+            'weights' => array_merge(
+                ScenarioScoreService::defaultWeights(),
+                $scenario->weights ?? [],
+            ),
+            'holiday_rank' => $scenario->holiday_rank,
+            'desk_rank' => $scenario->desk_rank ?? [],
+            'start_time_rank' => $scenario->start_time_rank ?? [],
+        ])
+        ->assertOk()
+        ->assertJsonCount(60, 'scored_rows')
+        ->assertJsonPath('scored_rows.0.rank', 1);
 });

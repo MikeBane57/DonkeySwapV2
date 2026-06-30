@@ -4,6 +4,8 @@ namespace App\Services\BidTools;
 
 use App\Models\BidLine;
 use App\Models\BidScenario;
+use App\Models\BidScenarioVacationRange;
+use Illuminate\Support\Collection;
 
 final class ScenarioScoreService
 {
@@ -31,6 +33,7 @@ final class ScenarioScoreService
         private readonly LineMetricsService $lineMetrics,
         private readonly DominantDeskAnalyzer $dominantDesk,
         private readonly CondensedDeskClassifier $condensedDesk,
+        private readonly DeskGroupShiftClassifier $deskShift,
         private readonly StartTimeNormalizer $startTimes,
         private readonly VacationCostCalculator $vacation,
     ) {}
@@ -47,6 +50,7 @@ final class ScenarioScoreService
         $weights = array_merge(self::defaultWeights(), $weights);
 
         $criteriaOrder = self::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
+        $shiftOrder = self::normalizeShiftOrder($weights['shift_order'] ?? null);
         $sortMode = self::normalizeSortMode($weights['sort_mode'] ?? null);
 
         $bidYear = (int) $scenario->import->bid_year;
@@ -132,6 +136,7 @@ final class ScenarioScoreService
             $out[] = [
                 'bid_line_id' => $line->id,
                 'line_num' => $line->line_num,
+                'desk_shift' => $this->deskShift->shiftForDeskGroup($line->desk_group),
                 'total' => round($total, 2),
                 'parts' => [
                     'holiday' => round($holidayPoints, 2),
@@ -158,7 +163,7 @@ final class ScenarioScoreService
             ];
         }
 
-        usort($out, fn ($a, $b) => self::compareScoredLines($a, $b, $criteriaOrder, $sortMode));
+        usort($out, fn ($a, $b) => self::compareScoredLines($a, $b, $criteriaOrder, $sortMode, $shiftOrder));
 
         return $out;
     }
@@ -176,7 +181,35 @@ final class ScenarioScoreService
             'vacation_penalty' => 1.0,
             'sort_mode' => self::SORT_MODE_BLENDED,
             'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+            'shift_order' => ['am', 'pm', 'mid'],
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function normalizeShiftOrder(mixed $raw): array
+    {
+        $default = ['am', 'pm', 'mid'];
+        if (! is_array($raw)) {
+            return $default;
+        }
+
+        $allowed = array_flip($default);
+        $order = [];
+        foreach ($raw as $key) {
+            if (is_string($key) && isset($allowed[$key]) && ! in_array($key, $order, true)) {
+                $order[] = $key;
+            }
+        }
+
+        foreach ($default as $key) {
+            if (! in_array($key, $order, true)) {
+                $order[] = $key;
+            }
+        }
+
+        return $order;
     }
 
     public static function normalizeSortMode(mixed $raw): string
@@ -218,7 +251,7 @@ final class ScenarioScoreService
      * @param  array<string, mixed>  $b
      * @param  list<string>  $criteriaOrder
      */
-    public static function compareScoredLines(array $a, array $b, array $criteriaOrder, string $sortMode): int
+    public static function compareScoredLines(array $a, array $b, array $criteriaOrder, string $sortMode, array $shiftOrder = ['am', 'pm', 'mid']): int
     {
         if (self::usesTierGroupSort($sortMode)) {
             foreach ($criteriaOrder as $criterion) {
@@ -260,7 +293,44 @@ final class ScenarioScoreService
             return $totalCmp;
         }
 
+        $shiftCmp = self::compareShiftRank(
+            is_string($a['desk_shift'] ?? null) ? $a['desk_shift'] : null,
+            is_string($b['desk_shift'] ?? null) ? $b['desk_shift'] : null,
+            $shiftOrder,
+        );
+        if ($shiftCmp !== 0) {
+            return $shiftCmp;
+        }
+
         return strcmp((string) ($a['line_num'] ?? ''), (string) ($b['line_num'] ?? ''));
+    }
+
+    /**
+     * @param  list<string>  $shiftOrder
+     */
+    private static function compareShiftRank(?string $aShift, ?string $bShift, array $shiftOrder): int
+    {
+        $aRank = self::shiftRank($aShift, $shiftOrder);
+        $bRank = self::shiftRank($bShift, $shiftOrder);
+        if ($aRank === $bRank) {
+            return 0;
+        }
+
+        return $aRank <=> $bRank;
+    }
+
+    /**
+     * @param  list<string>  $shiftOrder
+     */
+    private static function shiftRank(?string $shift, array $shiftOrder): int
+    {
+        if ($shift === null || $shift === '') {
+            return PHP_INT_MAX;
+        }
+
+        $idx = array_search($shift, $shiftOrder, true);
+
+        return $idx === false ? PHP_INT_MAX : (int) $idx;
     }
 
     public static function usesTierGroupSort(string $sortMode): bool
@@ -580,5 +650,61 @@ final class ScenarioScoreService
     private function defaultStartRank(): array
     {
         return ['t_0600', 't_0700', 'am', 'pm', 'mid', 'am_mix_0600_0700'];
+    }
+
+    /**
+     * Score lines using unsaved draft profile fields (for live preview).
+     *
+     * @param  array<string, mixed>  $draft
+     * @param  list<int>  $lineIds
+     * @return list<array<string, mixed>>
+     */
+    public function scoreLinesWithDraft(BidScenario $scenario, array $draft, array $lineIds): array
+    {
+        $scenario->loadMissing('import', 'vacationRanges');
+
+        $fillable = [
+            'vacation_bank',
+            'weights',
+            'holiday_rank',
+            'desk_rank',
+            'start_time_rank',
+            'personal_dates',
+        ];
+
+        $original = [];
+        foreach ($fillable as $key) {
+            $original[$key] = $scenario->getAttribute($key);
+        }
+        $originalRanges = $scenario->relationLoaded('vacationRanges')
+            ? $scenario->vacationRanges
+            : null;
+
+        foreach ($fillable as $key) {
+            if (array_key_exists($key, $draft)) {
+                $scenario->setAttribute($key, $draft[$key]);
+            }
+        }
+
+        if (array_key_exists('vacation_ranges', $draft)) {
+            $ranges = Collection::make($draft['vacation_ranges'] ?? [])
+                ->map(fn (array $range) => new BidScenarioVacationRange([
+                    'title' => $range['title'] ?? null,
+                    'starts_on' => $range['starts_on'],
+                    'ends_on' => $range['ends_on'],
+                ]));
+            $scenario->setRelation('vacationRanges', $ranges);
+        }
+
+        try {
+            return $this->scoreLines($scenario, $lineIds);
+        } finally {
+            foreach ($fillable as $key) {
+                $scenario->setAttribute($key, $original[$key]);
+            }
+            if ($originalRanges !== null) {
+                $scenario->setRelation('vacationRanges', $originalRanges);
+            }
+        }
     }
 }

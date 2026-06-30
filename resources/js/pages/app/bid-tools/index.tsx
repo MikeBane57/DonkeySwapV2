@@ -1,5 +1,13 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Copy, GitCompare, ListOrdered, Play, Plus, Table, TriangleAlert } from 'lucide-react';
+import {
+    Copy,
+    GitCompare,
+    ListOrdered,
+    Play,
+    Plus,
+    Table,
+    TriangleAlert,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';

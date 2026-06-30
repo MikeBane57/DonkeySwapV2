@@ -11,6 +11,7 @@ use App\Models\BidImport;
 use App\Models\BidScenario;
 use App\Models\BidSimulation;
 use App\Models\BidSimulationParticipant;
+use App\Services\BidTools\BidLinePickerService;
 use App\Services\BidTools\BidScenarioProfileBuilder;
 use App\Services\BidTools\BidSimulationEngine;
 use Illuminate\Http\RedirectResponse;
@@ -24,6 +25,7 @@ class SimulationController extends Controller
     public function __construct(
         private readonly BidSimulationEngine $engine,
         private readonly BidScenarioProfileBuilder $profileBuilder,
+        private readonly BidLinePickerService $linePicker,
     ) {}
 
     public function index(Request $request): Response
@@ -99,6 +101,7 @@ class SimulationController extends Controller
                     ? $this->profileBuilder->toEditorPayload($p->scenario)
                     : $this->profileBuilder->defaultsForImport($sim->import),
             ]),
+            'lines' => $this->linePicker->rowsForImport($sim->bid_import_id),
         ]);
     }
 

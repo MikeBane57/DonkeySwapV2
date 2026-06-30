@@ -6,7 +6,9 @@ export type TieredRankEntry = {
     tier?: number;
 };
 
-export function normalizeTierOrder(entries: TieredRankEntry[]): TieredRankEntry[] {
+export function normalizeTierOrder(
+    entries: TieredRankEntry[],
+): TieredRankEntry[] {
     if (entries.length === 0) {
         return [];
     }
@@ -21,7 +23,9 @@ export function normalizeTierOrder(entries: TieredRankEntry[]): TieredRankEntry[
     }));
 }
 
-export function entriesToTierGroups(entries: TieredRankEntry[]): TieredRankEntry[][] {
+export function entriesToTierGroups(
+    entries: TieredRankEntry[],
+): TieredRankEntry[][] {
     const normalized = normalizeTierOrder(entries);
     const groups: TieredRankEntry[][] = [];
 
@@ -37,7 +41,9 @@ export function entriesToTierGroups(entries: TieredRankEntry[]): TieredRankEntry
     return groups;
 }
 
-export function tierGroupsToEntries(groups: TieredRankEntry[][]): TieredRankEntry[] {
+export function tierGroupsToEntries(
+    groups: TieredRankEntry[][],
+): TieredRankEntry[] {
     const out: TieredRankEntry[] = [];
 
     groups.forEach((group, groupIndex) => {

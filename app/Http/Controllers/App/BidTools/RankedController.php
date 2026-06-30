@@ -3,15 +3,19 @@
 namespace App\Http\Controllers\App\BidTools;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\BidTools\PreviewScenarioScoreRequest;
 use App\Http\Requests\BidTools\ScoreBidLinesRequest;
 use App\Models\BidLine;
 use App\Models\BidScenario;
 use App\Models\BidScenarioLineNote;
-use App\Services\BidTools\CondensedDeskClassifier;
+use App\Services\BidTools\BidLinePickerService;
+use App\Services\BidTools\BidLinePreferenceCatalog;
 use App\Services\BidTools\LineRowFormatter;
 use App\Services\BidTools\ScenarioScoreService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,58 +24,29 @@ class RankedController extends Controller
     public function __construct(
         private readonly ScenarioScoreService $scoreService,
         private readonly LineRowFormatter $rowFormatter,
-        private readonly CondensedDeskClassifier $deskClassifier,
+        private readonly BidLinePickerService $linePicker,
+        private readonly BidLinePreferenceCatalog $preferenceCatalog,
     ) {}
 
     public function show(Request $request, int $scenario): Response
     {
         $s = $this->findScenario($request, $scenario);
-        $s->load('import');
+        $s->load(['import', 'vacationRanges']);
+        $bidYear = (int) $s->import->bid_year;
 
-        $lines = BidLine::query()
-            ->where('bid_import_id', $s->bid_import_id)
-            ->with('days')
-            ->orderBy('line_num')
-            ->get();
+        $weights = array_merge([
+            'holiday' => 1.0,
+            'personal' => 1.0,
+            'start_time' => 1.0,
+            'desk' => 1.0,
+            'vacation_penalty' => 1.0,
+            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+        ], $s->weights ?? []);
 
-        $notes = BidScenarioLineNote::query()
-            ->where('bid_scenario_id', $s->id)
-            ->get()
-            ->keyBy('bid_line_id');
+        $deskKeys = $this->preferenceCatalog->deskKeysForImport($s->bid_import_id);
+        $startKeys = $this->preferenceCatalog->startTimeKeysForImport($s->bid_import_id);
 
-        $lineRows = $lines->map(function (BidLine $l) use ($notes) {
-            $picker = $this->deskClassifier->linePickerFields($l);
-
-            return [
-                ...$picker,
-                'submitted_externally' => (bool) ($notes[$l->id]->submitted_externally ?? false),
-            ];
-        });
-
-        $rawScores = $request->session()->get($this->scoresSessionKey($scenario));
-        $scoredRows = null;
-        if (is_array($rawScores) && $rawScores !== []) {
-            $lineModels = BidLine::query()
-                ->whereIn('id', collect($rawScores)->pluck('bid_line_id')->all())
-                ->get()
-                ->keyBy('id');
-            $rank = 1;
-            $scoredRows = [];
-            foreach ($rawScores as $row) {
-                $id = (int) $row['bid_line_id'];
-                $lm = $lineModels->get($id);
-                $fmt = $lm ? $this->rowFormatter->format($lm) : null;
-                $scoredRows[] = [
-                    'rank' => $rank++,
-                    'bid_line_id' => $id,
-                    'line_num' => $row['line_num'],
-                    'total' => $row['total'],
-                    'parts' => $row['parts'] ?? [],
-                    'line' => $fmt,
-                    'submitted_externally' => (bool) ($notes[$id]->submitted_externally ?? false),
-                ];
-            }
-        }
+        $lineRows = $this->linePicker->rowsForImport($s->bid_import_id, $s->id);
 
         return Inertia::render('app/bid-tools/scenarios/ranked', [
             'scenario' => [
@@ -79,9 +54,42 @@ class RankedController extends Controller
                 'name' => $s->name,
                 'vacation_bank' => $s->vacation_bank,
                 'import_stale' => ! $s->import->is_current,
+                'import' => [
+                    'bid_year' => $s->import->bid_year,
+                ],
+                'weights' => $weights,
+                'holiday_rank' => $this->scoreService->holidayEntriesForEditor($s->holiday_rank, $bidYear),
+                'desk_rank' => $this->scoreService->deskEntriesForEditor($s->desk_rank, $deskKeys),
+                'start_time_rank' => $this->scoreService->startTimeEntriesForEditor($s->start_time_rank, $startKeys),
+                'personal_dates' => $this->scoreService->personalDatesForEditor($s->personal_dates ?? []),
             ],
+            'holidaysCatalog' => $this->scoreService->holidaysCatalog($bidYear),
+            'deskCatalog' => $this->preferenceCatalog->deskCatalogForImport($s->bid_import_id),
+            'startTimeCatalog' => $this->preferenceCatalog->startTimeCatalogForImport($s->bid_import_id),
             'lines' => $lineRows,
-            'scored_rows' => $scoredRows,
+        ]);
+    }
+
+    public function previewScore(PreviewScenarioScoreRequest $request, int $scenario): JsonResponse
+    {
+        $s = $this->findScenario($request, $scenario);
+        $s->load(['import', 'vacationRanges']);
+
+        $working = $this->scenarioWithPreviewPayload($s, $request->validated());
+        $lineIds = $this->filterLineIds($s, $request->validated('line_ids'));
+
+        if ($lineIds === []) {
+            return response()->json(['scored_rows' => []]);
+        }
+
+        $scores = $this->scoreService->scoreLines($working, $lineIds);
+        $notes = BidScenarioLineNote::query()
+            ->where('bid_scenario_id', $s->id)
+            ->get()
+            ->keyBy('bid_line_id');
+
+        return response()->json([
+            'scored_rows' => $this->formatScoredRows($scores, $notes),
         ]);
     }
 
@@ -90,11 +98,7 @@ class RankedController extends Controller
         $s = $this->findScenario($request, $scenario);
         $s->load('import');
 
-        $ids = $request->validated('line_ids');
-        $ids = array_values(array_filter($ids, fn ($id) => BidLine::query()
-            ->where('id', $id)
-            ->where('bid_import_id', $s->bid_import_id)
-            ->exists()));
+        $ids = $this->filterLineIds($s, $request->validated('line_ids'));
 
         if ($ids === []) {
             return redirect()
@@ -134,6 +138,68 @@ class RankedController extends Controller
         );
 
         return back();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $scores
+     * @return list<array<string, mixed>>
+     */
+    private function formatScoredRows(array $scores, $notes): array
+    {
+        $lineModels = BidLine::query()
+            ->whereIn('id', collect($scores)->pluck('bid_line_id')->all())
+            ->get()
+            ->keyBy('id');
+
+        $rank = 1;
+        $rows = [];
+        foreach ($scores as $row) {
+            $id = (int) $row['bid_line_id'];
+            $lm = $lineModels->get($id);
+            $rows[] = [
+                'rank' => $rank++,
+                'bid_line_id' => $id,
+                'line_num' => $row['line_num'],
+                'total' => $row['total'],
+                'parts' => $row['parts'] ?? [],
+                'line' => $lm ? $this->rowFormatter->format($lm) : null,
+                'submitted_externally' => (bool) ($notes[$id]->submitted_externally ?? false),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function scenarioWithPreviewPayload(BidScenario $scenario, array $payload): BidScenario
+    {
+        $working = clone $scenario;
+
+        $fillKeys = [
+            'vacation_bank', 'weights', 'holiday_rank', 'desk_rank',
+            'start_time_rank', 'personal_dates',
+        ];
+
+        $overrides = Arr::only($payload, $fillKeys);
+        if ($overrides !== []) {
+            $working->fill($overrides);
+        }
+
+        return $working;
+    }
+
+    /**
+     * @param  list<int>  $rawIds
+     * @return list<int>
+     */
+    private function filterLineIds(BidScenario $scenario, array $rawIds): array
+    {
+        return array_values(array_filter($rawIds, fn ($id) => BidLine::query()
+            ->where('id', $id)
+            ->where('bid_import_id', $scenario->bid_import_id)
+            ->exists()));
     }
 
     private function findScenario(Request $request, int $id): BidScenario

@@ -399,4 +399,3 @@ function writeDeskStartTradeoffCsv(int $bidYear): string
 
     return $path;
 }
-

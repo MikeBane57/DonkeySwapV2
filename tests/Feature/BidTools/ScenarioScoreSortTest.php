@@ -4,6 +4,7 @@ use App\Models\BidLine;
 use App\Models\BidScenario;
 use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
+use App\Services\BidTools\BidLinePreferenceCatalog;
 use App\Services\BidTools\ScenarioScoreService;
 
 test('line ranking sorts by total score before criteria tie-break order', function () {
@@ -82,7 +83,7 @@ test('priority sort mode ranks by category order before total score', function (
     expect($amLine)->not->toBeNull();
     expect($pmLine)->not->toBeNull();
 
-    $startKeys = app(\App\Services\BidTools\BidLinePreferenceCatalog::class)
+    $startKeys = app(BidLinePreferenceCatalog::class)
         ->startTimeKeysForImport($import->id);
 
     $startRank = collect($startKeys)->map(fn (string $key) => [

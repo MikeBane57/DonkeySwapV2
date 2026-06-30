@@ -11,22 +11,35 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
+    CompactPrioritySelect,
+    DraggablePreferenceRow,
+    preferencePuckGroupClass,
+    preferencePuckLabelClass,
+} from '@/pages/app/bid-tools/preference-rank-shared';
+import {
     entriesToTierGroups,
     groupWithAbove,
     moveIndex,
-    splitAfter
-    
-    
+    splitAfter,
 } from '@/pages/app/bid-tools/rank-tier-utils';
-import type {Priority, TieredRankEntry} from '@/pages/app/bid-tools/rank-tier-utils';
+import type {
+    Priority,
+    TieredRankEntry,
+} from '@/pages/app/bid-tools/rank-tier-utils';
 
 function PrioritySelect({
     value,
     onChange,
+    compact = false,
 }: {
     value: Priority;
     onChange: (p: Priority) => void;
+    compact?: boolean;
 }) {
+    if (compact) {
+        return <CompactPrioritySelect value={value} onChange={onChange} />;
+    }
+
     return (
         <Select value={value} onValueChange={(v) => onChange(v as Priority)}>
             <SelectTrigger className="h-8 w-[7.5rem] text-xs">
@@ -95,6 +108,8 @@ export function TieredRankList({
     labels,
     onChange,
     onRemoveKey,
+    compact = false,
+    hideLabel = false,
 }: {
     idPrefix: string;
     label: string;
@@ -103,6 +118,8 @@ export function TieredRankList({
     labels: Record<string, string>;
     onChange: (entries: TieredRankEntry[]) => void;
     onRemoveKey?: (key: string) => void;
+    compact?: boolean;
+    hideLabel?: boolean;
 }) {
     const flatIndexByKey = useMemo(() => {
         const map = new Map<string, number>();
@@ -131,47 +148,65 @@ export function TieredRankList({
         onChange(splitAfter(entries, index));
     };
 
+    const Row = compact ? DraggablePreferenceRow : DraggableRow;
+
     return (
-        <div className="space-y-2">
-            <Label>{label}</Label>
-            {hint && (
+        <div className={compact ? 'space-y-1.5' : 'space-y-2'}>
+            {!hideLabel && (
+                <Label className={compact ? 'text-xs' : undefined}>{label}</Label>
+            )}
+            {hint && !compact && (
                 <p className="text-xs text-muted-foreground">{hint}</p>
             )}
-            <p className="text-xs text-muted-foreground">
-                Drag to reorder. Use &quot;Same group&quot; to treat items as
-                equal (e.g. all AM starts together). &quot;Split after&quot;
-                starts a new group below this row.
-            </p>
-            <div className="space-y-2">
+            {!compact && (
+                <p className="text-xs text-muted-foreground">
+                    Drag to reorder. Use &quot;Same group&quot; to treat items
+                    as equal (e.g. all AM starts together). &quot;Split
+                    after&quot; starts a new group below this row.
+                </p>
+            )}
+            <div className={compact ? 'flex flex-col gap-1.5' : 'space-y-2'}>
                 {groups.map((group, groupIndex) => (
                     <div
                         key={`${idPrefix}-tier-${groupIndex}`}
-                        className="space-y-1 rounded-lg border border-sidebar-border/60 bg-muted/10 p-2"
+                        className={
+                            compact
+                                ? preferencePuckGroupClass
+                                : 'space-y-1 rounded-lg border border-sidebar-border/60 bg-muted/10 p-2'
+                        }
                     >
-                        <p className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                            Group {groupIndex + 1}
-                            {groupIndex === 0 ? ' — highest' : ''}
+                        <p
+                            className={
+                                compact
+                                    ? 'text-[10px] font-medium tracking-wide text-muted-foreground uppercase'
+                                    : 'px-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase'
+                            }
+                        >
+                            G{groupIndex + 1}
+                            {groupIndex === 0 ? ' ↑' : ''}
                         </p>
                         {group.map((entry) => {
-                            const flatIndex = flatIndexByKey.get(entry.key) ?? 0;
+                            const flatIndex =
+                                flatIndexByKey.get(entry.key) ?? 0;
                             const isFirstInGroup = entry === group[0];
 
                             return (
-                                <DraggableRow
+                                <Row
                                     key={`${idPrefix}-${entry.key}`}
                                     index={flatIndex}
                                     onReorder={reorderFlat}
                                 >
-                                    <span className="min-w-0 flex-1 text-sm">
+                                    <span className={compact ? preferencePuckLabelClass : 'min-w-0 flex-1 text-sm'}>
                                         {labels[entry.key] ?? entry.key}
                                     </span>
                                     <PrioritySelect
                                         value={entry.priority}
+                                        compact={compact}
                                         onChange={(priority) =>
                                             updateEntry(flatIndex, { priority })
                                         }
                                     />
-                                    {!isFirstInGroup && (
+                                    {!compact && !isFirstInGroup && (
                                         <Button
                                             type="button"
                                             variant="ghost"
@@ -186,51 +221,54 @@ export function TieredRankList({
                                             Same group
                                         </Button>
                                     )}
-                                    {isFirstInGroup && groupIndex > 0 && (
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-8 px-2 text-xs"
-                                            title="Merge this group with the group above"
-                                            onClick={() =>
-                                                mergeWithAbove(flatIndex)
-                                            }
-                                        >
-                                            <Equal className="mr-1 h-3.5 w-3.5" />
-                                            Merge up
-                                        </Button>
-                                    )}
-                                    {flatIndex < entries.length - 1 && (
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-8 px-2 text-xs"
-                                            title="Start a new preference group after this row"
-                                            onClick={() =>
-                                                splitBelow(flatIndex)
-                                            }
-                                        >
-                                            <Ungroup className="mr-1 h-3.5 w-3.5" />
-                                            Split after
-                                        </Button>
-                                    )}
+                                    {!compact &&
+                                        isFirstInGroup &&
+                                        groupIndex > 0 && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 px-2 text-xs"
+                                                title="Merge this group with the group above"
+                                                onClick={() =>
+                                                    mergeWithAbove(flatIndex)
+                                                }
+                                            >
+                                                <Equal className="mr-1 h-3.5 w-3.5" />
+                                                Merge up
+                                            </Button>
+                                        )}
+                                    {!compact &&
+                                        flatIndex < entries.length - 1 && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 px-2 text-xs"
+                                                title="Start a new preference group after this row"
+                                                onClick={() =>
+                                                    splitBelow(flatIndex)
+                                                }
+                                            >
+                                                <Ungroup className="mr-1 h-3.5 w-3.5" />
+                                                Split after
+                                            </Button>
+                                        )}
                                     {onRemoveKey && (
                                         <Button
                                             type="button"
                                             variant="ghost"
                                             size="icon"
-                                            className="h-8 w-8 text-muted-foreground"
+                                            className="h-7 w-7 text-muted-foreground"
                                             title="Remove from list"
                                             onClick={() =>
                                                 onRemoveKey(entry.key)
                                             }
                                         >
-                                            <Trash2 className="h-4 w-4" />
+                                            <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                     )}
-                                </DraggableRow>
+                                </Row>
                             );
                         })}
                     </div>

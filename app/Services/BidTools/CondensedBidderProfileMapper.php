@@ -340,7 +340,6 @@ final class CondensedBidderProfileMapper
     }
 
     /**
-     * @param  mixed  $raw
      * @param  list<string>  $defaultKeys
      * @return list<array{key: string, priority: string}>
      */

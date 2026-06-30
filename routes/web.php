@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\ShiftsController;
 use App\Http\Controllers\Admin\UserManagerController;
 use App\Http\Controllers\Admin\WorkgroupsController;
 use App\Http\Controllers\Api\BannerMessageController;
+use App\Http\Controllers\Api\BidTools\ScenarioPreviewScoreController;
 use App\Http\Controllers\Api\CalendarController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\HiddenPostController;
@@ -119,6 +120,9 @@ Route::prefix('api')->middleware(['auth'])->group(function () {
     Route::post('schedule-import/preview', [ApiScheduleImportController::class, 'preview'])->name('api.schedule-import.preview')->middleware('throttle:10,1');
     Route::post('schedule-import/apply', [ApiScheduleImportController::class, 'apply'])->name('api.schedule-import.apply')->middleware('throttle:10,1');
     Route::get('schedule-import/history', [ApiScheduleImportController::class, 'history'])->name('api.schedule-import.history');
+    Route::post('bid-tools/scenarios/{scenario}/preview-score', ScenarioPreviewScoreController::class)
+        ->middleware('feature:bid_tools')
+        ->name('api.bid-tools.scenarios.preview-score');
 });
 
 // Authenticated app routes under /app
@@ -148,6 +152,7 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::post('/scenarios/{scenario}/duplicate', [BidToolsScenarioController::class, 'duplicate'])->name('scenarios.duplicate');
         Route::delete('/scenarios/{scenario}', [BidToolsScenarioController::class, 'destroy'])->name('scenarios.destroy');
         Route::get('/scenarios/{scenario}/ranked', [BidToolsRankedController::class, 'show'])->name('scenarios.ranked');
+        Route::post('/scenarios/{scenario}/preview-score', [BidToolsRankedController::class, 'previewScore'])->name('scenarios.preview-score');
         Route::post('/scenarios/{scenario}/score', [BidToolsRankedController::class, 'score'])->name('scenarios.score');
         Route::patch('/scenarios/{scenario}/lines/{line}/submitted', [BidToolsRankedController::class, 'updateSubmitted'])->name('scenarios.line-submitted');
 

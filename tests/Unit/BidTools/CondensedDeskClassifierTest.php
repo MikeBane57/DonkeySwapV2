@@ -3,6 +3,7 @@
 use App\Models\BidLine;
 use App\Models\BidLineDay;
 use App\Services\BidTools\CondensedDeskClassifier;
+use App\Services\BidTools\DeskGroupShiftClassifier;
 use App\Services\BidTools\StartTimeNormalizer;
 use Carbon\CarbonImmutable;
 use Tests\TestCase;
@@ -11,7 +12,10 @@ uses(TestCase::class);
 
 function classifier(): CondensedDeskClassifier
 {
-    return new CondensedDeskClassifier(new StartTimeNormalizer);
+    return new CondensedDeskClassifier(
+        new StartTimeNormalizer,
+        new DeskGroupShiftClassifier,
+    );
 }
 
 function makeClassifierLine(array $workCodes, string $deskGroup = 'DG', string $startTime = '0600'): BidLine
@@ -104,4 +108,17 @@ test('maps start times to am pm and mid picker buckets', function () {
     expect($classifier->startShiftBucket('PM-MIX'))->toBe('pm');
     expect($classifier->startShiftBucket('2200'))->toBe('mid');
     expect($classifier->startShiftBucket('MID-MIX'))->toBe('mid');
+});
+
+test('line picker shift uses desk group prefix not start time', function () {
+    $classifier = classifier();
+
+    $amDeskPmStart = makeClassifierLine([], deskGroup: 'DG', startTime: '1500');
+    expect($classifier->linePickerFields($amDeskPmStart)['desk_shift'])->toBe('am');
+
+    $pmDeskAmStart = makeClassifierLine([], deskGroup: 'AG', startTime: '0600');
+    expect($classifier->linePickerFields($pmDeskAmStart)['desk_shift'])->toBe('pm');
+
+    $midDesk = makeClassifierLine([], deskGroup: 'MG', startTime: '0600');
+    expect($classifier->linePickerFields($midDesk)['desk_shift'])->toBe('mid');
 });

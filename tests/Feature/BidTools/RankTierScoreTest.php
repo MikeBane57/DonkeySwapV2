@@ -4,6 +4,8 @@ use App\Models\BidLine;
 use App\Models\BidScenario;
 use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
+use App\Services\BidTools\BidLinePreferenceCatalog;
+use App\Services\BidTools\RankTierHelper;
 use App\Services\BidTools\ScenarioScoreService;
 
 test('equal start time tiers score the same within a tier group', function () {
@@ -28,7 +30,7 @@ test('equal start time tiers score the same within a tier group', function () {
     $amLine = $lines->firstWhere('line_num', '551');
     $pmLine = $lines->firstWhere('line_num', '552');
 
-    $startKeys = app(\App\Services\BidTools\BidLinePreferenceCatalog::class)
+    $startKeys = app(BidLinePreferenceCatalog::class)
         ->startTimeKeysForImport($import->id);
 
     $startRank = [
@@ -82,9 +84,9 @@ test('equal desk tiers score sector and router the same', function () {
         ['key' => 'XG', 'priority' => 'low', 'tier' => 2],
     ];
 
-    $xsWeight = \App\Services\BidTools\RankTierHelper::tierWeight($entries, 0);
-    $xrWeight = \App\Services\BidTools\RankTierHelper::tierWeight($entries, 1);
-    $xgWeight = \App\Services\BidTools\RankTierHelper::tierWeight($entries, 2);
+    $xsWeight = RankTierHelper::tierWeight($entries, 0);
+    $xrWeight = RankTierHelper::tierWeight($entries, 1);
+    $xgWeight = RankTierHelper::tierWeight($entries, 2);
 
     expect($xsWeight)->toBe($xrWeight);
     expect($xsWeight)->toBeGreaterThan($xgWeight);

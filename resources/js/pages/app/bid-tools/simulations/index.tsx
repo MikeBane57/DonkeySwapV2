@@ -62,8 +62,8 @@ export default function BidSimulationsIndex({
                 {simulations.length === 0 ? (
                     <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                         No simulations yet. Create one, add bidders with
-                        seniority order and preference profiles (scenarios), then
-                        run the simulator.
+                        seniority order and preference profiles (scenarios),
+                        then run the simulator.
                     </p>
                 ) : (
                     <ul className="space-y-2">

@@ -3,6 +3,7 @@
 namespace App\Services\BidTools;
 
 use App\Models\BidLine;
+use App\Models\BidLineDay;
 
 final class RotationBreakAnalyzer
 {
@@ -75,7 +76,7 @@ final class RotationBreakAnalyzer
     }
 
     /**
-     * @param  list<\App\Models\BidLineDay>  $days
+     * @param  list<BidLineDay>  $days
      * @return list<array{
      *   type: string,
      *   length: int,
@@ -219,7 +220,7 @@ final class RotationBreakAnalyzer
     }
 
     /**
-     * @param  list<\App\Models\BidLineDay>  $days
+     * @param  list<BidLineDay>  $days
      * @return list<array{
      *   length: int,
      *   start_date: string,
