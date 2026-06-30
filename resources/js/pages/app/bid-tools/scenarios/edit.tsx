@@ -148,6 +148,7 @@ export default function BidScenarioEdit({
     holidaysCatalog,
     deskCatalog,
     startTimeCatalog,
+    lines,
 }: {
     scenario: {
         id: number;
