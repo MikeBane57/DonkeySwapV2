@@ -4,6 +4,8 @@ namespace App\Services\BidTools;
 
 use App\Models\BidLine;
 use App\Models\BidScenario;
+use App\Models\BidScenarioVacationRange;
+use Illuminate\Support\Collection;
 
 final class ScenarioScoreService
 {
@@ -580,5 +582,61 @@ final class ScenarioScoreService
     private function defaultStartRank(): array
     {
         return ['t_0600', 't_0700', 'am', 'pm', 'mid', 'am_mix_0600_0700'];
+    }
+
+    /**
+     * Score lines using unsaved draft profile fields (for live preview).
+     *
+     * @param  array<string, mixed>  $draft
+     * @param  list<int>  $lineIds
+     * @return list<array<string, mixed>>
+     */
+    public function scoreLinesWithDraft(BidScenario $scenario, array $draft, array $lineIds): array
+    {
+        $scenario->loadMissing('import', 'vacationRanges');
+
+        $fillable = [
+            'vacation_bank',
+            'weights',
+            'holiday_rank',
+            'desk_rank',
+            'start_time_rank',
+            'personal_dates',
+        ];
+
+        $original = [];
+        foreach ($fillable as $key) {
+            $original[$key] = $scenario->getAttribute($key);
+        }
+        $originalRanges = $scenario->relationLoaded('vacationRanges')
+            ? $scenario->vacationRanges
+            : null;
+
+        foreach ($fillable as $key) {
+            if (array_key_exists($key, $draft)) {
+                $scenario->setAttribute($key, $draft[$key]);
+            }
+        }
+
+        if (array_key_exists('vacation_ranges', $draft)) {
+            $ranges = Collection::make($draft['vacation_ranges'] ?? [])
+                ->map(fn (array $range) => new BidScenarioVacationRange([
+                    'title' => $range['title'] ?? null,
+                    'starts_on' => $range['starts_on'],
+                    'ends_on' => $range['ends_on'],
+                ]));
+            $scenario->setRelation('vacationRanges', $ranges);
+        }
+
+        try {
+            return $this->scoreLines($scenario, $lineIds);
+        } finally {
+            foreach ($fillable as $key) {
+                $scenario->setAttribute($key, $original[$key]);
+            }
+            if ($originalRanges !== null) {
+                $scenario->setRelation('vacationRanges', $originalRanges);
+            }
+        }
     }
 }

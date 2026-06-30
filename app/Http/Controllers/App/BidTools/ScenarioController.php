@@ -8,6 +8,7 @@ use App\Http\Requests\BidTools\UpdateBidScenarioRequest;
 use App\Models\BidImport;
 use App\Models\BidScenario;
 use App\Models\BidScenarioVacationRange;
+use App\Services\BidTools\BidLinePickerService;
 use App\Services\BidTools\BidLinePreferenceCatalog;
 use App\Services\BidTools\ScenarioScoreService;
 use Illuminate\Http\RedirectResponse;
@@ -21,6 +22,7 @@ class ScenarioController extends Controller
     public function __construct(
         private readonly ScenarioScoreService $scoreService,
         private readonly BidLinePreferenceCatalog $preferenceCatalog,
+        private readonly BidLinePickerService $linePicker,
     ) {}
 
     public function create(): Response
@@ -112,6 +114,7 @@ class ScenarioController extends Controller
             'holidaysCatalog' => $this->scoreService->holidaysCatalog($bidYear),
             'deskCatalog' => $this->preferenceCatalog->deskCatalogForImport($s->bid_import_id),
             'startTimeCatalog' => $this->preferenceCatalog->startTimeCatalogForImport($s->bid_import_id),
+            'lines' => $this->linePicker->rowsForImport($s->bid_import_id, $s->id),
         ]);
     }
 
