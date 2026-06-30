@@ -80,6 +80,58 @@ export function groupWithAbove(
     return normalizeTierOrder(next);
 }
 
+export function assignEntryToGroup(
+    entries: TieredRankEntry[],
+    index: number,
+    groupNumber: number,
+): TieredRankEntry[] {
+    if (index < 0 || index >= entries.length || groupNumber < 1) {
+        return entries;
+    }
+
+    const next = [...entries];
+    next[index] = { ...next[index], tier: groupNumber };
+
+    return normalizeTierOrder(next);
+}
+
+export function createNewGroupForEntry(
+    entries: TieredRankEntry[],
+    index: number,
+): TieredRankEntry[] {
+    const maxTier = Math.max(
+        ...entries.map((entry, entryIndex) => entry.tier ?? entryIndex + 1),
+    );
+
+    return assignEntryToGroup(entries, index, maxTier + 1);
+}
+
+export function joinEntryWithTarget(
+    entries: TieredRankEntry[],
+    fromIndex: number,
+    targetIndex: number,
+): TieredRankEntry[] {
+    if (
+        fromIndex === targetIndex ||
+        fromIndex < 0 ||
+        targetIndex < 0 ||
+        fromIndex >= entries.length ||
+        targetIndex >= entries.length
+    ) {
+        return entries;
+    }
+
+    const targetTier = entries[targetIndex].tier ?? targetIndex + 1;
+    const item = entries[fromIndex];
+    const without = entries.filter((_, entryIndex) => entryIndex !== fromIndex);
+    const adjustedTarget =
+        fromIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    const merged = [...without];
+    merged.splice(adjustedTarget + 1, 0, { ...item, tier: targetTier });
+
+    return normalizeTierOrder(merged);
+}
+
 export function splitAfter(
     entries: TieredRankEntry[],
     index: number,
