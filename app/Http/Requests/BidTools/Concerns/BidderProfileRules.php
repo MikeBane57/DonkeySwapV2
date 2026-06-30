@@ -49,6 +49,8 @@ trait BidderProfileRules
             "{$prefix}.weights.sort_mode" => ['nullable', 'string', Rule::in(ScenarioScoreService::SORT_MODES)],
             "{$prefix}.weights.criteria_order" => ['nullable', 'array'],
             "{$prefix}.weights.criteria_order.*" => ['string', Rule::in(['holiday', 'personal', 'start_time', 'desk'])],
+            "{$prefix}.weights.shift_order" => ['nullable', 'array'],
+            "{$prefix}.weights.shift_order.*" => ['string', Rule::in(['am', 'pm', 'mid'])],
             "{$prefix}.personal_dates" => ['nullable', 'array'],
             "{$prefix}.personal_dates.*.date" => ['required', 'date_format:Y-m-d'],
             "{$prefix}.personal_dates.*.label" => ['nullable', 'string', 'max:120'],

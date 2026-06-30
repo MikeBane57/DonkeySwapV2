@@ -44,6 +44,7 @@ final class BidScenarioProfileBuilder
             $scenario->weights ?? [],
         );
         $weights['criteria_order'] = ScenarioScoreService::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
+        $weights['shift_order'] = ScenarioScoreService::normalizeShiftOrder($weights['shift_order'] ?? null);
         $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
 
         $condensed = $this->condensedMapper->toCondensedPayload($scenario);

@@ -13,6 +13,13 @@ import {
 } from '@/components/ui/select';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
+import type { DeskGroupShift } from '@/pages/app/bid-tools/desk-group-shift';
+import {
+    PreferenceColumnHeader,
+    ShiftOrderPicker,
+    normalizeShiftOrder,
+    preferenceColumnClass,
+} from '@/pages/app/bid-tools/preference-rank-shared';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
@@ -51,6 +58,7 @@ export type BidderProfile = {
         vacation_penalty: number;
         sort_mode: SortMode;
         criteria_order: string[];
+        shift_order?: DeskGroupShift[];
     };
     personal_dates: PersonalDate[];
     vacation_ranges: VacationRange[];
@@ -209,6 +217,7 @@ export function emptyBidderProfile(defaults: BidderProfile): BidderProfile {
             ...defaults.weights,
             sort_mode: defaults.weights.sort_mode ?? 'blended',
             criteria_order: [...defaults.weights.criteria_order],
+            shift_order: normalizeShiftOrder(defaults.weights.shift_order),
         },
         personal_dates: [],
         vacation_ranges: [],
@@ -311,8 +320,9 @@ export function BidderProfileFields({
                 summary={`${holidayRank.length} hol · ${deskRank.length} desk · ${startTimeRank.length} start`}
                 defaultOpen
             >
-                <div className="grid gap-4 lg:grid-cols-3">
-                    <div className="min-w-0">
+                <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+                    <div className={preferenceColumnClass}>
+                        <PreferenceColumnHeader title="Holidays" />
                         <TieredRankList
                             idPrefix={`${idPrefix}-holiday`}
                             label="Holidays"
@@ -322,9 +332,11 @@ export function BidderProfileFields({
                                 onChange({ ...value, holiday_rank })
                             }
                             compact
+                            hideLabel
                         />
                     </div>
-                    <div className="min-w-0">
+                    <div className={preferenceColumnClass}>
+                        <PreferenceColumnHeader title="Desk type" />
                         <TieredRankList
                             idPrefix={`${idPrefix}-desk`}
                             label="Desk type"
@@ -334,9 +346,11 @@ export function BidderProfileFields({
                                 onChange({ ...value, desk_rank })
                             }
                             compact
+                            hideLabel
                         />
                     </div>
-                    <div className="min-w-0">
+                    <div className={preferenceColumnClass}>
+                        <PreferenceColumnHeader title="Start time" />
                         <TieredRankList
                             idPrefix={`${idPrefix}-start`}
                             label="Start time"
@@ -346,8 +360,17 @@ export function BidderProfileFields({
                                 onChange({ ...value, start_time_rank })
                             }
                             compact
+                            hideLabel
                         />
                     </div>
+                </div>
+                <div className="mt-3 border-t border-sidebar-border/50 pt-3">
+                    <ShiftOrderPicker
+                        value={normalizeShiftOrder(value.weights.shift_order)}
+                        onChange={(shift_order) =>
+                            setWeights({ shift_order })
+                        }
+                    />
                 </div>
             </BidToolsCollapsibleSection>
 

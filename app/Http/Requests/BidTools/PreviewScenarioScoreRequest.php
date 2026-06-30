@@ -31,6 +31,8 @@ class PreviewScenarioScoreRequest extends FormRequest
             'weights.sort_mode' => ['nullable', 'string', Rule::in(ScenarioScoreService::SORT_MODES)],
             'weights.criteria_order' => ['nullable', 'array'],
             'weights.criteria_order.*' => ['string', Rule::in(['holiday', 'personal', 'start_time', 'desk'])],
+            'weights.shift_order' => ['nullable', 'array'],
+            'weights.shift_order.*' => ['string', Rule::in(['am', 'pm', 'mid'])],
             'holiday_rank' => ['nullable', 'array'],
             'holiday_rank.*.date' => ['required_with:holiday_rank', 'date_format:Y-m-d'],
             'holiday_rank.*.label' => ['nullable', 'string', 'max:120'],

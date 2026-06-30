@@ -11,6 +11,12 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
+    CompactPrioritySelect,
+    DraggablePreferenceRow,
+    preferencePuckGroupClass,
+    preferencePuckLabelClass,
+} from '@/pages/app/bid-tools/preference-rank-shared';
+import {
     entriesToTierGroups,
     groupWithAbove,
     moveIndex,
@@ -24,10 +30,16 @@ import type {
 function PrioritySelect({
     value,
     onChange,
+    compact = false,
 }: {
     value: Priority;
     onChange: (p: Priority) => void;
+    compact?: boolean;
 }) {
+    if (compact) {
+        return <CompactPrioritySelect value={value} onChange={onChange} />;
+    }
+
     return (
         <Select value={value} onValueChange={(v) => onChange(v as Priority)}>
             <SelectTrigger className="h-8 w-[7.5rem] text-xs">
@@ -97,6 +109,7 @@ export function TieredRankList({
     onChange,
     onRemoveKey,
     compact = false,
+    hideLabel = false,
 }: {
     idPrefix: string;
     label: string;
@@ -106,6 +119,7 @@ export function TieredRankList({
     onChange: (entries: TieredRankEntry[]) => void;
     onRemoveKey?: (key: string) => void;
     compact?: boolean;
+    hideLabel?: boolean;
 }) {
     const flatIndexByKey = useMemo(() => {
         const map = new Map<string, number>();
@@ -134,9 +148,13 @@ export function TieredRankList({
         onChange(splitAfter(entries, index));
     };
 
+    const Row = compact ? DraggablePreferenceRow : DraggableRow;
+
     return (
         <div className={compact ? 'space-y-1.5' : 'space-y-2'}>
-            <Label className={compact ? 'text-xs' : undefined}>{label}</Label>
+            {!hideLabel && (
+                <Label className={compact ? 'text-xs' : undefined}>{label}</Label>
+            )}
             {hint && !compact && (
                 <p className="text-xs text-muted-foreground">{hint}</p>
             )}
@@ -147,13 +165,13 @@ export function TieredRankList({
                     after&quot; starts a new group below this row.
                 </p>
             )}
-            <div className={compact ? 'flex flex-wrap gap-2' : 'space-y-2'}>
+            <div className={compact ? 'flex flex-col gap-1.5' : 'space-y-2'}>
                 {groups.map((group, groupIndex) => (
                     <div
                         key={`${idPrefix}-tier-${groupIndex}`}
                         className={
                             compact
-                                ? 'inline-flex min-w-[10rem] flex-col gap-0.5 rounded-md border border-sidebar-border/60 bg-muted/10 px-2 py-1.5'
+                                ? preferencePuckGroupClass
                                 : 'space-y-1 rounded-lg border border-sidebar-border/60 bg-muted/10 p-2'
                         }
                     >
@@ -173,22 +191,17 @@ export function TieredRankList({
                             const isFirstInGroup = entry === group[0];
 
                             return (
-                                <DraggableRow
+                                <Row
                                     key={`${idPrefix}-${entry.key}`}
                                     index={flatIndex}
                                     onReorder={reorderFlat}
                                 >
-                                    <span
-                                        className={
-                                            compact
-                                                ? 'min-w-0 flex-1 text-xs'
-                                                : 'min-w-0 flex-1 text-sm'
-                                        }
-                                    >
+                                    <span className={compact ? preferencePuckLabelClass : 'min-w-0 flex-1 text-sm'}>
                                         {labels[entry.key] ?? entry.key}
                                     </span>
                                     <PrioritySelect
                                         value={entry.priority}
+                                        compact={compact}
                                         onChange={(priority) =>
                                             updateEntry(flatIndex, { priority })
                                         }
@@ -255,7 +268,7 @@ export function TieredRankList({
                                             <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                     )}
-                                </DraggableRow>
+                                </Row>
                             );
                         })}
                     </div>
