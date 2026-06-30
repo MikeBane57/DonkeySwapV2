@@ -1,11 +1,15 @@
 import { Button } from '@/components/ui/button';
+import {
+    deskGroupShift,
+    type DeskGroupShift,
+} from '@/pages/app/bid-tools/desk-group-shift';
 
 export type LinePickerRow = {
     id: number;
     line_num: string;
     desk_group: string;
     start_time: string;
-    start_shift: string;
+    desk_shift: DeskGroupShift | null;
     desk_bucket: string;
 };
 
@@ -27,9 +31,9 @@ export function BidLinePickerToolbar({
         }
     };
 
-    const amCount = lines.filter((l) => l.start_shift === 'am').length;
-    const pmCount = lines.filter((l) => l.start_shift === 'pm').length;
-    const midCount = lines.filter((l) => l.start_shift === 'mid').length;
+    const amCount = lines.filter((l) => l.desk_shift === 'am').length;
+    const pmCount = lines.filter((l) => l.desk_shift === 'pm').length;
+    const midCount = lines.filter((l) => l.desk_shift === 'mid').length;
     const reliefCount = lines.filter((l) => l.desk_bucket === 'RELIEF').length;
 
     return (
@@ -42,7 +46,9 @@ export function BidLinePickerToolbar({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => selectMatching((l) => l.start_shift === 'am')}
+                    onClick={() =>
+                        selectMatching((l) => l.desk_shift === 'am')
+                    }
                 >
                     AM ({amCount})
                 </Button>
@@ -52,7 +58,9 @@ export function BidLinePickerToolbar({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => selectMatching((l) => l.start_shift === 'pm')}
+                    onClick={() =>
+                        selectMatching((l) => l.desk_shift === 'pm')
+                    }
                 >
                     PM ({pmCount})
                 </Button>
@@ -63,7 +71,7 @@ export function BidLinePickerToolbar({
                     variant="outline"
                     size="sm"
                     onClick={() =>
-                        selectMatching((l) => l.start_shift === 'mid')
+                        selectMatching((l) => l.desk_shift === 'mid')
                     }
                 >
                     Mid ({midCount})
@@ -81,9 +89,34 @@ export function BidLinePickerToolbar({
                     Relief ({reliefCount})
                 </Button>
             )}
-            <Button type="button" variant="outline" size="sm" onClick={onClear}>
+            <Button type="button" variant="ghost" size="sm" onClick={onClear}>
                 Clear
             </Button>
         </div>
     );
+}
+
+export function mapLineToPickerRow(line: {
+    id: number;
+    line_num: string;
+    desk_group: string;
+    start_time: string;
+    desk_shift?: DeskGroupShift | string | null;
+    desk_bucket?: string;
+}): LinePickerRow {
+    const shift =
+        line.desk_shift === 'am' ||
+        line.desk_shift === 'pm' ||
+        line.desk_shift === 'mid'
+            ? line.desk_shift
+            : deskGroupShift(line.desk_group);
+
+    return {
+        id: line.id,
+        line_num: line.line_num,
+        desk_group: line.desk_group,
+        start_time: line.start_time,
+        desk_shift: shift,
+        desk_bucket: line.desk_bucket ?? 'unknown',
+    };
 }
