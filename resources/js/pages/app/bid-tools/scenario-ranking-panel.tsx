@@ -344,145 +344,154 @@ export function ScenarioRankingPanel({
                 </div>
             </section>
 
-            <section className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Label>Holidays</Label>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={resetHolidaysFromCatalog}
-                    >
-                        Reset from calendar
-                    </Button>
-                </div>
-                <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-sidebar-border/60 p-2">
-                    {value.holiday_rank.map((h, idx) => (
-                        <DraggableRow
-                            key={`${h.date}-${idx}`}
-                            index={idx}
-                            onReorder={(from, to) =>
+            <div className="grid gap-4 lg:grid-cols-3">
+                <section className="min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <Label className="text-xs">Holidays</Label>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={resetHolidaysFromCatalog}
+                        >
+                            Reset
+                        </Button>
+                    </div>
+                    <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-sidebar-border/60 p-2">
+                        {value.holiday_rank.map((h, idx) => (
+                            <DraggableRow
+                                key={`${h.date}-${idx}`}
+                                index={idx}
+                                onReorder={(from, to) =>
+                                    onChange({
+                                        ...value,
+                                        holiday_rank: moveIndex(
+                                            value.holiday_rank,
+                                            from,
+                                            to,
+                                        ),
+                                    })
+                                }
+                            >
+                                <span className="min-w-0 flex-1 text-xs">
+                                    {h.label || h.date}
+                                </span>
+                                <PrioritySelect
+                                    value={h.priority}
+                                    onChange={(priority) => {
+                                        const next = [...value.holiday_rank];
+                                        next[idx] = { ...next[idx], priority };
+                                        onChange({
+                                            ...value,
+                                            holiday_rank: next,
+                                        });
+                                    }}
+                                />
+                            </DraggableRow>
+                        ))}
+                    </div>
+                </section>
+
+                <section className="min-w-0 space-y-2">
+                    {addDeskOptions.length > 0 && (
+                        <Select
+                            onValueChange={(key) =>
                                 onChange({
                                     ...value,
-                                    holiday_rank: moveIndex(
-                                        value.holiday_rank,
-                                        from,
-                                        to,
-                                    ),
+                                    desk_rank: [
+                                        ...value.desk_rank,
+                                        {
+                                            key,
+                                            priority: 'high',
+                                            tier: value.desk_rank.length + 1,
+                                        },
+                                    ],
                                 })
                             }
                         >
-                            <span className="min-w-0 flex-1 text-sm">
-                                {h.label || h.date}
-                            </span>
-                            <PrioritySelect
-                                value={h.priority}
-                                onChange={(priority) => {
-                                    const next = [...value.holiday_rank];
-                                    next[idx] = { ...next[idx], priority };
-                                    onChange({ ...value, holiday_rank: next });
-                                }}
-                            />
-                        </DraggableRow>
-                    ))}
-                </div>
-            </section>
-
-            <section className="space-y-2">
-                {addDeskOptions.length > 0 && (
-                    <Select
-                        onValueChange={(key) =>
+                            <SelectTrigger className="h-8 w-full text-xs">
+                                <SelectValue placeholder="Add desk…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {addDeskOptions.map((d) => (
+                                    <SelectItem key={d.key} value={d.key}>
+                                        {d.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                    <TieredRankList
+                        idPrefix="ranked-desk"
+                        label="Desk type"
+                        entries={value.desk_rank}
+                        labels={deskLabels}
+                        onChange={(desk_rank) =>
+                            onChange({ ...value, desk_rank })
+                        }
+                        onRemoveKey={(key) =>
                             onChange({
                                 ...value,
-                                desk_rank: [
-                                    ...value.desk_rank,
-                                    {
-                                        key,
-                                        priority: 'high',
-                                        tier: value.desk_rank.length + 1,
-                                    },
-                                ],
+                                desk_rank: value.desk_rank.filter(
+                                    (d) => d.key !== key,
+                                ),
                             })
                         }
-                    >
-                        <SelectTrigger className="h-8 w-[11rem] text-xs">
-                            <SelectValue placeholder="Add desk…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {addDeskOptions.map((d) => (
-                                <SelectItem key={d.key} value={d.key}>
-                                    {d.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                )}
-                <TieredRankList
-                    idPrefix="ranked-desk"
-                    label="Desk type preference"
-                    hint="Group desk types that are equal to you."
-                    entries={value.desk_rank}
-                    labels={deskLabels}
-                    onChange={(desk_rank) => onChange({ ...value, desk_rank })}
-                    onRemoveKey={(key) =>
-                        onChange({
-                            ...value,
-                            desk_rank: value.desk_rank.filter(
-                                (d) => d.key !== key,
-                            ),
-                        })
-                    }
-                />
-            </section>
+                        compact
+                    />
+                </section>
 
-            <section className="space-y-2">
-                {addStartOptions.length > 0 && (
-                    <Select
-                        onValueChange={(key) =>
+                <section className="min-w-0 space-y-2">
+                    {addStartOptions.length > 0 && (
+                        <Select
+                            onValueChange={(key) =>
+                                onChange({
+                                    ...value,
+                                    start_time_rank: [
+                                        ...value.start_time_rank,
+                                        {
+                                            key,
+                                            priority: 'high',
+                                            tier:
+                                                value.start_time_rank.length +
+                                                1,
+                                        },
+                                    ],
+                                })
+                            }
+                        >
+                            <SelectTrigger className="h-8 w-full text-xs">
+                                <SelectValue placeholder="Add start…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {addStartOptions.map((d) => (
+                                    <SelectItem key={d.key} value={d.key}>
+                                        {d.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                    <TieredRankList
+                        idPrefix="ranked-start"
+                        label="Start time"
+                        entries={value.start_time_rank}
+                        labels={startLabels}
+                        onChange={(start_time_rank) =>
+                            onChange({ ...value, start_time_rank })
+                        }
+                        onRemoveKey={(key) =>
                             onChange({
                                 ...value,
-                                start_time_rank: [
-                                    ...value.start_time_rank,
-                                    {
-                                        key,
-                                        priority: 'high',
-                                        tier: value.start_time_rank.length + 1,
-                                    },
-                                ],
+                                start_time_rank: value.start_time_rank.filter(
+                                    (d) => d.key !== key,
+                                ),
                             })
                         }
-                    >
-                        <SelectTrigger className="h-8 w-[12rem] text-xs">
-                            <SelectValue placeholder="Add start…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {addStartOptions.map((d) => (
-                                <SelectItem key={d.key} value={d.key}>
-                                    {d.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                )}
-                <TieredRankList
-                    idPrefix="ranked-start"
-                    label="Start time preference"
-                    hint="Group start times that are equal."
-                    entries={value.start_time_rank}
-                    labels={startLabels}
-                    onChange={(start_time_rank) =>
-                        onChange({ ...value, start_time_rank })
-                    }
-                    onRemoveKey={(key) =>
-                        onChange({
-                            ...value,
-                            start_time_rank: value.start_time_rank.filter(
-                                (d) => d.key !== key,
-                            ),
-                        })
-                    }
-                />
-            </section>
+                        compact
+                    />
+                </section>
+            </div>
 
             <section className="space-y-2">
                 <div className="flex items-center justify-between gap-2">

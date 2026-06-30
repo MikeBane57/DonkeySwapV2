@@ -307,47 +307,47 @@ export function BidderProfileFields({
             </BidToolsCollapsibleSection>
 
             <BidToolsCollapsibleSection
-                title="Holiday preference"
-                summary={`${holidayRank.length} groups`}
+                title="Holidays, desk & start"
+                summary={`${holidayRank.length} hol · ${deskRank.length} desk · ${startTimeRank.length} start`}
                 defaultOpen
             >
-                <TieredRankList
-                    idPrefix={`${idPrefix}-holiday`}
-                    label="Holiday preference"
-                    entries={holidayRank}
-                    labels={HOLIDAY_LABELS}
-                    onChange={(holiday_rank) =>
-                        onChange({ ...value, holiday_rank })
-                    }
-                    compact
-                />
-            </BidToolsCollapsibleSection>
-
-            <BidToolsCollapsibleSection
-                title="Desk & start time"
-                summary={`${deskRank.length} desk · ${startTimeRank.length} start`}
-            >
-                <div className="grid gap-4 xl:grid-cols-2">
-                    <TieredRankList
-                        idPrefix={`${idPrefix}-desk`}
-                        label="Desk type"
-                        entries={deskRank}
-                        labels={DESK_LABELS}
-                        onChange={(desk_rank) =>
-                            onChange({ ...value, desk_rank })
-                        }
-                        compact
-                    />
-                    <TieredRankList
-                        idPrefix={`${idPrefix}-start`}
-                        label="Start time"
-                        entries={startTimeRank}
-                        labels={START_TIME_LABELS}
-                        onChange={(start_time_rank) =>
-                            onChange({ ...value, start_time_rank })
-                        }
-                        compact
-                    />
+                <div className="grid gap-4 lg:grid-cols-3">
+                    <div className="min-w-0">
+                        <TieredRankList
+                            idPrefix={`${idPrefix}-holiday`}
+                            label="Holidays"
+                            entries={holidayRank}
+                            labels={HOLIDAY_LABELS}
+                            onChange={(holiday_rank) =>
+                                onChange({ ...value, holiday_rank })
+                            }
+                            compact
+                        />
+                    </div>
+                    <div className="min-w-0">
+                        <TieredRankList
+                            idPrefix={`${idPrefix}-desk`}
+                            label="Desk type"
+                            entries={deskRank}
+                            labels={DESK_LABELS}
+                            onChange={(desk_rank) =>
+                                onChange({ ...value, desk_rank })
+                            }
+                            compact
+                        />
+                    </div>
+                    <div className="min-w-0">
+                        <TieredRankList
+                            idPrefix={`${idPrefix}-start`}
+                            label="Start time"
+                            entries={startTimeRank}
+                            labels={START_TIME_LABELS}
+                            onChange={(start_time_rank) =>
+                                onChange({ ...value, start_time_rank })
+                            }
+                            compact
+                        />
+                    </div>
                 </div>
             </BidToolsCollapsibleSection>
 

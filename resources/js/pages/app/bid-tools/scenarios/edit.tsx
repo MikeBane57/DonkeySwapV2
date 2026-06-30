@@ -351,7 +351,7 @@ export default function BidScenarioEdit({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Scenario · ${scenario.name}`} />
-            <div className="mx-auto max-w-5xl space-y-6 p-4 pb-16">
+            <div className="mx-auto max-w-6xl space-y-6 p-4 pb-16">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-semibold tracking-tight">
@@ -658,57 +658,149 @@ export default function BidScenarioEdit({
                     </BidToolsCollapsibleSection>
 
                     <BidToolsCollapsibleSection
-                        title="Holidays"
-                        summary={`${holidays.length} dates`}
+                        title="Holidays, desk & start"
+                        summary={`${holidays.length} hol · ${deskRank.length} desk · ${startRank.length} start`}
+                        defaultOpen
                     >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <Label>Holidays (drag = importance order)</Label>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={resetHolidaysFromCatalog}
-                            >
-                                Reset list from calendar
-                            </Button>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                            Higher in the list = more important. Priority
-                            (high/low/don&apos;t care) controls how strongly
-                            each item counts. Drag to rank.
-                        </p>
-                        <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
-                            {holidays.map((h, idx) => (
-                                <DraggableRow
-                                    key={`${h.date}-${idx}`}
-                                    index={idx}
-                                    onReorder={(from, to) =>
-                                        setHolidays((list) =>
-                                            moveIndex(list, from, to),
+                        <div className="grid gap-4 lg:grid-cols-3">
+                            <div className="min-w-0 space-y-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <Label className="text-xs">Holidays</Label>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={resetHolidaysFromCatalog}
+                                    >
+                                        Reset
+                                    </Button>
+                                </div>
+                                <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-sidebar-border/60 p-2">
+                                    {holidays.map((h, idx) => (
+                                        <DraggableRow
+                                            key={`${h.date}-${idx}`}
+                                            index={idx}
+                                            onReorder={(from, to) =>
+                                                setHolidays((list) =>
+                                                    moveIndex(list, from, to),
+                                                )
+                                            }
+                                        >
+                                            <span className="min-w-0 flex-1 text-xs">
+                                                <span className="font-medium">
+                                                    {h.label || h.date}
+                                                </span>
+                                                <span className="ml-1 text-muted-foreground">
+                                                    {h.date}
+                                                </span>
+                                            </span>
+                                            <PrioritySelect
+                                                value={h.priority}
+                                                onChange={(p) => {
+                                                    const next = [...holidays];
+                                                    next[idx] = {
+                                                        ...next[idx],
+                                                        priority: p,
+                                                    };
+                                                    setHolidays(next);
+                                                }}
+                                            />
+                                        </DraggableRow>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="min-w-0 space-y-2">
+                                {addDeskOptions.length > 0 && (
+                                    <Select
+                                        onValueChange={(key) => {
+                                            setDeskRank([
+                                                ...deskRank,
+                                                {
+                                                    key,
+                                                    priority: 'high',
+                                                    tier: deskRank.length + 1,
+                                                },
+                                            ]);
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-8 w-full text-xs">
+                                            <SelectValue placeholder="Add desk…" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {addDeskOptions.map((d) => (
+                                                <SelectItem
+                                                    key={d.key}
+                                                    value={d.key}
+                                                >
+                                                    {d.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                                <TieredRankList
+                                    idPrefix="scenario-desk"
+                                    label="Desk type"
+                                    entries={deskRank}
+                                    labels={deskLabels}
+                                    onChange={setDeskRank}
+                                    onRemoveKey={(key) =>
+                                        setDeskRank(
+                                            deskRank.filter(
+                                                (d) => d.key !== key,
+                                            ),
                                         )
                                     }
-                                >
-                                    <span className="min-w-0 flex-1 text-sm">
-                                        <span className="font-medium">
-                                            {h.label || h.date}
-                                        </span>
-                                        <span className="ml-2 text-xs text-muted-foreground">
-                                            {h.date}
-                                        </span>
-                                    </span>
-                                    <PrioritySelect
-                                        value={h.priority}
-                                        onChange={(p) => {
-                                            const next = [...holidays];
-                                            next[idx] = {
-                                                ...next[idx],
-                                                priority: p,
-                                            };
-                                            setHolidays(next);
+                                    compact
+                                />
+                            </div>
+
+                            <div className="min-w-0 space-y-2">
+                                {addStartOptions.length > 0 && (
+                                    <Select
+                                        onValueChange={(key) => {
+                                            setStartRank([
+                                                ...startRank,
+                                                {
+                                                    key,
+                                                    priority: 'high',
+                                                    tier: startRank.length + 1,
+                                                },
+                                            ]);
                                         }}
-                                    />
-                                </DraggableRow>
-                            ))}
+                                    >
+                                        <SelectTrigger className="h-8 w-full text-xs">
+                                            <SelectValue placeholder="Add start…" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {addStartOptions.map((d) => (
+                                                <SelectItem
+                                                    key={d.key}
+                                                    value={d.key}
+                                                >
+                                                    {d.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                                <TieredRankList
+                                    idPrefix="scenario-start"
+                                    label="Start time"
+                                    entries={startRank}
+                                    labels={startLabels}
+                                    onChange={setStartRank}
+                                    onRemoveKey={(key) =>
+                                        setStartRank(
+                                            startRank.filter(
+                                                (d) => d.key !== key,
+                                            ),
+                                        )
+                                    }
+                                    compact
+                                />
+                            </div>
                         </div>
                     </BidToolsCollapsibleSection>
 
@@ -801,104 +893,6 @@ export default function BidScenarioEdit({
                                 </DraggableRow>
                             ))}
                         </div>
-                    </BidToolsCollapsibleSection>
-
-                    <BidToolsCollapsibleSection
-                        title="Desk type"
-                        summary={`${deskRank.length} options`}
-                    >
-                        {addDeskOptions.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                                <Select
-                                    onValueChange={(key) => {
-                                        setDeskRank([
-                                            ...deskRank,
-                                            {
-                                                key,
-                                                priority: 'high',
-                                                tier: deskRank.length + 1,
-                                            },
-                                        ]);
-                                    }}
-                                >
-                                    <SelectTrigger className="h-8 w-[11rem] text-xs">
-                                        <SelectValue placeholder="Add desk…" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {addDeskOptions.map((d) => (
-                                            <SelectItem
-                                                key={d.key}
-                                                value={d.key}
-                                            >
-                                                {d.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        )}
-                        <TieredRankList
-                            idPrefix="scenario-desk"
-                            label="Desk type preference"
-                            entries={deskRank}
-                            labels={deskLabels}
-                            onChange={setDeskRank}
-                            onRemoveKey={(key) =>
-                                setDeskRank(
-                                    deskRank.filter((d) => d.key !== key),
-                                )
-                            }
-                            compact
-                        />
-                    </BidToolsCollapsibleSection>
-
-                    <BidToolsCollapsibleSection
-                        title="Start time"
-                        summary={`${startRank.length} options`}
-                    >
-                        {addStartOptions.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                                <Select
-                                    onValueChange={(key) => {
-                                        setStartRank([
-                                            ...startRank,
-                                            {
-                                                key,
-                                                priority: 'high',
-                                                tier: startRank.length + 1,
-                                            },
-                                        ]);
-                                    }}
-                                >
-                                    <SelectTrigger className="h-8 w-[12rem] text-xs">
-                                        <SelectValue placeholder="Add start…" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {addStartOptions.map((d) => (
-                                            <SelectItem
-                                                key={d.key}
-                                                value={d.key}
-                                            >
-                                                {d.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        )}
-                        <TieredRankList
-                            idPrefix="scenario-start"
-                            label="Start time preference"
-                            entries={startRank}
-                            labels={startLabels}
-                            onChange={setStartRank}
-                            onRemoveKey={(key) =>
-                                setStartRank(
-                                    startRank.filter((d) => d.key !== key),
-                                )
-                            }
-                            compact
-                        />
                     </BidToolsCollapsibleSection>
 
                     <BidToolsCollapsibleSection title="Category weights">
