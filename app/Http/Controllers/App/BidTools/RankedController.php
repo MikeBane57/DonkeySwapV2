@@ -7,7 +7,7 @@ use App\Http\Requests\BidTools\ScoreBidLinesRequest;
 use App\Models\BidLine;
 use App\Models\BidScenario;
 use App\Models\BidScenarioLineNote;
-use App\Services\BidTools\CondensedDeskClassifier;
+use App\Services\BidTools\BidLinePickerService;
 use App\Services\BidTools\LineRowFormatter;
 use App\Services\BidTools\ScenarioScoreService;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +20,7 @@ class RankedController extends Controller
     public function __construct(
         private readonly ScenarioScoreService $scoreService,
         private readonly LineRowFormatter $rowFormatter,
-        private readonly CondensedDeskClassifier $deskClassifier,
+        private readonly BidLinePickerService $linePicker,
     ) {}
 
     public function show(Request $request, int $scenario): Response
@@ -28,25 +28,12 @@ class RankedController extends Controller
         $s = $this->findScenario($request, $scenario);
         $s->load('import');
 
-        $lines = BidLine::query()
-            ->where('bid_import_id', $s->bid_import_id)
-            ->with('days')
-            ->orderBy('line_num')
-            ->get();
+        $lineRows = $this->linePicker->rowsForImport($s->bid_import_id, $s->id);
 
         $notes = BidScenarioLineNote::query()
             ->where('bid_scenario_id', $s->id)
             ->get()
             ->keyBy('bid_line_id');
-
-        $lineRows = $lines->map(function (BidLine $l) use ($notes) {
-            $picker = $this->deskClassifier->linePickerFields($l);
-
-            return [
-                ...$picker,
-                'submitted_externally' => (bool) ($notes[$l->id]->submitted_externally ?? false),
-            ];
-        });
 
         $rawScores = $request->session()->get($this->scoresSessionKey($scenario));
         $scoredRows = null;

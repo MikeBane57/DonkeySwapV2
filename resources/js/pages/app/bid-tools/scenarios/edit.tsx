@@ -13,7 +13,10 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
+import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
+import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
+import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -169,6 +172,7 @@ export default function BidScenarioEdit({
     holidaysCatalog: { date: string; id: string; label: string }[];
     deskCatalog: { key: string; label: string }[];
     startTimeCatalog: { key: string; label: string }[];
+    lines: LinePickerRow[];
 }) {
     const page = usePage<{
         errors?: Record<string, string>;
@@ -304,6 +308,37 @@ export default function BidScenarioEdit({
         scenario.id,
     ]);
 
+    const previewDraft = useMemo(
+        () => ({
+            vacation_bank: Math.max(0, Math.round(Number(vacationBank) || 0)),
+            weights: {
+                holiday: Number(weights.holiday) || 0,
+                personal: Number(weights.personal) || 0,
+                start_time: Number(weights.start_time) || 0,
+                desk: Number(weights.desk) || 0,
+                vacation_penalty: Number(weights.vacation_penalty) || 0,
+                sort_mode: sortMode,
+                criteria_order: criteriaOrder,
+            },
+            holiday_rank: holidays,
+            desk_rank: deskRank,
+            start_time_rank: startRank,
+            personal_dates: personalDates.filter((p) => p.date),
+            vacation_ranges: ranges.filter((r) => r.starts_on && r.ends_on),
+        }),
+        [
+            vacationBank,
+            weights,
+            sortMode,
+            criteriaOrder,
+            holidays,
+            deskRank,
+            startRank,
+            personalDates,
+            ranges,
+        ],
+    );
+
     const resetHolidaysFromCatalog = () => {
         setHolidays(
             holidaysCatalog.map((h) => ({
@@ -318,7 +353,7 @@ export default function BidScenarioEdit({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Scenario · ${scenario.name}`} />
-            <div className="mx-auto max-w-3xl space-y-10 p-4 pb-16">
+            <div className="mx-auto max-w-5xl space-y-6 p-4 pb-16">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-semibold tracking-tight">
@@ -338,7 +373,7 @@ export default function BidScenarioEdit({
                             <Link
                                 href={`/app/bid-tools/scenarios/${scenario.id}/ranked`}
                             >
-                                Compare lines
+                                Print view
                             </Link>
                         </Button>
                         <Button
@@ -397,44 +432,50 @@ export default function BidScenarioEdit({
                 )}
 
                 <form
-                    className="space-y-10"
+                    className="space-y-4"
                     onSubmit={(e) => {
                         e.preventDefault();
                         submit();
                     }}
                 >
-                    <section className="space-y-3">
-                        <Label htmlFor="name">Name</Label>
-                        <Input
-                            id="name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                        />
-                    </section>
+                    <BidToolsCollapsibleSection
+                        title="Basics"
+                        summary={name}
+                        defaultOpen
+                    >
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="name">Name</Label>
+                                <Input
+                                    id="name"
+                                    className="h-8"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="vacation_bank">
+                                    Vacation bank (days)
+                                </Label>
+                                <Input
+                                    id="vacation_bank"
+                                    type="number"
+                                    min={0}
+                                    max={40}
+                                    className="h-8 max-w-[10rem]"
+                                    value={vacationBank}
+                                    onChange={(e) =>
+                                        setVacationBank(Number(e.target.value))
+                                    }
+                                />
+                            </div>
+                        </div>
+                    </BidToolsCollapsibleSection>
 
-                    <section className="space-y-3">
-                        <Label htmlFor="vacation_bank">
-                            Vacation bank (days)
-                        </Label>
-                        <Input
-                            id="vacation_bank"
-                            type="number"
-                            min={0}
-                            max={40}
-                            className="max-w-[10rem]"
-                            value={vacationBank}
-                            onChange={(e) =>
-                                setVacationBank(Number(e.target.value))
-                            }
-                        />
-                        <p className="text-xs text-muted-foreground">
-                            Vacation “cost” counts workdays inside your want-off
-                            ranges (off days cost 0). We warn when cost exceeds
-                            this bank.
-                        </p>
-                    </section>
-
-                    <section className="space-y-3">
+                    <BidToolsCollapsibleSection
+                        title="Want-off ranges"
+                        summary={`${ranges.length} range${ranges.length === 1 ? '' : 's'}`}
+                    >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <Label>Want-off ranges</Label>
                             <Button
@@ -551,10 +592,15 @@ export default function BidScenarioEdit({
                                 count vacation cost against lines.
                             </p>
                         )}
-                    </section>
+                    </BidToolsCollapsibleSection>
 
-                    <section className="space-y-3">
-                        <Label htmlFor="sort-mode">Ranking mode</Label>
+                    <BidToolsCollapsibleSection
+                        title="Ranking"
+                        summary={sortMode}
+                    >
+                        <div className="grid gap-4 lg:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="sort-mode">Ranking mode</Label>
                         <Select
                             value={sortMode}
                             onValueChange={(mode) =>
@@ -584,39 +630,38 @@ export default function BidScenarioEdit({
                                 ? 'Lines are ranked by total weighted score. Category order below only breaks ties when totals match.'
                                 : 'Uses category order with equal preference groups — e.g. 06:00 Sector beats 06:00 Regional when Sector/Router are grouped above Regional.'}
                         </p>
-                    </section>
-
-                    <section className="space-y-3">
-                        <Label>
-                            {usesTierGroupSort(sortMode)
-                                ? 'Category ranking order'
-                                : 'Overall priority when totals are close'}
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                            {usesTierGroupSort(sortMode)
-                                ? 'Drag to set which categories matter most. Higher categories decide first; equal groups within a list share the same rank at that step.'
-                                : 'Lines are ranked by total score first (weights control how much each category contributes). Drag to set which categories break ties when two lines score about the same.'}
-                        </p>
-                        <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
-                            {criteriaOrder.map((id, idx) => (
-                                <DraggableRow
-                                    key={id}
-                                    index={idx}
-                                    onReorder={(from, to) =>
-                                        setCriteriaOrder((co) =>
-                                            moveIndex(co, from, to),
-                                        )
-                                    }
-                                >
-                                    <span className="text-sm">
-                                        {CRITERIA_LABELS[id] ?? id}
-                                    </span>
-                                </DraggableRow>
-                            ))}
+                            </div>
+                            <div className="space-y-2">
+                                <Label>
+                                    {usesTierGroupSort(sortMode)
+                                        ? 'Category ranking order'
+                                        : 'Overall priority when totals are close'}
+                                </Label>
+                                <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
+                                    {criteriaOrder.map((id, idx) => (
+                                        <DraggableRow
+                                            key={id}
+                                            index={idx}
+                                            onReorder={(from, to) =>
+                                                setCriteriaOrder((co) =>
+                                                    moveIndex(co, from, to),
+                                                )
+                                            }
+                                        >
+                                            <span className="text-sm">
+                                                {CRITERIA_LABELS[id] ?? id}
+                                            </span>
+                                        </DraggableRow>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
-                    </section>
+                    </BidToolsCollapsibleSection>
 
-                    <section className="space-y-3">
+                    <BidToolsCollapsibleSection
+                        title="Holidays"
+                        summary={`${holidays.length} dates`}
+                    >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <Label>Holidays (drag = importance order)</Label>
                             <Button
@@ -666,9 +711,12 @@ export default function BidScenarioEdit({
                                 </DraggableRow>
                             ))}
                         </div>
-                    </section>
+                    </BidToolsCollapsibleSection>
 
-                    <section className="space-y-3">
+                    <BidToolsCollapsibleSection
+                        title="Personal dates"
+                        summary={`${personalDates.length} date${personalDates.length === 1 ? '' : 's'}`}
+                    >
                         <Label>Personal important dates</Label>
                         <Button
                             type="button"
@@ -754,9 +802,12 @@ export default function BidScenarioEdit({
                                 </DraggableRow>
                             ))}
                         </div>
-                    </section>
+                    </BidToolsCollapsibleSection>
 
-                    <section className="space-y-3">
+                    <BidToolsCollapsibleSection
+                        title="Desk type"
+                        summary={`${deskRank.length} options`}
+                    >
                         {addDeskOptions.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                                 <Select
@@ -790,17 +841,20 @@ export default function BidScenarioEdit({
                         <TieredRankList
                             idPrefix="scenario-desk"
                             label="Desk type preference"
-                            hint="Group desk types that are equal to you (e.g. Sector + Router in the same group)."
                             entries={deskRank}
                             labels={deskLabels}
                             onChange={setDeskRank}
                             onRemoveKey={(key) =>
                                 setDeskRank(deskRank.filter((d) => d.key !== key))
                             }
+                            compact
                         />
-                    </section>
+                    </BidToolsCollapsibleSection>
 
-                    <section className="space-y-3">
+                    <BidToolsCollapsibleSection
+                        title="Start time"
+                        summary={`${startRank.length} options`}
+                    >
                         {addStartOptions.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                                 <Select
@@ -834,7 +888,6 @@ export default function BidScenarioEdit({
                         <TieredRankList
                             idPrefix="scenario-start"
                             label="Start time preference"
-                            hint="Group start times that are equal (e.g. 06:00 and 07:00 for all AM lines)."
                             entries={startRank}
                             labels={startLabels}
                             onChange={setStartRank}
@@ -843,11 +896,11 @@ export default function BidScenarioEdit({
                                     startRank.filter((d) => d.key !== key),
                                 )
                             }
+                            compact
                         />
-                    </section>
+                    </BidToolsCollapsibleSection>
 
-                    <section className="space-y-3">
-                        <Label>Category weights (magnitude)</Label>
+                    <BidToolsCollapsibleSection title="Category weights">
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                             {(
                                 [
@@ -877,7 +930,7 @@ export default function BidScenarioEdit({
                                 </div>
                             ))}
                         </div>
-                    </section>
+                    </BidToolsCollapsibleSection>
 
                     <div className="rounded-lg border border-sidebar-border/70 p-3 text-xs text-muted-foreground">
                         <p className="font-medium text-foreground">
@@ -888,6 +941,12 @@ export default function BidScenarioEdit({
                             {distinctCodes.length > 80 && ' …'}
                         </p>
                     </div>
+
+                    <ScenarioWorkspace
+                        scenarioId={scenario.id}
+                        lines={lines}
+                        draft={previewDraft}
+                    />
 
                     <div className="flex gap-2">
                         <Button type="submit" disabled={saving}>
