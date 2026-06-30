@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\BidLine;
+use App\Models\BidLineDay;
 use App\Models\BidScenario;
 use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
@@ -8,7 +9,6 @@ use App\Services\BidTools\LineShiftClassifier;
 use App\Services\BidTools\ScenarioScoreService;
 use App\Services\BidTools\StartTimeNormalizer;
 use Carbon\CarbonImmutable;
-use App\Models\BidLineDay;
 
 function shiftClassifier(): LineShiftClassifier
 {
@@ -89,11 +89,11 @@ test('strict shift order ranks am before pm before mid before relief', function 
 
     @unlink($path);
 
-    $amLine = \App\Models\BidLine::query()
+    $amLine = BidLine::query()
         ->where('bid_import_id', $import->id)
         ->where('line_num', '551')
         ->firstOrFail();
-    $pmLine = \App\Models\BidLine::query()
+    $pmLine = BidLine::query()
         ->where('bid_import_id', $import->id)
         ->where('line_num', '552')
         ->firstOrFail();
@@ -148,11 +148,11 @@ test('without strict shift order holidays can outrank shift class', function () 
 
     @unlink($path);
 
-    $amLine = \App\Models\BidLine::query()
+    $amLine = BidLine::query()
         ->where('bid_import_id', $import->id)
         ->where('line_num', '551')
         ->firstOrFail();
-    $pmLine = \App\Models\BidLine::query()
+    $pmLine = BidLine::query()
         ->where('bid_import_id', $import->id)
         ->where('line_num', '552')
         ->firstOrFail();

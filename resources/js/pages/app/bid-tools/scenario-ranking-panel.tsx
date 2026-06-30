@@ -11,11 +11,19 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
+import type { DeskGroupShift } from '@/pages/app/bid-tools/desk-group-shift';
+import {
+    HolidayRankList,
+    PreferenceColumnHeader,
+    ShiftOrderPicker,
+    normalizeShiftOrder,
+    preferenceColumnClass,
+} from '@/pages/app/bid-tools/preference-rank-shared';
 import {
     normalizeStrictShiftOrder,
     StrictShiftOrderField,
 } from '@/pages/app/bid-tools/strict-shift-order-field';
+import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
 export type Priority = 'ignore' | 'low' | 'high';
 export type SortMode = 'weighted' | 'priority' | 'blended';
@@ -42,6 +50,7 @@ export type ScenarioRankingState = {
         sort_mode: SortMode;
         strict_shift_order: boolean;
         criteria_order: string[];
+        shift_order?: DeskGroupShift[];
     };
     holiday_rank: HolidayEntry[];
     desk_rank: KeyedEntry[];
@@ -356,57 +365,38 @@ export function ScenarioRankingPanel({
                         ))}
                     </div>
                 </div>
+                <ShiftOrderPicker
+                    value={normalizeShiftOrder(value.weights.shift_order)}
+                    onChange={(shift_order) => setWeights({ shift_order })}
+                />
             </section>
 
-            <div className="grid gap-4 lg:grid-cols-3">
-                <section className="min-w-0 space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <Label className="text-xs">Holidays</Label>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={resetHolidaysFromCatalog}
-                        >
-                            Reset
-                        </Button>
-                    </div>
-                    <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-sidebar-border/60 p-2">
-                        {value.holiday_rank.map((h, idx) => (
-                            <DraggableRow
-                                key={`${h.date}-${idx}`}
-                                index={idx}
-                                onReorder={(from, to) =>
-                                    onChange({
-                                        ...value,
-                                        holiday_rank: moveIndex(
-                                            value.holiday_rank,
-                                            from,
-                                            to,
-                                        ),
-                                    })
-                                }
+            <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+                <div className={preferenceColumnClass}>
+                    <PreferenceColumnHeader
+                        title="Holidays"
+                        action={
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={resetHolidaysFromCatalog}
                             >
-                                <span className="min-w-0 flex-1 text-xs">
-                                    {h.label || h.date}
-                                </span>
-                                <PrioritySelect
-                                    value={h.priority}
-                                    onChange={(priority) => {
-                                        const next = [...value.holiday_rank];
-                                        next[idx] = { ...next[idx], priority };
-                                        onChange({
-                                            ...value,
-                                            holiday_rank: next,
-                                        });
-                                    }}
-                                />
-                            </DraggableRow>
-                        ))}
-                    </div>
-                </section>
+                                Reset
+                            </Button>
+                        }
+                    />
+                    <HolidayRankList
+                        entries={value.holiday_rank}
+                        onChange={(holiday_rank) =>
+                            onChange({ ...value, holiday_rank })
+                        }
+                    />
+                </div>
 
-                <section className="min-w-0 space-y-2">
+                <div className={preferenceColumnClass}>
+                    <PreferenceColumnHeader title="Desk type" />
                     {addDeskOptions.length > 0 && (
                         <Select
                             onValueChange={(key) =>
@@ -452,10 +442,12 @@ export function ScenarioRankingPanel({
                             })
                         }
                         compact
+                        hideLabel
                     />
-                </section>
+                </div>
 
-                <section className="min-w-0 space-y-2">
+                <div className={preferenceColumnClass}>
+                    <PreferenceColumnHeader title="Start time" />
                     {addStartOptions.length > 0 && (
                         <Select
                             onValueChange={(key) =>
@@ -503,8 +495,9 @@ export function ScenarioRankingPanel({
                             })
                         }
                         compact
+                        hideLabel
                     />
-                </section>
+                </div>
             </div>
 
             <section className="space-y-2">
@@ -638,6 +631,7 @@ export function scenarioToRankingState(scenario: {
                 scenario.weights?.strict_shift_order,
             ),
             criteria_order: criteriaOrder,
+            shift_order: normalizeShiftOrder(scenario.weights?.shift_order),
         },
         holiday_rank: scenario.holiday_rank,
         desk_rank: scenario.desk_rank,

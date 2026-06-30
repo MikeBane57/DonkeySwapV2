@@ -15,12 +15,20 @@ import {
 import AppLayout from '@/layouts/app-layout';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
+import type { DeskGroupShift } from '@/pages/app/bid-tools/desk-group-shift';
+import {
+    HolidayRankList,
+    PreferenceColumnHeader,
+    ShiftOrderPicker,
+    normalizeShiftOrder,
+    preferenceColumnClass,
+} from '@/pages/app/bid-tools/preference-rank-shared';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
-import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 import {
     normalizeStrictShiftOrder,
     StrictShiftOrderField,
 } from '@/pages/app/bid-tools/strict-shift-order-field';
+import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -162,6 +170,7 @@ export default function BidScenarioEdit({
             sort_mode?: SortMode;
             strict_shift_order?: boolean;
             criteria_order?: string[];
+            shift_order?: DeskGroupShift[];
         };
         holiday_rank: HolidayEntry[];
         desk_rank: KeyedEntry[];
@@ -216,6 +225,9 @@ export default function BidScenarioEdit({
 
         return ['holiday', 'personal', 'start_time', 'desk'];
     });
+    const [shiftOrder, setShiftOrder] = useState<DeskGroupShift[]>(() =>
+        normalizeShiftOrder(scenario.weights?.shift_order),
+    );
 
     const [holidays, setHolidays] = useState<HolidayEntry[]>(
         scenario.holiday_rank,
@@ -289,6 +301,7 @@ export default function BidScenarioEdit({
                     sort_mode: sortMode,
                     strict_shift_order: strictShiftOrder,
                     criteria_order: criteriaOrder,
+                    shift_order: shiftOrder,
                 },
                 holiday_rank: holidays,
                 desk_rank: deskRank,
@@ -309,6 +322,7 @@ export default function BidScenarioEdit({
         sortMode,
         strictShiftOrder,
         criteriaOrder,
+        shiftOrder,
         holidays,
         deskRank,
         startRank,
@@ -328,6 +342,8 @@ export default function BidScenarioEdit({
                 vacation_penalty: Number(weights.vacation_penalty) || 0,
                 sort_mode: sortMode,
                 criteria_order: criteriaOrder,
+                strict_shift_order: strictShiftOrder,
+                shift_order: shiftOrder,
             },
             holiday_rank: holidays,
             desk_rank: deskRank,
@@ -340,6 +356,8 @@ export default function BidScenarioEdit({
             weights,
             sortMode,
             criteriaOrder,
+            strictShiftOrder,
+            shiftOrder,
             holidays,
             deskRank,
             startRank,
@@ -678,55 +696,30 @@ export default function BidScenarioEdit({
                         summary={`${holidays.length} hol · ${deskRank.length} desk · ${startRank.length} start`}
                         defaultOpen
                     >
-                        <div className="grid gap-4 lg:grid-cols-3">
-                            <div className="min-w-0 space-y-2">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <Label className="text-xs">Holidays</Label>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={resetHolidaysFromCatalog}
-                                    >
-                                        Reset
-                                    </Button>
-                                </div>
-                                <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-sidebar-border/60 p-2">
-                                    {holidays.map((h, idx) => (
-                                        <DraggableRow
-                                            key={`${h.date}-${idx}`}
-                                            index={idx}
-                                            onReorder={(from, to) =>
-                                                setHolidays((list) =>
-                                                    moveIndex(list, from, to),
-                                                )
-                                            }
+                        <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+                            <div className={preferenceColumnClass}>
+                                <PreferenceColumnHeader
+                                    title="Holidays"
+                                    action={
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 px-2 text-xs"
+                                            onClick={resetHolidaysFromCatalog}
                                         >
-                                            <span className="min-w-0 flex-1 text-xs">
-                                                <span className="font-medium">
-                                                    {h.label || h.date}
-                                                </span>
-                                                <span className="ml-1 text-muted-foreground">
-                                                    {h.date}
-                                                </span>
-                                            </span>
-                                            <PrioritySelect
-                                                value={h.priority}
-                                                onChange={(p) => {
-                                                    const next = [...holidays];
-                                                    next[idx] = {
-                                                        ...next[idx],
-                                                        priority: p,
-                                                    };
-                                                    setHolidays(next);
-                                                }}
-                                            />
-                                        </DraggableRow>
-                                    ))}
-                                </div>
+                                            Reset
+                                        </Button>
+                                    }
+                                />
+                                <HolidayRankList
+                                    entries={holidays}
+                                    onChange={setHolidays}
+                                />
                             </div>
 
-                            <div className="min-w-0 space-y-2">
+                            <div className={preferenceColumnClass}>
+                                <PreferenceColumnHeader title="Desk type" />
                                 {addDeskOptions.length > 0 && (
                                     <Select
                                         onValueChange={(key) => {
@@ -769,10 +762,12 @@ export default function BidScenarioEdit({
                                         )
                                     }
                                     compact
+                                    hideLabel
                                 />
                             </div>
 
-                            <div className="min-w-0 space-y-2">
+                            <div className={preferenceColumnClass}>
+                                <PreferenceColumnHeader title="Start time" />
                                 {addStartOptions.length > 0 && (
                                     <Select
                                         onValueChange={(key) => {
@@ -815,8 +810,15 @@ export default function BidScenarioEdit({
                                         )
                                     }
                                     compact
+                                    hideLabel
                                 />
                             </div>
+                        </div>
+                        <div className="mt-4 border-t border-sidebar-border/50 pt-4">
+                            <ShiftOrderPicker
+                                value={shiftOrder}
+                                onChange={setShiftOrder}
+                            />
                         </div>
                     </BidToolsCollapsibleSection>
 
