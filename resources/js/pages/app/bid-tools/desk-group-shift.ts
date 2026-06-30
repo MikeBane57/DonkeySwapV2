@@ -1,4 +1,4 @@
-export type DeskGroupShift = 'am' | 'pm' | 'mid';
+export type DeskGroupShift = 'am' | 'pm' | 'mid' | 'relief';
 
 /**
  * D* desk groups = AM, A* = PM, M* = midnight.

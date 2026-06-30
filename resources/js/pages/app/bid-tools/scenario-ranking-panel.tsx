@@ -12,6 +12,10 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
+import {
+    normalizeStrictShiftOrder,
+    StrictShiftOrderField,
+} from '@/pages/app/bid-tools/strict-shift-order-field';
 
 export type Priority = 'ignore' | 'low' | 'high';
 export type SortMode = 'weighted' | 'priority' | 'blended';
@@ -36,6 +40,7 @@ export type ScenarioRankingState = {
         desk: number;
         vacation_penalty: number;
         sort_mode: SortMode;
+        strict_shift_order: boolean;
         criteria_order: string[];
     };
     holiday_rank: HolidayEntry[];
@@ -279,6 +284,15 @@ export function ScenarioRankingPanel({
                         </Select>
                     </div>
                 </div>
+
+                <StrictShiftOrderField
+                    id="ranked-strict-shift-order"
+                    compact
+                    checked={value.weights.strict_shift_order}
+                    onCheckedChange={(checked) =>
+                        setWeights({ strict_shift_order: checked })
+                    }
+                />
 
                 <div className="space-y-1">
                     <Label className="text-xs">Category weights</Label>
@@ -620,6 +634,9 @@ export function scenarioToRankingState(scenario: {
             desk: Number(scenario.weights?.desk ?? 1),
             vacation_penalty: Number(scenario.weights?.vacation_penalty ?? 1),
             sort_mode: normalizedSortMode,
+            strict_shift_order: normalizeStrictShiftOrder(
+                scenario.weights?.strict_shift_order,
+            ),
             criteria_order: criteriaOrder,
         },
         holiday_rank: scenario.holiday_rank,

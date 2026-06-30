@@ -17,6 +17,10 @@ import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolba
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
+import {
+    normalizeStrictShiftOrder,
+    StrictShiftOrderField,
+} from '@/pages/app/bid-tools/strict-shift-order-field';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -156,6 +160,7 @@ export default function BidScenarioEdit({
         vacation_bank: number;
         weights: Record<string, unknown> & {
             sort_mode?: SortMode;
+            strict_shift_order?: boolean;
             criteria_order?: string[];
         };
         holiday_rank: HolidayEntry[];
@@ -200,6 +205,9 @@ export default function BidScenarioEdit({
 
         return 'blended';
     });
+    const [strictShiftOrder, setStrictShiftOrder] = useState(() =>
+        normalizeStrictShiftOrder(scenario.weights?.strict_shift_order),
+    );
     const [criteriaOrder, setCriteriaOrder] = useState<string[]>(() => {
         const o = scenario.weights?.criteria_order;
         if (Array.isArray(o) && o.length === 4) {
@@ -279,6 +287,7 @@ export default function BidScenarioEdit({
                     desk: Number(weights.desk) || 0,
                     vacation_penalty: Number(weights.vacation_penalty) || 0,
                     sort_mode: sortMode,
+                    strict_shift_order: strictShiftOrder,
                     criteria_order: criteriaOrder,
                 },
                 holiday_rank: holidays,
@@ -298,6 +307,7 @@ export default function BidScenarioEdit({
         vacationBank,
         weights,
         sortMode,
+        strictShiftOrder,
         criteriaOrder,
         holidays,
         deskRank,
@@ -656,6 +666,11 @@ export default function BidScenarioEdit({
                                 </div>
                             </div>
                         </div>
+                        <StrictShiftOrderField
+                            id="strict-shift-order"
+                            checked={strictShiftOrder}
+                            onCheckedChange={setStrictShiftOrder}
+                        />
                     </BidToolsCollapsibleSection>
 
                     <BidToolsCollapsibleSection

@@ -15,6 +15,10 @@ import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolba
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
+import {
+    normalizeStrictShiftOrder,
+    StrictShiftOrderField,
+} from '@/pages/app/bid-tools/strict-shift-order-field';
 
 export type Priority = 'ignore' | 'low' | 'high';
 
@@ -50,6 +54,7 @@ export type BidderProfile = {
         desk: number;
         vacation_penalty: number;
         sort_mode: SortMode;
+        strict_shift_order: boolean;
         criteria_order: string[];
     };
     personal_dates: PersonalDate[];
@@ -208,6 +213,9 @@ export function emptyBidderProfile(defaults: BidderProfile): BidderProfile {
         weights: {
             ...defaults.weights,
             sort_mode: defaults.weights.sort_mode ?? 'blended',
+            strict_shift_order: normalizeStrictShiftOrder(
+                defaults.weights.strict_shift_order,
+            ),
             criteria_order: [...defaults.weights.criteria_order],
         },
         personal_dates: [],
@@ -605,6 +613,13 @@ export function BidderProfileFields({
                         </div>
                     </div>
                 </div>
+                <StrictShiftOrderField
+                    id={`${idPrefix}-strict-shift-order`}
+                    checked={value.weights.strict_shift_order ?? false}
+                    onCheckedChange={(checked) =>
+                        setWeights({ strict_shift_order: checked })
+                    }
+                />
             </BidToolsCollapsibleSection>
 
             <BidToolsCollapsibleSection title="Weights">
