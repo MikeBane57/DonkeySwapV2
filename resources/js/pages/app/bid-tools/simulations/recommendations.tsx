@@ -51,9 +51,7 @@ export default function BidSimulationRecommendations({
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head
-                title={`Bid order · ${participant.display_name}`}
-            />
+            <Head title={`Bid order · ${participant.display_name}`} />
             <div className="bid-tools-print space-y-6 p-4 pb-12">
                 <div className="no-print flex flex-wrap items-start justify-between gap-4">
                     <div>
@@ -62,14 +60,15 @@ export default function BidSimulationRecommendations({
                         </h1>
                         <p className="mt-2 text-sm text-muted-foreground">
                             #{participant.seniority_rank}{' '}
-                            {participant.display_name} · bid {simulation.bid_year}
+                            {participant.display_name} · bid{' '}
+                            {simulation.bid_year}
                             {participant.scenario_name && (
                                 <span> · {participant.scenario_name}</span>
                             )}
                         </p>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Must rank at least{' '}
-                            <strong>{minimum_depth}</strong> line
+                            Must rank at least <strong>{minimum_depth}</strong>{' '}
+                            line
                             {minimum_depth === 1 ? '' : 's'} (through #
                             {minimum_depth}).
                         </p>
@@ -132,7 +131,9 @@ export default function BidSimulationRecommendations({
                             {requiredRows.map((row) => (
                                 <tr key={row.bid_line_id}>
                                     <td>{row.rank}</td>
-                                    <td className="font-mono">{row.line_num}</td>
+                                    <td className="font-mono">
+                                        {row.line_num}
+                                    </td>
                                     <td>{row.desk_group ?? '—'}</td>
                                     <td>{row.start_time ?? '—'}</td>
                                     <td>{row.holidays_off ?? '—'}</td>

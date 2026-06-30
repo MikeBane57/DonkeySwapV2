@@ -57,7 +57,9 @@ export default function BidSimulationCreate({
                         }}
                     >
                         <div className="space-y-2">
-                            <Label htmlFor="bid_import_id">Bid year / file</Label>
+                            <Label htmlFor="bid_import_id">
+                                Bid year / file
+                            </Label>
                             <Select
                                 value={String(data.bid_import_id)}
                                 onValueChange={(v) =>

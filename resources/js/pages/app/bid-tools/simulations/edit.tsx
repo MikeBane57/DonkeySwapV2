@@ -5,12 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import {
     BidderProfileFields,
     emptyBidderProfile,
 } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 import type { BidderProfile } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
-import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import type { BreadcrumbItem } from '@/types';
 
 type Participant = {
@@ -63,7 +63,9 @@ function ParticipantEditor({
     };
 
     const remove = () => {
-        if (!confirm(`Remove ${participant.display_name} from this simulation?`)) {
+        if (
+            !confirm(`Remove ${participant.display_name} from this simulation?`)
+        ) {
             return;
         }
         router.delete(
@@ -93,7 +95,10 @@ function ParticipantEditor({
                 />
             </button>
             {open && (
-                <form className="space-y-4 border-t border-sidebar-border/50 p-3" onSubmit={save}>
+                <form
+                    className="space-y-4 border-t border-sidebar-border/50 p-3"
+                    onSubmit={save}
+                >
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                             <Label>Name</Label>
@@ -140,7 +145,11 @@ function ParticipantEditor({
                     />
 
                     <div className="flex flex-wrap gap-2">
-                        <Button type="submit" size="sm" disabled={form.processing}>
+                        <Button
+                            type="submit"
+                            size="sm"
+                            disabled={form.processing}
+                        >
                             Save bidder
                         </Button>
                         <Button variant="outline" size="sm" asChild>
@@ -187,7 +196,10 @@ export default function BidSimulationEdit({
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Bid tools', href: '/app/bid-tools' },
         { title: 'Bid simulator', href: '/app/bid-tools/simulations' },
-        { title: simulation.name, href: `/app/bid-tools/simulations/${simulation.id}` },
+        {
+            title: simulation.name,
+            href: `/app/bid-tools/simulations/${simulation.id}`,
+        },
         { title: 'Manage', href: '#' },
     ];
 
@@ -204,17 +216,20 @@ export default function BidSimulationEdit({
             ...data,
             profile: sanitizeProfile(data.profile),
         }));
-        addForm.post(`/app/bid-tools/simulations/${simulation.id}/participants`, {
-            preserveScroll: true,
-            onSuccess: () => {
-                addForm.reset();
-                addForm.setData({
-                    display_name: '',
-                    seniority_rank: participants.length + 2,
-                    profile: emptyBidderProfile(profileDefaults),
-                });
+        addForm.post(
+            `/app/bid-tools/simulations/${simulation.id}/participants`,
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    addForm.reset();
+                    addForm.setData({
+                        display_name: '',
+                        seniority_rank: participants.length + 2,
+                        profile: emptyBidderProfile(profileDefaults),
+                    });
+                },
             },
-        });
+        );
     };
 
     return (
@@ -235,7 +250,9 @@ export default function BidSimulationEdit({
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <Button variant="outline" size="sm" asChild>
-                            <Link href={`/app/bid-tools/simulations/${simulation.id}`}>
+                            <Link
+                                href={`/app/bid-tools/simulations/${simulation.id}`}
+                            >
                                 View simulation
                             </Link>
                         </Button>

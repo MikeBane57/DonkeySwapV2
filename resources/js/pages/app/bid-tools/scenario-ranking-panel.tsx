@@ -269,8 +269,12 @@ export function ScenarioRankingPanel({
                                 <SelectItem value="blended">
                                     Blended (recommended)
                                 </SelectItem>
-                                <SelectItem value="weighted">Weighted</SelectItem>
-                                <SelectItem value="priority">Priority</SelectItem>
+                                <SelectItem value="weighted">
+                                    Weighted
+                                </SelectItem>
+                                <SelectItem value="priority">
+                                    Priority
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -289,7 +293,7 @@ export function ScenarioRankingPanel({
                             ] as const
                         ).map((key) => (
                             <div key={key} className="space-y-0.5">
-                                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                <span className="text-[10px] tracking-wide text-muted-foreground uppercase">
                                     {WEIGHT_LABELS[key]}
                                 </span>
                                 <Input
@@ -419,9 +423,7 @@ export function ScenarioRankingPanel({
                     hint="Group desk types that are equal to you."
                     entries={value.desk_rank}
                     labels={deskLabels}
-                    onChange={(desk_rank) =>
-                        onChange({ ...value, desk_rank })
-                    }
+                    onChange={(desk_rank) => onChange({ ...value, desk_rank })}
                     onRemoveKey={(key) =>
                         onChange({
                             ...value,

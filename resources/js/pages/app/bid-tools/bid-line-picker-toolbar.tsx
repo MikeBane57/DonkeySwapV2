@@ -1,8 +1,6 @@
 import { Button } from '@/components/ui/button';
-import {
-    deskGroupShift,
-    type DeskGroupShift,
-} from '@/pages/app/bid-tools/desk-group-shift';
+import { deskGroupShift } from '@/pages/app/bid-tools/desk-group-shift';
+import type { DeskGroupShift } from '@/pages/app/bid-tools/desk-group-shift';
 
 export type LinePickerRow = {
     id: number;
@@ -38,7 +36,12 @@ export function BidLinePickerToolbar({
 
     return (
         <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" size="sm" onClick={selectAll}>
+            <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={selectAll}
+            >
                 Select all
             </Button>
             {amCount > 0 && (
@@ -46,9 +49,7 @@ export function BidLinePickerToolbar({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() =>
-                        selectMatching((l) => l.desk_shift === 'am')
-                    }
+                    onClick={() => selectMatching((l) => l.desk_shift === 'am')}
                 >
                     AM ({amCount})
                 </Button>
@@ -58,9 +59,7 @@ export function BidLinePickerToolbar({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() =>
-                        selectMatching((l) => l.desk_shift === 'pm')
-                    }
+                    onClick={() => selectMatching((l) => l.desk_shift === 'pm')}
                 >
                     PM ({pmCount})
                 </Button>

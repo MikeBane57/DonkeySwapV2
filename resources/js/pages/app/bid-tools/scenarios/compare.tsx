@@ -3,11 +3,8 @@ import { Fragment, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import AppLayout from '@/layouts/app-layout';
-import {
-    BidLinePickerToolbar
-    
-} from '@/pages/app/bid-tools/bid-line-picker-toolbar';
-import type {LinePickerRow} from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import { BidLinePickerToolbar } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
 import type { BreadcrumbItem } from '@/types';
 
@@ -89,20 +86,24 @@ function CompareSetup({
         line_ids: number[];
     };
 }) {
-    const [selectedScenarios, setSelectedScenarios] = useState<Record<number, boolean>>(() => {
+    const [selectedScenarios, setSelectedScenarios] = useState<
+        Record<number, boolean>
+    >(() => {
         const next: Record<number, boolean> = {};
         prefill.scenario_ids.forEach((id) => {
             next[id] = true;
         });
         return next;
     });
-    const [selectedLines, setSelectedLines] = useState<Record<number, boolean>>(() => {
-        const next: Record<number, boolean> = {};
-        prefill.line_ids.forEach((id) => {
-            next[id] = true;
-        });
-        return next;
-    });
+    const [selectedLines, setSelectedLines] = useState<Record<number, boolean>>(
+        () => {
+            const next: Record<number, boolean> = {};
+            prefill.line_ids.forEach((id) => {
+                next[id] = true;
+            });
+            return next;
+        },
+    );
     const [comparing, setComparing] = useState(false);
 
     const selectedScenarioIds = useMemo(
@@ -126,7 +127,9 @@ function CompareSetup({
             return scenarios;
         }
 
-        return scenarios.filter((s) => s.bid_import_id === anchorScenario.bid_import_id);
+        return scenarios.filter(
+            (s) => s.bid_import_id === anchorScenario.bid_import_id,
+        );
     }, [scenarios, anchorScenario]);
 
     const selectedLineIds = useMemo(
@@ -146,7 +149,10 @@ function CompareSetup({
         let next: Record<number, boolean>;
         if (!checked) {
             next = { ...selectedScenarios, [scenarioId]: false };
-        } else if (anchorScenario && picked.bid_import_id !== anchorScenario.bid_import_id) {
+        } else if (
+            anchorScenario &&
+            picked.bid_import_id !== anchorScenario.bid_import_id
+        ) {
             next = { [scenarioId]: true };
         } else {
             next = { ...selectedScenarios, [scenarioId]: true };
@@ -155,11 +161,9 @@ function CompareSetup({
         setSelectedScenarios(next);
 
         const shouldReloadLines =
-            checked
-            && (
-                !anchorScenario
-                || picked.bid_import_id !== anchorScenario.bid_import_id
-            );
+            checked &&
+            (!anchorScenario ||
+                picked.bid_import_id !== anchorScenario.bid_import_id);
         if (shouldReloadLines) {
             router.get(
                 '/app/bid-tools/scenarios/compare',
@@ -206,8 +210,9 @@ function CompareSetup({
                 <h2 className="text-sm font-medium">Scenarios (pick 2–8)</h2>
                 {anchorScenario && (
                     <p className="text-xs text-muted-foreground">
-                        Showing scenarios on bid {anchorScenario.bid_year} master import.
-                        Selecting a scenario on a different import clears other picks.
+                        Showing scenarios on bid {anchorScenario.bid_year}{' '}
+                        master import. Selecting a scenario on a different
+                        import clears other picks.
                     </p>
                 )}
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -218,7 +223,9 @@ function CompareSetup({
                         >
                             <Checkbox
                                 checked={!!selectedScenarios[s.id]}
-                                onCheckedChange={(c) => onScenarioToggle(s.id, c === true)}
+                                onCheckedChange={(c) =>
+                                    onScenarioToggle(s.id, c === true)
+                                }
                             />
                             <span>
                                 <span className="font-medium">{s.name}</span>
@@ -266,8 +273,12 @@ function CompareSetup({
                                             }))
                                         }
                                     />
-                                    <span className="font-mono">{l.line_num}</span>
-                                    <span className="text-muted-foreground">{l.desk_group}</span>
+                                    <span className="font-mono">
+                                        {l.line_num}
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                        {l.desk_group}
+                                    </span>
                                 </label>
                             ))}
                         </div>
@@ -275,9 +286,9 @@ function CompareSetup({
                     <Button
                         type="button"
                         disabled={
-                            selectedScenarioIds.length < 2
-                            || selectedLineIds.length === 0
-                            || comparing
+                            selectedScenarioIds.length < 2 ||
+                            selectedLineIds.length === 0 ||
+                            comparing
                         }
                         onClick={runCompare}
                     >
@@ -309,7 +320,9 @@ function ComparisonResults({
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-lg font-semibold no-print">Side-by-side results</h2>
+                <h2 className="no-print text-lg font-semibold">
+                    Side-by-side results
+                </h2>
                 <Button
                     variant="outline"
                     size="sm"
@@ -322,8 +335,8 @@ function ComparisonResults({
             </div>
 
             <p className="no-print text-sm text-muted-foreground">
-                Rank #1 is best fit for each scenario. Rows are ordered by the first
-                scenario&apos;s ranking.
+                Rank #1 is best fit for each scenario. Rows are ordered by the
+                first scenario&apos;s ranking.
             </p>
 
             <div className="print-only overflow-x-auto rounded-lg border border-sidebar-border/70">
@@ -334,7 +347,11 @@ function ComparisonResults({
                             <th>Grp</th>
                             <th>Hol</th>
                             {comparison.scenarios.map((s) => (
-                                <th key={`${s.id}-rank`} colSpan={2} title={s.name}>
+                                <th
+                                    key={`${s.id}-rank`}
+                                    colSpan={2}
+                                    title={s.name}
+                                >
                                     {shortName(s.name, 12)}
                                 </th>
                             ))}
@@ -356,7 +373,9 @@ function ComparisonResults({
                             const fmt = row.line;
                             return (
                                 <tr key={row.bid_line_id}>
-                                    <td className="font-mono">{row.line_num}</td>
+                                    <td className="font-mono">
+                                        {row.line_num}
+                                    </td>
                                     <td>{fmt?.desk_group ?? '—'}</td>
                                     <td>{fmt?.metrics.holidays_off ?? '—'}</td>
                                     {comparison.scenarios.map((s) => {
@@ -364,7 +383,9 @@ function ComparisonResults({
                                             (r) => r.scenario_id === s.id,
                                         );
                                         return (
-                                            <Fragment key={`${row.bid_line_id}-${s.id}`}>
+                                            <Fragment
+                                                key={`${row.bid_line_id}-${s.id}`}
+                                            >
                                                 <td>{score?.rank ?? '—'}</td>
                                                 <td>{score?.total ?? '—'}</td>
                                             </Fragment>
@@ -386,11 +407,17 @@ function ComparisonResults({
                             <th className="p-2">Start</th>
                             <th className="p-2">Hol</th>
                             {comparison.scenarios.map((s) => (
-                                <th key={s.id} className="p-2 text-center" colSpan={2}>
+                                <th
+                                    key={s.id}
+                                    className="p-2 text-center"
+                                    colSpan={2}
+                                >
                                     {s.name}
                                 </th>
                             ))}
-                            <th className="max-w-[280px] p-2 print-hide">Callouts</th>
+                            <th className="print-hide max-w-[280px] p-2">
+                                Callouts
+                            </th>
                         </tr>
                         <tr className="border-b bg-muted/30 text-xs text-muted-foreground">
                             <th className="p-2" colSpan={4} />
@@ -411,16 +438,26 @@ function ComparisonResults({
                                     key={row.bid_line_id}
                                     className="border-b border-sidebar-border/40"
                                 >
-                                    <td className="p-2 font-mono text-xs">{row.line_num}</td>
-                                    <td className="p-2">{fmt?.desk_group ?? '—'}</td>
-                                    <td className="p-2 text-xs">{fmt?.start_time ?? '—'}</td>
-                                    <td className="p-2">{fmt?.metrics.holidays_off ?? '—'}</td>
+                                    <td className="p-2 font-mono text-xs">
+                                        {row.line_num}
+                                    </td>
+                                    <td className="p-2">
+                                        {fmt?.desk_group ?? '—'}
+                                    </td>
+                                    <td className="p-2 text-xs">
+                                        {fmt?.start_time ?? '—'}
+                                    </td>
+                                    <td className="p-2">
+                                        {fmt?.metrics.holidays_off ?? '—'}
+                                    </td>
                                     {comparison.scenarios.map((s) => {
                                         const score = row.scenarios.find(
                                             (r) => r.scenario_id === s.id,
                                         );
                                         return (
-                                            <Fragment key={`${row.bid_line_id}-${s.id}`}>
+                                            <Fragment
+                                                key={`${row.bid_line_id}-${s.id}`}
+                                            >
                                                 <td className="p-2 text-center font-medium">
                                                     {score?.rank ?? '—'}
                                                 </td>
@@ -430,7 +467,7 @@ function ComparisonResults({
                                             </Fragment>
                                         );
                                     })}
-                                    <td className="max-w-[280px] p-2 text-xs leading-snug text-muted-foreground whitespace-pre-wrap print-hide">
+                                    <td className="print-hide max-w-[280px] p-2 text-xs leading-snug whitespace-pre-wrap text-muted-foreground">
                                         {fmt?.schedule_callouts ?? '—'}
                                     </td>
                                 </tr>
@@ -477,8 +514,8 @@ export default function BidScenarioCompare({
                             Compare scenarios
                         </h1>
                         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                            Score the same bid lines under multiple preference profiles
-                            and see how ranks and totals shift.
+                            Score the same bid lines under multiple preference
+                            profiles and see how ranks and totals shift.
                         </p>
                     </div>
                     <Button variant="outline" size="sm" asChild>
@@ -494,8 +531,8 @@ export default function BidScenarioCompare({
 
                 {scenarios.length < 2 && (
                     <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                        Create at least two scenarios on the same master import to
-                        compare them.
+                        Create at least two scenarios on the same master import
+                        to compare them.
                     </p>
                 )}
 

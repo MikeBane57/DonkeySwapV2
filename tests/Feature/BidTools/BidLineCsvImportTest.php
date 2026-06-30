@@ -7,7 +7,6 @@ use App\Services\BidTools\BidLineCsvImportService;
 use App\Services\BidTools\BidYearRange;
 use Illuminate\Http\UploadedFile;
 
-
 test('admin can upload bid csv and import lines', function () {
     config(['features.bid_tools' => true]);
 

@@ -1,4 +1,4 @@
-import { ChevronDown, GripVertical, Plus, Trash2 } from 'lucide-react';
+import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -11,8 +11,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
@@ -181,7 +181,7 @@ function WeightSlider({
         <div className="space-y-1">
             <div className="flex items-center justify-between text-xs">
                 <Label htmlFor={id}>{label}</Label>
-                <span className="tabular-nums text-muted-foreground">
+                <span className="text-muted-foreground tabular-nums">
                     {value}
                 </span>
             </div>

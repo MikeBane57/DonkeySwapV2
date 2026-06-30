@@ -1,9 +1,7 @@
 import { useMemo } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-    BidLinePickerToolbar,
-    type LinePickerRow,
-} from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import { BidLinePickerToolbar } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 
 export type { LinePickerRow };
 
@@ -26,10 +24,13 @@ export function BidLinePicker({
 
     const selectLineIds = (ids: number[]) => {
         onSelectedChange(
-            ids.reduce<Record<number, boolean>>((acc, id) => {
-                acc[id] = true;
-                return acc;
-            }, { ...selected }),
+            ids.reduce<Record<number, boolean>>(
+                (acc, id) => {
+                    acc[id] = true;
+                    return acc;
+                },
+                { ...selected },
+            ),
         );
     };
 

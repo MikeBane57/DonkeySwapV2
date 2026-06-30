@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\BidTools\Concerns;
 
+use App\Services\BidTools\CondensedBidderProfileMapper;
+use App\Services\BidTools\ScenarioScoreService;
 use Illuminate\Validation\Rule;
 
 trait BidderProfileRules
@@ -18,7 +20,7 @@ trait BidderProfileRules
             "{$prefix}.holiday_rank.*.key" => [
                 'required',
                 'string',
-                Rule::in(array_keys(\App\Services\BidTools\CondensedBidderProfileMapper::HOLIDAY_GROUPS)),
+                Rule::in(array_keys(CondensedBidderProfileMapper::HOLIDAY_GROUPS)),
             ],
             "{$prefix}.holiday_rank.*.priority" => ['required', 'string', Rule::in(['ignore', 'low', 'high'])],
             "{$prefix}.holiday_rank.*.tier" => ['nullable', 'integer', 'min:1'],
@@ -26,7 +28,7 @@ trait BidderProfileRules
             "{$prefix}.desk_rank.*.key" => [
                 'required',
                 'string',
-                Rule::in(\App\Services\BidTools\CondensedBidderProfileMapper::DESK_KEYS),
+                Rule::in(CondensedBidderProfileMapper::DESK_KEYS),
             ],
             "{$prefix}.desk_rank.*.priority" => ['required', 'string', Rule::in(['ignore', 'low', 'high'])],
             "{$prefix}.desk_rank.*.tier" => ['nullable', 'integer', 'min:1'],
@@ -34,7 +36,7 @@ trait BidderProfileRules
             "{$prefix}.start_time_rank.*.key" => [
                 'required',
                 'string',
-                Rule::in(\App\Services\BidTools\CondensedBidderProfileMapper::START_TIME_KEYS),
+                Rule::in(CondensedBidderProfileMapper::START_TIME_KEYS),
             ],
             "{$prefix}.start_time_rank.*.priority" => ['required', 'string', Rule::in(['ignore', 'low', 'high'])],
             "{$prefix}.start_time_rank.*.tier" => ['nullable', 'integer', 'min:1'],
@@ -44,7 +46,7 @@ trait BidderProfileRules
             "{$prefix}.weights.start_time" => ['nullable', 'numeric'],
             "{$prefix}.weights.desk" => ['nullable', 'numeric'],
             "{$prefix}.weights.vacation_penalty" => ['nullable', 'numeric'],
-            "{$prefix}.weights.sort_mode" => ['nullable', 'string', Rule::in(\App\Services\BidTools\ScenarioScoreService::SORT_MODES)],
+            "{$prefix}.weights.sort_mode" => ['nullable', 'string', Rule::in(ScenarioScoreService::SORT_MODES)],
             "{$prefix}.weights.criteria_order" => ['nullable', 'array'],
             "{$prefix}.weights.criteria_order.*" => ['string', Rule::in(['holiday', 'personal', 'start_time', 'desk'])],
             "{$prefix}.personal_dates" => ['nullable', 'array'],

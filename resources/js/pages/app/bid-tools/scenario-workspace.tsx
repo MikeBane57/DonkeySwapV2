@@ -1,13 +1,9 @@
 import { useMemo, useState } from 'react';
+import { BidLinePicker } from '@/pages/app/bid-tools/bid-line-picker';
+import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
-import {
-    BidLinePicker,
-    type LinePickerRow,
-} from '@/pages/app/bid-tools/bid-line-picker';
-import {
-    ScoredLinesTable,
-    type ScoredLineRow,
-} from '@/pages/app/bid-tools/scored-lines-table';
+import { ScoredLinesTable } from '@/pages/app/bid-tools/scored-lines-table';
+import type { ScoredLineRow } from '@/pages/app/bid-tools/scored-lines-table';
 import { usePreviewScore } from '@/pages/app/bid-tools/use-preview-score';
 
 export function ScenarioWorkspace({
@@ -71,9 +67,7 @@ export function ScenarioWorkspace({
                 }
                 defaultOpen
             >
-                {error && (
-                    <p className="text-sm text-destructive">{error}</p>
-                )}
+                {error && <p className="text-sm text-destructive">{error}</p>}
                 {loading && !rows && (
                     <p className="text-sm text-muted-foreground">
                         Scoring lines…

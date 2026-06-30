@@ -3,7 +3,6 @@
 namespace App\Http\Requests\BidTools;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreBidSimulationRequest extends FormRequest
 {

@@ -92,7 +92,9 @@ export function ScoredLinesTable({
                                     {scenarioId && (
                                         <td className="p-1.5">
                                             <Checkbox
-                                                checked={row.submitted_externally}
+                                                checked={
+                                                    row.submitted_externally
+                                                }
                                                 onCheckedChange={(c) =>
                                                     toggleSubmitted(
                                                         row.bid_line_id,
@@ -142,9 +144,7 @@ export function ScoredLinesTable({
             <table className="w-full min-w-[1280px] text-left text-sm">
                 <thead>
                     <tr className="border-b bg-muted/50">
-                        {scenarioId && (
-                            <th className="w-10 p-2">Submitted</th>
-                        )}
+                        {scenarioId && <th className="w-10 p-2">Submitted</th>}
                         <th className="w-12 p-2">#</th>
                         <th className="p-2">Line</th>
                         <th className="p-2">Group</th>
@@ -184,7 +184,9 @@ export function ScoredLinesTable({
                                 <td className="p-2 font-mono text-xs">
                                     {row.line_num}
                                 </td>
-                                <td className="p-2">{fmt?.desk_group ?? '—'}</td>
+                                <td className="p-2">
+                                    {fmt?.desk_group ?? '—'}
+                                </td>
                                 <td className="max-w-[120px] p-2 text-xs text-muted-foreground">
                                     {fmt?.source_label ?? '—'}
                                 </td>

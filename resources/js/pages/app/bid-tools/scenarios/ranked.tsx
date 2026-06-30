@@ -9,19 +9,19 @@ import {
     CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import AppLayout from '@/layouts/app-layout';
+import { getCsrfToken } from '@/lib/csrf';
 import {
     BidLinePickerToolbar,
     mapLineToPickerRow,
-    type LinePickerRow,
 } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
 import {
     ScenarioRankingPanel,
     rankingStateToSavePayload,
     scenarioToRankingState,
-    type ScenarioRankingState,
 } from '@/pages/app/bid-tools/scenario-ranking-panel';
-import { getCsrfToken } from '@/lib/csrf';
+import type { ScenarioRankingState } from '@/pages/app/bid-tools/scenario-ranking-panel';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -353,39 +353,42 @@ export default function BidScenarioRanked({
                             onClear={() => setSelected({})}
                         />
                         <div className="max-h-64 overflow-y-auto rounded-lg border border-sidebar-border/60 p-3">
-                        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-                            {lines.map((l) => (
-                                <label
-                                    key={l.id}
-                                    className="flex cursor-pointer items-center gap-2 text-sm"
-                                >
-                                    <Checkbox
-                                        checked={!!selected[l.id]}
-                                        onCheckedChange={(c) =>
-                                            setSelected((s) => ({
-                                                ...s,
-                                                [l.id]: c === true,
-                                            }))
-                                        }
-                                    />
-                                    <span className="font-mono">
-                                        {l.line_num}
-                                    </span>
-                                    <span className="text-muted-foreground">
-                                        {l.desk_group}
-                                    </span>
-                                    <span className="text-xs text-muted-foreground">
-                                        {l.start_time}
-                                    </span>
-                                </label>
-                            ))}
+                            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                                {lines.map((l) => (
+                                    <label
+                                        key={l.id}
+                                        className="flex cursor-pointer items-center gap-2 text-sm"
+                                    >
+                                        <Checkbox
+                                            checked={!!selected[l.id]}
+                                            onCheckedChange={(c) =>
+                                                setSelected((s) => ({
+                                                    ...s,
+                                                    [l.id]: c === true,
+                                                }))
+                                            }
+                                        />
+                                        <span className="font-mono">
+                                            {l.line_num}
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                            {l.desk_group}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                            {l.start_time}
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
                         </div>
                     </CollapsibleContent>
                 </Collapsible>
 
                 <section className="space-y-4">
                     <div className="print-only">
-                        <h2 className="bid-tools-print-title">{scenario.name}</h2>
+                        <h2 className="bid-tools-print-title">
+                            {scenario.name}
+                        </h2>
                         <p className="bid-tools-print-subtitle">
                             Recommended bid order · vacation bank{' '}
                             {scenario.vacation_bank}
@@ -394,7 +397,7 @@ export default function BidScenarioRanked({
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h2 className="text-lg font-semibold no-print">
+                        <h2 className="no-print text-lg font-semibold">
                             Recommended bid order
                         </h2>
                         {loading && (
@@ -404,12 +407,12 @@ export default function BidScenarioRanked({
                         )}
                     </div>
                     {previewError && (
-                        <p className="text-sm text-destructive no-print">
+                        <p className="no-print text-sm text-destructive">
                             {previewError}
                         </p>
                     )}
                     {selectedIds.length === 0 ? (
-                        <p className="text-sm text-muted-foreground no-print">
+                        <p className="no-print text-sm text-muted-foreground">
                             Select at least one line to see rankings.
                         </p>
                     ) : scoredRows && scoredRows.length > 0 ? (
@@ -517,16 +520,14 @@ export default function BidScenarioRanked({
                                                         {row.line_num}
                                                     </td>
                                                     <td className="p-2">
-                                                        {fmt?.desk_group ??
-                                                            '—'}
+                                                        {fmt?.desk_group ?? '—'}
                                                     </td>
                                                     <td className="max-w-[120px] p-2 text-xs text-muted-foreground">
                                                         {fmt?.source_label ??
                                                             '—'}
                                                     </td>
                                                     <td className="p-2 text-xs">
-                                                        {fmt?.start_time ??
-                                                            '—'}
+                                                        {fmt?.start_time ?? '—'}
                                                     </td>
                                                     <td className="p-2 text-xs">
                                                         {fmt?.rotation ?? '—'}
@@ -568,7 +569,7 @@ export default function BidScenarioRanked({
                                                         {fmt?.training_summary ??
                                                             '—'}
                                                     </td>
-                                                    <td className="max-w-[320px] p-2 text-xs leading-snug text-muted-foreground whitespace-pre-wrap">
+                                                    <td className="max-w-[320px] p-2 text-xs leading-snug whitespace-pre-wrap text-muted-foreground">
                                                         {fmt?.schedule_callouts ??
                                                             '—'}
                                                     </td>
@@ -583,7 +584,7 @@ export default function BidScenarioRanked({
                             </div>
                         </>
                     ) : !loading ? (
-                        <p className="text-sm text-muted-foreground no-print">
+                        <p className="no-print text-sm text-muted-foreground">
                             No ranked lines to show.
                         </p>
                     ) : null}

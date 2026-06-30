@@ -13,10 +13,10 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
+import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
-import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -284,9 +284,7 @@ export default function BidScenarioEdit({
                 desk_rank: deskRank,
                 start_time_rank: startRank,
                 personal_dates: personalDates.filter((p) => p.date),
-                vacation_ranges: ranges.filter(
-                    (r) => r.starts_on && r.ends_on,
-                ),
+                vacation_ranges: ranges.filter((r) => r.starts_on && r.ends_on),
             },
             {
                 preserveScroll: true,
@@ -601,35 +599,36 @@ export default function BidScenarioEdit({
                         <div className="grid gap-4 lg:grid-cols-2">
                             <div className="space-y-2">
                                 <Label htmlFor="sort-mode">Ranking mode</Label>
-                        <Select
-                            value={sortMode}
-                            onValueChange={(mode) =>
-                                setSortMode(mode as SortMode)
-                            }
-                        >
-                            <SelectTrigger
-                                id="sort-mode"
-                                className="h-8 max-w-[20rem] text-xs"
-                            >
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="blended">
-                                    Blended — groups + category order (recommended)
-                                </SelectItem>
-                                <SelectItem value="weighted">
-                                    Weighted — balance trade-offs
-                                </SelectItem>
-                                <SelectItem value="priority">
-                                    Priority — same as blended (legacy)
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                            {sortMode === 'weighted'
-                                ? 'Lines are ranked by total weighted score. Category order below only breaks ties when totals match.'
-                                : 'Uses category order with equal preference groups — e.g. 06:00 Sector beats 06:00 Regional when Sector/Router are grouped above Regional.'}
-                        </p>
+                                <Select
+                                    value={sortMode}
+                                    onValueChange={(mode) =>
+                                        setSortMode(mode as SortMode)
+                                    }
+                                >
+                                    <SelectTrigger
+                                        id="sort-mode"
+                                        className="h-8 max-w-[20rem] text-xs"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="blended">
+                                            Blended — groups + category order
+                                            (recommended)
+                                        </SelectItem>
+                                        <SelectItem value="weighted">
+                                            Weighted — balance trade-offs
+                                        </SelectItem>
+                                        <SelectItem value="priority">
+                                            Priority — same as blended (legacy)
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    {sortMode === 'weighted'
+                                        ? 'Lines are ranked by total weighted score. Category order below only breaks ties when totals match.'
+                                        : 'Uses category order with equal preference groups — e.g. 06:00 Sector beats 06:00 Regional when Sector/Router are grouped above Regional.'}
+                                </p>
                             </div>
                             <div className="space-y-2">
                                 <Label>
@@ -675,8 +674,8 @@ export default function BidScenarioEdit({
                         </div>
                         <p className="text-xs text-muted-foreground">
                             Higher in the list = more important. Priority
-                            (high/low/don&apos;t care) controls how strongly each
-                            item counts. Drag to rank.
+                            (high/low/don&apos;t care) controls how strongly
+                            each item counts. Drag to rank.
                         </p>
                         <div className="space-y-1 rounded-lg border border-sidebar-border/60 p-2">
                             {holidays.map((h, idx) => (
@@ -845,7 +844,9 @@ export default function BidScenarioEdit({
                             labels={deskLabels}
                             onChange={setDeskRank}
                             onRemoveKey={(key) =>
-                                setDeskRank(deskRank.filter((d) => d.key !== key))
+                                setDeskRank(
+                                    deskRank.filter((d) => d.key !== key),
+                                )
                             }
                             compact
                         />

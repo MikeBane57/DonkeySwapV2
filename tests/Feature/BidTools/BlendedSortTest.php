@@ -4,6 +4,7 @@ use App\Models\BidLine;
 use App\Models\BidScenario;
 use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
+use App\Services\BidTools\BidLinePreferenceCatalog;
 use App\Services\BidTools\RankTierHelper;
 use App\Services\BidTools\ScenarioScoreService;
 
@@ -42,9 +43,9 @@ test('blended mode ranks desk group before start subgroup when start tiers match
     $ds0600 = $lines->firstWhere('line_num', '552');
     $dg0700 = $lines->firstWhere('line_num', '553');
 
-    $deskKeys = app(\App\Services\BidTools\BidLinePreferenceCatalog::class)
+    $deskKeys = app(BidLinePreferenceCatalog::class)
         ->deskKeysForImport($import->id);
-    $startKeys = app(\App\Services\BidTools\BidLinePreferenceCatalog::class)
+    $startKeys = app(BidLinePreferenceCatalog::class)
         ->startTimeKeysForImport($import->id);
 
     $deskRank = collect($deskKeys)->map(fn (string $key) => [
