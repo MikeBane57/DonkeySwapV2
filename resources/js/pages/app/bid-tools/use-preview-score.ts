@@ -45,7 +45,7 @@ export function usePreviewScore({
                             'Content-Type': 'application/json',
                             Accept: 'application/json',
                             'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': getCsrfToken(),
+                            'X-XSRF-TOKEN': getCsrfToken(),
                         },
                         credentials: 'same-origin',
                         body: JSON.stringify({
