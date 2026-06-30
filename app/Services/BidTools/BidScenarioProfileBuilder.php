@@ -117,6 +117,15 @@ final class BidScenarioProfileBuilder
      * @param  array<string, mixed>  $profile
      * @return array<string, mixed>
      */
+    public function prepareDraftForScoring(BidImport $import, array $profile): array
+    {
+        return $this->mergeProfile($import, $profile);
+    }
+
+    /**
+     * @param  array<string, mixed>  $profile
+     * @return array<string, mixed>
+     */
     private function mergeProfile(BidImport $import, array $profile): array
     {
         $defaults = $this->defaultsForImport($import);

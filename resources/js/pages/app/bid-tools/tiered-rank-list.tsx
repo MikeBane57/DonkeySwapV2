@@ -95,6 +95,7 @@ export function TieredRankList({
     labels,
     onChange,
     onRemoveKey,
+    compact = false,
 }: {
     idPrefix: string;
     label: string;
@@ -103,6 +104,7 @@ export function TieredRankList({
     labels: Record<string, string>;
     onChange: (entries: TieredRankEntry[]) => void;
     onRemoveKey?: (key: string) => void;
+    compact?: boolean;
 }) {
     const flatIndexByKey = useMemo(() => {
         const map = new Map<string, number>();
@@ -132,25 +134,43 @@ export function TieredRankList({
     };
 
     return (
-        <div className="space-y-2">
-            <Label>{label}</Label>
-            {hint && (
+        <div className={compact ? 'space-y-1.5' : 'space-y-2'}>
+            <Label className={compact ? 'text-xs' : undefined}>{label}</Label>
+            {hint && !compact && (
                 <p className="text-xs text-muted-foreground">{hint}</p>
             )}
-            <p className="text-xs text-muted-foreground">
-                Drag to reorder. Use &quot;Same group&quot; to treat items as
-                equal (e.g. all AM starts together). &quot;Split after&quot;
-                starts a new group below this row.
-            </p>
-            <div className="space-y-2">
+            {!compact && (
+                <p className="text-xs text-muted-foreground">
+                    Drag to reorder. Use &quot;Same group&quot; to treat items as
+                    equal (e.g. all AM starts together). &quot;Split after&quot;
+                    starts a new group below this row.
+                </p>
+            )}
+            <div
+                className={
+                    compact
+                        ? 'flex flex-wrap gap-2'
+                        : 'space-y-2'
+                }
+            >
                 {groups.map((group, groupIndex) => (
                     <div
                         key={`${idPrefix}-tier-${groupIndex}`}
-                        className="space-y-1 rounded-lg border border-sidebar-border/60 bg-muted/10 p-2"
+                        className={
+                            compact
+                                ? 'inline-flex min-w-[10rem] flex-col gap-0.5 rounded-md border border-sidebar-border/60 bg-muted/10 px-2 py-1.5'
+                                : 'space-y-1 rounded-lg border border-sidebar-border/60 bg-muted/10 p-2'
+                        }
                     >
-                        <p className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                            Group {groupIndex + 1}
-                            {groupIndex === 0 ? ' — highest' : ''}
+                        <p
+                            className={
+                                compact
+                                    ? 'text-[10px] font-medium uppercase tracking-wide text-muted-foreground'
+                                    : 'px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground'
+                            }
+                        >
+                            G{groupIndex + 1}
+                            {groupIndex === 0 ? ' ↑' : ''}
                         </p>
                         {group.map((entry) => {
                             const flatIndex = flatIndexByKey.get(entry.key) ?? 0;
@@ -162,7 +182,13 @@ export function TieredRankList({
                                     index={flatIndex}
                                     onReorder={reorderFlat}
                                 >
-                                    <span className="min-w-0 flex-1 text-sm">
+                                    <span
+                                        className={
+                                            compact
+                                                ? 'min-w-0 flex-1 text-xs'
+                                                : 'min-w-0 flex-1 text-sm'
+                                        }
+                                    >
                                         {labels[entry.key] ?? entry.key}
                                     </span>
                                     <PrioritySelect
@@ -171,7 +197,7 @@ export function TieredRankList({
                                             updateEntry(flatIndex, { priority })
                                         }
                                     />
-                                    {!isFirstInGroup && (
+                                    {!compact && !isFirstInGroup && (
                                         <Button
                                             type="button"
                                             variant="ghost"
@@ -186,7 +212,7 @@ export function TieredRankList({
                                             Same group
                                         </Button>
                                     )}
-                                    {isFirstInGroup && groupIndex > 0 && (
+                                    {!compact && isFirstInGroup && groupIndex > 0 && (
                                         <Button
                                             type="button"
                                             variant="ghost"
@@ -201,7 +227,7 @@ export function TieredRankList({
                                             Merge up
                                         </Button>
                                     )}
-                                    {flatIndex < entries.length - 1 && (
+                                    {!compact && flatIndex < entries.length - 1 && (
                                         <Button
                                             type="button"
                                             variant="ghost"
@@ -221,13 +247,13 @@ export function TieredRankList({
                                             type="button"
                                             variant="ghost"
                                             size="icon"
-                                            className="h-8 w-8 text-muted-foreground"
+                                            className="h-7 w-7 text-muted-foreground"
                                             title="Remove from list"
                                             onClick={() =>
                                                 onRemoveKey(entry.key)
                                             }
                                         >
-                                            <Trash2 className="h-4 w-4" />
+                                            <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                     )}
                                 </DraggableRow>

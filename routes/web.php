@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\ShiftsController;
 use App\Http\Controllers\Admin\UserManagerController;
 use App\Http\Controllers\Admin\WorkgroupsController;
 use App\Http\Controllers\Api\BannerMessageController;
+use App\Http\Controllers\Api\BidTools\ScenarioPreviewScoreController;
 use App\Http\Controllers\Api\CalendarController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\HiddenPostController;
@@ -119,6 +120,9 @@ Route::prefix('api')->middleware(['auth'])->group(function () {
     Route::post('schedule-import/preview', [ApiScheduleImportController::class, 'preview'])->name('api.schedule-import.preview')->middleware('throttle:10,1');
     Route::post('schedule-import/apply', [ApiScheduleImportController::class, 'apply'])->name('api.schedule-import.apply')->middleware('throttle:10,1');
     Route::get('schedule-import/history', [ApiScheduleImportController::class, 'history'])->name('api.schedule-import.history');
+    Route::post('bid-tools/scenarios/{scenario}/preview-score', ScenarioPreviewScoreController::class)
+        ->middleware('feature:bid_tools')
+        ->name('api.bid-tools.scenarios.preview-score');
 });
 
 // Authenticated app routes under /app

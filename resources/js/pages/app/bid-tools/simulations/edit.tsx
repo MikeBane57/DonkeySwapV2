@@ -7,10 +7,10 @@ import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import {
     BidderProfileFields,
-    emptyBidderProfile
-    
+    emptyBidderProfile,
 } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
-import type {BidderProfile} from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
+import type { BidderProfile } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
+import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import type { BreadcrumbItem } from '@/types';
 
 type Participant = {
@@ -18,6 +18,7 @@ type Participant = {
     display_name: string;
     seniority_rank: number;
     minimum_bid_lines: number;
+    bid_scenario_id: number;
     profile: BidderProfile;
 };
 
@@ -35,10 +36,12 @@ function ParticipantEditor({
     simulationId,
     participant,
     profileDefaults,
+    lines,
 }: {
     simulationId: number;
     participant: Participant;
     profileDefaults: BidderProfile;
+    lines: LinePickerRow[];
 }) {
     const [open, setOpen] = useState(false);
     const form = useForm({
@@ -132,6 +135,8 @@ function ParticipantEditor({
                         rankDefaults={profileDefaults}
                         value={form.data.profile}
                         onChange={(profile) => form.setData('profile', profile)}
+                        scenarioId={participant.bid_scenario_id}
+                        lines={lines}
                     />
 
                     <div className="flex flex-wrap gap-2">
@@ -165,6 +170,7 @@ export default function BidSimulationEdit({
     simulation,
     profile_defaults: profileDefaults,
     participants,
+    lines,
 }: {
     simulation: {
         id: number;
@@ -174,6 +180,7 @@ export default function BidSimulationEdit({
     };
     profile_defaults: BidderProfile;
     participants: Participant[];
+    lines: LinePickerRow[];
 }) {
     const page = usePage<{ flash?: { success?: string; error?: string } }>();
 
@@ -213,7 +220,7 @@ export default function BidSimulationEdit({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Manage · ${simulation.name}`} />
-            <div className="mx-auto max-w-3xl space-y-8 p-4 pb-12">
+            <div className="mx-auto max-w-5xl space-y-8 p-4 pb-12">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-semibold tracking-tight">
@@ -307,6 +314,7 @@ export default function BidSimulationEdit({
                                     simulationId={simulation.id}
                                     participant={p}
                                     profileDefaults={profileDefaults}
+                                    lines={lines}
                                 />
                             ))}
                         </div>
@@ -371,6 +379,10 @@ export default function BidSimulationEdit({
                                 addForm.setData('profile', profile)
                             }
                         />
+                        <p className="text-xs text-muted-foreground">
+                            Save the bidder first to preview line rankings below
+                            their profile.
+                        </p>
 
                         <Button type="submit" disabled={addForm.processing}>
                             Add bidder
