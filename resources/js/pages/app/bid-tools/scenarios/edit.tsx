@@ -14,6 +14,10 @@ import {
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
+import {
+    normalizeStrictShiftOrder,
+    StrictShiftOrderField,
+} from '@/pages/app/bid-tools/strict-shift-order-field';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -152,6 +156,7 @@ export default function BidScenarioEdit({
         vacation_bank: number;
         weights: Record<string, unknown> & {
             sort_mode?: SortMode;
+            strict_shift_order?: boolean;
             criteria_order?: string[];
         };
         holiday_rank: HolidayEntry[];
@@ -195,6 +200,9 @@ export default function BidScenarioEdit({
 
         return 'blended';
     });
+    const [strictShiftOrder, setStrictShiftOrder] = useState(() =>
+        normalizeStrictShiftOrder(scenario.weights?.strict_shift_order),
+    );
     const [criteriaOrder, setCriteriaOrder] = useState<string[]>(() => {
         const o = scenario.weights?.criteria_order;
         if (Array.isArray(o) && o.length === 4) {
@@ -274,6 +282,7 @@ export default function BidScenarioEdit({
                     desk: Number(weights.desk) || 0,
                     vacation_penalty: Number(weights.vacation_penalty) || 0,
                     sort_mode: sortMode,
+                    strict_shift_order: strictShiftOrder,
                     criteria_order: criteriaOrder,
                 },
                 holiday_rank: holidays,
@@ -295,6 +304,7 @@ export default function BidScenarioEdit({
         vacationBank,
         weights,
         sortMode,
+        strictShiftOrder,
         criteriaOrder,
         holidays,
         deskRank,
@@ -585,6 +595,12 @@ export default function BidScenarioEdit({
                                 : 'Uses category order with equal preference groups — e.g. 06:00 Sector beats 06:00 Regional when Sector/Router are grouped above Regional.'}
                         </p>
                     </section>
+
+                    <StrictShiftOrderField
+                        id="strict-shift-order"
+                        checked={strictShiftOrder}
+                        onCheckedChange={setStrictShiftOrder}
+                    />
 
                     <section className="space-y-3">
                         <Label>

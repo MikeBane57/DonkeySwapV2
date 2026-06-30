@@ -45,6 +45,7 @@ final class BidScenarioProfileBuilder
         );
         $weights['criteria_order'] = ScenarioScoreService::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
         $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
+        $weights['strict_shift_order'] = ScenarioScoreService::normalizeStrictShiftOrder($weights['strict_shift_order'] ?? null);
 
         $condensed = $this->condensedMapper->toCondensedPayload($scenario);
 
@@ -132,6 +133,7 @@ final class BidScenarioProfileBuilder
         }
         $weights['criteria_order'] = ScenarioScoreService::normalizeCriteriaOrder($weights['criteria_order']);
         $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
+        $weights['strict_shift_order'] = ScenarioScoreService::normalizeStrictShiftOrder($weights['strict_shift_order'] ?? null);
 
         return [
             'vacation_bank' => (int) ($profile['vacation_bank'] ?? $defaults['vacation_bank']),

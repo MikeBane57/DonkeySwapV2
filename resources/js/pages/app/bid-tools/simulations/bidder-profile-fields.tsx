@@ -17,6 +17,10 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
+import {
+    normalizeStrictShiftOrder,
+    StrictShiftOrderField,
+} from '@/pages/app/bid-tools/strict-shift-order-field';
 
 export type Priority = 'ignore' | 'low' | 'high';
 
@@ -52,6 +56,7 @@ export type BidderProfile = {
         desk: number;
         vacation_penalty: number;
         sort_mode: SortMode;
+        strict_shift_order: boolean;
         criteria_order: string[];
     };
     personal_dates: PersonalDate[];
@@ -209,6 +214,9 @@ export function emptyBidderProfile(defaults: BidderProfile): BidderProfile {
         weights: {
             ...defaults.weights,
             sort_mode: defaults.weights.sort_mode ?? 'blended',
+            strict_shift_order: normalizeStrictShiftOrder(
+                defaults.weights.strict_shift_order,
+            ),
             criteria_order: [...defaults.weights.criteria_order],
         },
         personal_dates: [],
@@ -523,6 +531,14 @@ export function BidderProfileFields({
                         : 'Uses your category order (e.g. start time, then desk, then holidays). Items in the same preference group are treated as equal at that step — so 06:00 Sector ranks above 06:00 Regional when Sector/Router are grouped above Regional.'}
                 </p>
             </div>
+
+            <StrictShiftOrderField
+                id={`${idPrefix}-strict-shift-order`}
+                checked={value.weights.strict_shift_order ?? false}
+                onCheckedChange={(checked) =>
+                    setWeights({ strict_shift_order: checked })
+                }
+            />
 
             <div className="space-y-2">
                 <Label>

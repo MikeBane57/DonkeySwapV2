@@ -28,6 +28,7 @@ class UpdateBidScenarioRequest extends FormRequest
             'weights.desk' => ['nullable', 'numeric'],
             'weights.vacation_penalty' => ['nullable', 'numeric'],
             'weights.sort_mode' => ['nullable', 'string', Rule::in(ScenarioScoreService::SORT_MODES)],
+            'weights.strict_shift_order' => ['nullable', 'boolean'],
             'weights.criteria_order' => ['nullable', 'array'],
             'weights.criteria_order.*' => ['string', Rule::in(['holiday', 'personal', 'start_time', 'desk'])],
             'holiday_rank' => ['required', 'array'],

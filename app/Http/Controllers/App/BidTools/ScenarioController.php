@@ -80,6 +80,7 @@ class ScenarioController extends Controller
         );
         $weights['criteria_order'] = ScenarioScoreService::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
         $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
+        $weights['strict_shift_order'] = ScenarioScoreService::normalizeStrictShiftOrder($weights['strict_shift_order'] ?? null);
 
         $deskKeys = $this->preferenceCatalog->deskKeysForImport($s->bid_import_id);
         $startKeys = $this->preferenceCatalog->startTimeKeysForImport($s->bid_import_id);

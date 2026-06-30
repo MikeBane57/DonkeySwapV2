@@ -40,6 +40,7 @@ class RankedController extends Controller
             'start_time' => 1.0,
             'desk' => 1.0,
             'vacation_penalty' => 1.0,
+            'strict_shift_order' => false,
             'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
         ], $s->weights ?? []);
 

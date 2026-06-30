@@ -20,7 +20,7 @@ final class CondensedDeskClassifier
 
     public function __construct(
         private readonly StartTimeNormalizer $startTimes,
-        private readonly DeskGroupShiftClassifier $deskShift,
+        private readonly LineShiftClassifier $lineShift,
     ) {}
 
     public function bucketForLine(BidLine $line): string
@@ -155,21 +155,7 @@ final class CondensedDeskClassifier
      */
     public function startShiftBucket(string $startTime): string
     {
-        $key = $this->startTimes->rankKey($startTime);
-
-        if ($key === 'am' || str_starts_with($key, 'am_mix') || preg_match('/^t_0[67]/', $key)) {
-            return 'am';
-        }
-
-        if ($key === 'pm' || $key === 'pm_mix' || preg_match('/^t_1[45]/', $key)) {
-            return 'pm';
-        }
-
-        if ($key === 'mid' || $key === 'mid_mix' || preg_match('/^t_22/', $key)) {
-            return 'mid';
-        }
-
-        return 'other';
+        return $this->lineShift->startShiftBucket($startTime);
     }
 
     /**
@@ -189,7 +175,7 @@ final class CondensedDeskClassifier
             'line_num' => $line->line_num,
             'desk_group' => $line->desk_group,
             'start_time' => $line->start_time,
-            'desk_shift' => $this->deskShift->shiftForDeskGroup($line->desk_group),
+            'desk_shift' => $this->lineShift->classify($line),
             'desk_bucket' => $this->bucketForLine($line),
         ];
     }

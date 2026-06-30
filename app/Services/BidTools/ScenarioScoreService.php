@@ -33,6 +33,7 @@ final class ScenarioScoreService
         private readonly CondensedDeskClassifier $condensedDesk,
         private readonly StartTimeNormalizer $startTimes,
         private readonly VacationCostCalculator $vacation,
+        private readonly LineShiftClassifier $lineShift,
     ) {}
 
     /**
@@ -48,6 +49,7 @@ final class ScenarioScoreService
 
         $criteriaOrder = self::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
         $sortMode = self::normalizeSortMode($weights['sort_mode'] ?? null);
+        $strictShiftOrder = self::normalizeStrictShiftOrder($weights['strict_shift_order'] ?? null);
 
         $bidYear = (int) $scenario->import->bid_year;
         $holidayEntries = $this->normalizeHolidayRank($scenario->holiday_rank, $bidYear);
@@ -129,10 +131,13 @@ final class ScenarioScoreService
 
             $total = $holidayPoints + $personalPoints + $startPoints + $deskPoints - $vacPenalty;
 
+            $shiftClass = $this->lineShift->classify($line);
+
             $out[] = [
                 'bid_line_id' => $line->id,
                 'line_num' => $line->line_num,
                 'total' => round($total, 2),
+                'shift_class' => $shiftClass,
                 'parts' => [
                     'holiday' => round($holidayPoints, 2),
                     'personal' => round($personalPoints, 2),
@@ -158,7 +163,7 @@ final class ScenarioScoreService
             ];
         }
 
-        usort($out, fn ($a, $b) => self::compareScoredLines($a, $b, $criteriaOrder, $sortMode));
+        usort($out, fn ($a, $b) => self::compareScoredLines($a, $b, $criteriaOrder, $sortMode, $strictShiftOrder));
 
         return $out;
     }
@@ -175,6 +180,7 @@ final class ScenarioScoreService
             'desk' => 1.0,
             'vacation_penalty' => 1.0,
             'sort_mode' => self::SORT_MODE_BLENDED,
+            'strict_shift_order' => false,
             'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
         ];
     }
@@ -213,13 +219,24 @@ final class ScenarioScoreService
         return $order;
     }
 
+    public static function normalizeStrictShiftOrder(mixed $raw): bool
+    {
+        return filter_var($raw, FILTER_VALIDATE_BOOL);
+    }
+
     /**
      * @param  array<string, mixed>  $a
      * @param  array<string, mixed>  $b
      * @param  list<string>  $criteriaOrder
      */
-    public static function compareScoredLines(array $a, array $b, array $criteriaOrder, string $sortMode): int
+    public static function compareScoredLines(array $a, array $b, array $criteriaOrder, string $sortMode, bool $strictShiftOrder = false): int
     {
+        if ($strictShiftOrder) {
+            $shiftCmp = self::compareShiftClass($a, $b);
+            if ($shiftCmp !== 0) {
+                return $shiftCmp;
+            }
+        }
         if (self::usesTierGroupSort($sortMode)) {
             foreach ($criteriaOrder as $criterion) {
                 if (! is_string($criterion)) {
@@ -261,6 +278,20 @@ final class ScenarioScoreService
         }
 
         return strcmp((string) ($a['line_num'] ?? ''), (string) ($b['line_num'] ?? ''));
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @param  array<string, mixed>  $b
+     */
+    private static function compareShiftClass(array $a, array $b): int
+    {
+        $order = array_flip(LineShiftClassifier::STRICT_ORDER);
+        $worst = count(LineShiftClassifier::STRICT_ORDER);
+        $left = $order[$a['shift_class'] ?? LineShiftClassifier::SHIFT_OTHER] ?? $worst;
+        $right = $order[$b['shift_class'] ?? LineShiftClassifier::SHIFT_OTHER] ?? $worst;
+
+        return $left <=> $right;
     }
 
     public static function usesTierGroupSort(string $sortMode): bool

@@ -45,6 +45,7 @@ trait BidderProfileRules
             "{$prefix}.weights.desk" => ['nullable', 'numeric'],
             "{$prefix}.weights.vacation_penalty" => ['nullable', 'numeric'],
             "{$prefix}.weights.sort_mode" => ['nullable', 'string', Rule::in(\App\Services\BidTools\ScenarioScoreService::SORT_MODES)],
+            "{$prefix}.weights.strict_shift_order" => ['nullable', 'boolean'],
             "{$prefix}.weights.criteria_order" => ['nullable', 'array'],
             "{$prefix}.weights.criteria_order.*" => ['string', Rule::in(['holiday', 'personal', 'start_time', 'desk'])],
             "{$prefix}.personal_dates" => ['nullable', 'array'],
