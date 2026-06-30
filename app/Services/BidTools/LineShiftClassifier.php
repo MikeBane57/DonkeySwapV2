@@ -7,7 +7,7 @@ use App\Models\BidLine;
 /**
  * Unified AM / PM / Mid / Relief line classification for picker filters and strict shift ordering.
  *
- * Relief overrides start time. Non-relief lines use clock start (06/07 = AM, 14/15 = PM, 22 = Mid).
+ * Relief overrides desk group. Non-relief lines use desk group prefix (D = AM, A = PM, M = Mid).
  */
 final class LineShiftClassifier
 {
@@ -40,11 +40,17 @@ final class LineShiftClassifier
             return self::SHIFT_RELIEF;
         }
 
-        $bucket = $this->startShiftBucket($line->start_time);
+        $group = strtoupper(trim($line->desk_group));
+        if ($group === '') {
+            return self::SHIFT_OTHER;
+        }
 
-        return in_array($bucket, [self::SHIFT_AM, self::SHIFT_PM, self::SHIFT_MID], true)
-            ? $bucket
-            : self::SHIFT_OTHER;
+        return match ($group[0]) {
+            'D' => self::SHIFT_AM,
+            'A' => self::SHIFT_PM,
+            'M' => self::SHIFT_MID,
+            default => self::SHIFT_OTHER,
+        };
     }
 
     public function startShiftBucket(string $startTime): string

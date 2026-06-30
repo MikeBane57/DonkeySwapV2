@@ -29,7 +29,7 @@ final class BidLinePickerService
                 ->keyBy('bid_line_id');
         }
 
-        return $lines->map(function (BidLine $line) use ($notes) {
+        $rows = $lines->map(function (BidLine $line) use ($notes) {
             $picker = $this->deskClassifier->linePickerFields($line);
 
             return [
@@ -37,5 +37,30 @@ final class BidLinePickerService
                 'submitted_externally' => (bool) ($notes[$line->id]->submitted_externally ?? false),
             ];
         })->all();
+
+        return $this->sortPickerRows($rows);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    private function sortPickerRows(array $rows): array
+    {
+        $order = array_flip(['am', 'pm', 'mid', 'relief', 'other']);
+
+        usort($rows, function (array $a, array $b) use ($order): int {
+            $aShift = is_string($a['desk_shift'] ?? null) ? $a['desk_shift'] : 'other';
+            $bShift = is_string($b['desk_shift'] ?? null) ? $b['desk_shift'] : 'other';
+            $aRank = $order[$aShift] ?? 99;
+            $bRank = $order[$bShift] ?? 99;
+            if ($aRank !== $bRank) {
+                return $aRank <=> $bRank;
+            }
+
+            return strcmp((string) ($a['line_num'] ?? ''), (string) ($b['line_num'] ?? ''));
+        });
+
+        return $rows;
     }
 }

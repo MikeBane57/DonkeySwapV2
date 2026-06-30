@@ -110,16 +110,16 @@ test('maps start times to am pm and mid picker buckets', function () {
     expect($classifier->startShiftBucket('MID-MIX'))->toBe('mid');
 });
 
-test('line picker shift uses start time and relief classification', function () {
+test('line picker shift uses desk group prefix and relief classification', function () {
     $classifier = classifier();
 
-    $amLine = makeClassifierLine([], deskGroup: 'DG', startTime: '0600');
+    $amLine = makeClassifierLine([], deskGroup: 'DG', startTime: '1500');
     expect($classifier->linePickerFields($amLine)['desk_shift'])->toBe('am');
 
-    $pmLine = makeClassifierLine([], deskGroup: 'DG', startTime: '1500');
+    $pmLine = makeClassifierLine([], deskGroup: 'AG', startTime: '0600');
     expect($classifier->linePickerFields($pmLine)['desk_shift'])->toBe('pm');
 
-    $midLine = makeClassifierLine([], deskGroup: 'MG', startTime: '2200');
+    $midLine = makeClassifierLine([], deskGroup: 'MG', startTime: '0600');
     expect($classifier->linePickerFields($midLine)['desk_shift'])->toBe('mid');
 
     $relief = makeClassifierLine([

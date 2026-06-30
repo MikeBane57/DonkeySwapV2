@@ -354,7 +354,7 @@ function writeStartTimeHolidayTradeoffCsv(int $bidYear): string
     $amRow[] = '0';
     fputcsv($fh, $amRow);
 
-    $pmRow = ['552', 'DG', '1500', 'A'];
+    $pmRow = ['552', 'AG', '1500', 'A'];
     foreach ($range->eachDate() as $d) {
         $pmRow[] = 'x';
     }

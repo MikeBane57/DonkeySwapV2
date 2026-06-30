@@ -59,12 +59,12 @@ test('relief lines classify as relief regardless of start time', function () {
     expect($classifier->classify($relief))->toBe(LineShiftClassifier::SHIFT_RELIEF);
 });
 
-test('non relief lines classify from clock start time', function () {
+test('non relief lines classify from desk group prefix', function () {
     $classifier = shiftClassifier();
 
-    $am = makeShiftLine([], deskGroup: 'DG', startTime: '0600');
-    $pm = makeShiftLine([], deskGroup: 'AG', startTime: '1500');
-    $mid = makeShiftLine([], deskGroup: 'MG', startTime: '2200');
+    $am = makeShiftLine([], deskGroup: 'DG', startTime: '1500');
+    $pm = makeShiftLine([], deskGroup: 'AG', startTime: '0600');
+    $mid = makeShiftLine([], deskGroup: 'MG', startTime: '0600');
 
     expect($classifier->classify($am))->toBe('am');
     expect($classifier->classify($pm))->toBe('pm');

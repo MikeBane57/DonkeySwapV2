@@ -104,8 +104,8 @@ export function StrictShiftOrderField({
                     </p>
                     {!compact && (
                         <p className="text-xs text-muted-foreground">
-                            Buckets use clock start (06/07 = AM, 14/15 = PM, 22
-                            = Mid). Relief lines are classified separately.
+                            Buckets use desk group prefix (D = AM, A = PM, M =
+                            Mid). Relief lines are classified separately.
                         </p>
                     )}
                 </div>
