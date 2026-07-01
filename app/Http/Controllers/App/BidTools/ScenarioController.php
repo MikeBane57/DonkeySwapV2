@@ -42,10 +42,7 @@ class ScenarioController extends Controller
         $import = BidImport::query()->findOrFail($request->validated('bid_import_id'));
         $bidYear = (int) $import->bid_year;
 
-        $deskKeys = $this->preferenceCatalog->deskKeysForImport($import->id);
-        $deskRank = $deskKeys === []
-            ? $this->scoreService->defaultDeskEntries()
-            : $this->scoreService->deskEntriesForEditor([], $deskKeys);
+        $deskRank = $this->scoreService->deskEntriesForEditor([], null);
 
         $scenario = BidScenario::create([
             'user_id' => $user->id,

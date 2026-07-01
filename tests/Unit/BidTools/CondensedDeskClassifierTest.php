@@ -60,7 +60,20 @@ test('classifies midnight and relief buckets', function () {
     expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'MS', startTime: '2200')))->toBe('MID');
     expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'MG', startTime: '2200')))->toBe('MID');
     expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'MG/MS', startTime: '2200')))->toBe('MID');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'RELIEF', startTime: '0600')))->toBe('RELIEF');
     expect($classifier->bucketForLine(makeClassifierLine([['code' => 'RELIEF-S4']], deskGroup: 'DG', startTime: '0600')))->toBe('RELIEF');
+});
+
+test('desk catalog lists every bucket type for ranking UI', function () {
+    $classifier = classifier();
+
+    expect($classifier->deskCatalogForImport(0))
+        ->toHaveCount(count(CondensedDeskClassifier::BUCKETS));
+
+    $keys = collect($classifier->deskCatalogForImport(0))->pluck('key')->all();
+
+    expect($keys)->toContain('DS7');
+    expect($keys)->toContain('RELIEF');
 });
 
 test('does not classify 2200 starts as mid without MS or MG desk group', function () {
