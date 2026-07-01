@@ -10,14 +10,14 @@ use App\Services\BidTools\ScenarioScoreService;
 
 test('tier rank for key treats grouped entries as the same rank', function () {
     $entries = [
-        ['key' => 'DG7', 'priority' => 'high', 'tier' => 1],
-        ['key' => 'DR7', 'priority' => 'low', 'tier' => 1],
-        ['key' => 'AG15', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR', 'priority' => 'low', 'tier' => 1],
+        ['key' => 'AG', 'priority' => 'high', 'tier' => 2],
     ];
 
-    expect(RankTierHelper::tierRankForKey($entries, 'DG7'))->toBe(1);
-    expect(RankTierHelper::tierRankForKey($entries, 'DR7'))->toBe(1);
-    expect(RankTierHelper::tierRankForKey($entries, 'AG15'))->toBe(2);
+    expect(RankTierHelper::tierRankForKey($entries, 'DG'))->toBe(1);
+    expect(RankTierHelper::tierRankForKey($entries, 'DR'))->toBe(1);
+    expect(RankTierHelper::tierRankForKey($entries, 'AG'))->toBe(2);
 });
 
 test('blended mode ranks desk tier before start time tiebreak when totals match', function () {
@@ -50,8 +50,8 @@ test('blended mode ranks desk tier before start time tiebreak when totals match'
         'key' => $key,
         'priority' => 'high',
         'tier' => match ($key) {
-            'DS7', 'DR7' => 1,
-            'DG7' => 2,
+            'DS', 'DR' => 1,
+            'DG' => 2,
             default => 3,
         },
     ])->values()->all();

@@ -22,6 +22,7 @@ import {
     scenarioToRankingState,
 } from '@/pages/app/bid-tools/scenario-ranking-panel';
 import type { ScenarioRankingState } from '@/pages/app/bid-tools/scenario-ranking-panel';
+import { personalDatesForSave } from '@/pages/app/bid-tools/personal-dates-editor';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -183,8 +184,8 @@ export default function BidScenarioRanked({
                         weights: ranking.weights,
                         holiday_rank: ranking.holiday_rank,
                         desk_rank: ranking.desk_rank,
-                        personal_dates: ranking.personal_dates.filter(
-                            (p) => p.date,
+                        personal_dates: personalDatesForSave(
+                            ranking.personal_dates,
                         ),
                     }),
                 },

@@ -9,11 +9,10 @@ use Carbon\CarbonImmutable;
 final class VacationCostCalculator
 {
     /**
-     * Workdays (non-off) inside vacation ranges for this line.
+     * Workdays (non-off) inside personal date ranges for this line.
      */
     public function totalCost(BidScenario $scenario, BidLine $line): int
     {
-        $scenario->loadMissing('vacationRanges');
         $line->loadMissing('days');
 
         $byDate = [];
@@ -22,9 +21,9 @@ final class VacationCostCalculator
         }
 
         $cost = 0;
-        foreach ($scenario->vacationRanges as $range) {
-            $start = CarbonImmutable::parse($range->starts_on)->startOfDay();
-            $end = CarbonImmutable::parse($range->ends_on)->startOfDay();
+        foreach ($this->rangeEntries($scenario->personal_dates ?? []) as $range) {
+            $start = CarbonImmutable::parse($range['starts_on'])->startOfDay();
+            $end = CarbonImmutable::parse($range['ends_on'])->startOfDay();
             $d = $start;
             while ($d->lte($end)) {
                 $ymd = $d->format('Y-m-d');
@@ -36,5 +35,31 @@ final class VacationCostCalculator
         }
 
         return $cost;
+    }
+
+    /**
+     * @param  mixed  $raw
+     * @return list<array{starts_on: string, ends_on: string}>
+     */
+    private function rangeEntries(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($raw as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $startsOn = (string) ($row['starts_on'] ?? '');
+            $endsOn = (string) ($row['ends_on'] ?? '');
+            if ($startsOn !== '' && $endsOn !== '') {
+                $out[] = ['starts_on' => $startsOn, 'ends_on' => $endsOn];
+            }
+        }
+
+        return $out;
     }
 }

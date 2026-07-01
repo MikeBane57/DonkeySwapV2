@@ -43,13 +43,11 @@ trait BidderProfileRules
             "{$prefix}.weights.start_time_tiebreak_order" => ['nullable', 'array'],
             "{$prefix}.weights.start_time_tiebreak_order.*" => ['string', Rule::in(ScenarioScoreService::START_TIME_TIEBREAK_KEYS)],
             "{$prefix}.personal_dates" => ['nullable', 'array'],
-            "{$prefix}.personal_dates.*.date" => ['required', 'date_format:Y-m-d'],
+            "{$prefix}.personal_dates.*.date" => ['nullable', 'date_format:Y-m-d'],
+            "{$prefix}.personal_dates.*.starts_on" => ['nullable', 'date_format:Y-m-d'],
+            "{$prefix}.personal_dates.*.ends_on" => ['nullable', 'date_format:Y-m-d'],
             "{$prefix}.personal_dates.*.label" => ['nullable', 'string', 'max:120'],
             "{$prefix}.personal_dates.*.priority" => ['required', 'string', Rule::in(['ignore', 'low', 'high'])],
-            "{$prefix}.vacation_ranges" => ['nullable', 'array'],
-            "{$prefix}.vacation_ranges.*.starts_on" => ['required', 'date_format:Y-m-d'],
-            "{$prefix}.vacation_ranges.*.ends_on" => ['required', 'date_format:Y-m-d'],
-            "{$prefix}.vacation_ranges.*.title" => ['nullable', 'string', 'max:120'],
         ];
     }
 }

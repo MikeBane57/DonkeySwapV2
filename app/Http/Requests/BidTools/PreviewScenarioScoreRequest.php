@@ -42,7 +42,9 @@ class PreviewScenarioScoreRequest extends FormRequest
             'desk_rank.*.priority' => ['required_with:desk_rank', 'string', Rule::in(['ignore', 'low', 'high'])],
             'desk_rank.*.tier' => ['nullable', 'integer', 'min:1'],
             'personal_dates' => ['nullable', 'array'],
-            'personal_dates.*.date' => ['required_with:personal_dates', 'date_format:Y-m-d'],
+            'personal_dates.*.date' => ['nullable', 'date_format:Y-m-d'],
+            'personal_dates.*.starts_on' => ['nullable', 'date_format:Y-m-d'],
+            'personal_dates.*.ends_on' => ['nullable', 'date_format:Y-m-d'],
             'personal_dates.*.label' => ['nullable', 'string', 'max:120'],
             'personal_dates.*.priority' => ['required_with:personal_dates', 'string', Rule::in(['ignore', 'low', 'high'])],
         ];

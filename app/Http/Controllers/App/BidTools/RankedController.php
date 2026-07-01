@@ -49,6 +49,12 @@ class RankedController extends Controller
 
         $lineRows = $this->linePicker->rowsForImport($s->bid_import_id, $s->id);
 
+        $legacyRanges = $s->vacationRanges->map(fn ($r) => [
+            'title' => $r->title ?? '',
+            'starts_on' => $r->starts_on->format('Y-m-d'),
+            'ends_on' => $r->ends_on->format('Y-m-d'),
+        ])->all();
+
         return Inertia::render('app/bid-tools/scenarios/ranked', [
             'scenario' => [
                 'id' => $s->id,
@@ -61,7 +67,10 @@ class RankedController extends Controller
                 'weights' => $weights,
                 'holiday_rank' => $this->scoreService->holidayEntriesForEditor($s->holiday_rank, $bidYear),
                 'desk_rank' => $this->scoreService->deskEntriesForEditor($s->desk_rank, $deskKeys),
-                'personal_dates' => $this->scoreService->personalDatesForEditor($s->personal_dates ?? []),
+                'personal_dates' => $this->scoreService->personalDatesForEditor(
+                    $s->personal_dates ?? [],
+                    $legacyRanges,
+                ),
             ],
             'holidaysCatalog' => $this->scoreService->holidaysCatalog($bidYear),
             'deskCatalog' => $this->preferenceCatalog->deskCatalogForImport($s->bid_import_id),
@@ -72,7 +81,7 @@ class RankedController extends Controller
     public function previewScore(PreviewScenarioScoreRequest $request, int $scenario): JsonResponse
     {
         $s = $this->findScenario($request, $scenario);
-        $s->load(['import', 'vacationRanges']);
+        $s->load(['import']);
 
         $working = $this->scenarioWithPreviewPayload($s, $request->validated());
         $lineIds = $this->filterLineIds($s, $request->validated('line_ids'));

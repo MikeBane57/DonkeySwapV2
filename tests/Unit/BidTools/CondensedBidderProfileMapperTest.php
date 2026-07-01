@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\BidTools\CondensedBidderProfileMapper;
+use App\Services\BidTools\CondensedDeskClassifier;
 use App\Services\BidTools\FederalHolidayCalendar;
 
 function mapper(): CondensedBidderProfileMapper
@@ -19,17 +20,8 @@ test('condensed defaults include holiday and desk ranks', function () {
         'july_4',
     ]);
 
-    expect($defaults['desk_rank'])->toHaveCount(8);
-    expect(collect($defaults['desk_rank'])->pluck('key')->all())->toBe([
-        'DG7',
-        'AG15',
-        'DR7',
-        'AR15',
-        'DS7',
-        'AS7',
-        'MID',
-        'RELIEF',
-    ]);
+    expect($defaults['desk_rank'])->toHaveCount(count(CondensedDeskClassifier::BUCKETS));
+    expect(collect($defaults['desk_rank'])->pluck('key')->all())->toBe(CondensedDeskClassifier::BUCKETS);
 });
 
 test('expand holiday rank applies same priority to eve and day', function () {
@@ -54,30 +46,30 @@ test('expand desk rank keeps only condensed buckets present in import', function
     $mapper = mapper();
 
     $expanded = $mapper->expandDeskRank([
-        ['key' => 'DG7', 'priority' => 'high'],
-        ['key' => 'DR7', 'priority' => 'low'],
+        ['key' => 'DG', 'priority' => 'high'],
+        ['key' => 'DR', 'priority' => 'low'],
         ['key' => 'DS7', 'priority' => 'high'],
         ['key' => 'MID', 'priority' => 'ignore'],
         ['key' => 'RELIEF', 'priority' => 'high'],
-    ], ['DG7', 'DR7', 'DS7']);
+    ], ['DG', 'DR', 'DS7']);
 
     $byKey = collect($expanded)->keyBy('key');
 
-    expect($byKey->keys()->all())->toBe(['DG7', 'DR7', 'DS7']);
-    expect($byKey['DR7']['priority'])->toBe('low');
+    expect($byKey->keys()->all())->toBe(['DG', 'DR', 'DS7']);
+    expect($byKey['DR']['priority'])->toBe('low');
 });
 
 test('to condensed desk rank preserves stored bucket priorities', function () {
     $mapper = mapper();
 
     $condensed = $mapper->toCondensedDeskRank([
-        ['key' => 'DG7', 'priority' => 'high'],
-        ['key' => 'DR7', 'priority' => 'low'],
+        ['key' => 'DG', 'priority' => 'high'],
+        ['key' => 'DR', 'priority' => 'low'],
         ['key' => 'DS7', 'priority' => 'ignore'],
     ]);
 
     $byKey = collect($condensed)->keyBy('key');
 
-    expect($byKey['DR7']['priority'])->toBe('low');
+    expect($byKey['DR']['priority'])->toBe('low');
     expect($byKey['DS7']['priority'])->toBe('ignore');
 });

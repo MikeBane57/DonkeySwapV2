@@ -41,14 +41,12 @@ class UpdateBidScenarioRequest extends FormRequest
             'desk_rank.*.priority' => ['required', 'string', Rule::in(['ignore', 'low', 'high'])],
             'desk_rank.*.tier' => ['nullable', 'integer', 'min:1'],
             'personal_dates' => ['nullable', 'array'],
-            'personal_dates.*.date' => ['required', 'date_format:Y-m-d'],
+            'personal_dates.*.date' => ['nullable', 'date_format:Y-m-d'],
+            'personal_dates.*.starts_on' => ['nullable', 'date_format:Y-m-d'],
+            'personal_dates.*.ends_on' => ['nullable', 'date_format:Y-m-d'],
             'personal_dates.*.label' => ['nullable', 'string', 'max:120'],
             'personal_dates.*.priority' => ['required', 'string', Rule::in(['ignore', 'low', 'high'])],
             'code_overrides' => ['nullable', 'array'],
-            'vacation_ranges' => ['nullable', 'array'],
-            'vacation_ranges.*.starts_on' => ['required', 'date_format:Y-m-d'],
-            'vacation_ranges.*.ends_on' => ['required', 'date_format:Y-m-d'],
-            'vacation_ranges.*.title' => ['nullable', 'string', 'max:120'],
         ];
     }
 }

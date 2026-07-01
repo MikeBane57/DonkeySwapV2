@@ -11,6 +11,7 @@ import {
     emptyBidderProfile,
 } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 import type { BidderProfile } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
+import { personalDatesForSave } from '@/pages/app/bid-tools/personal-dates-editor';
 import type { BreadcrumbItem } from '@/types';
 
 type Participant = {
@@ -25,10 +26,7 @@ type Participant = {
 function sanitizeProfile(profile: BidderProfile): BidderProfile {
     return {
         ...profile,
-        personal_dates: profile.personal_dates.filter((p) => p.date),
-        vacation_ranges: profile.vacation_ranges.filter(
-            (r) => r.starts_on && r.ends_on,
-        ),
+        personal_dates: personalDatesForSave(profile.personal_dates),
     };
 }
 

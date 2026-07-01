@@ -5,41 +5,58 @@ namespace App\Services\BidTools;
 use App\Models\BidLine;
 
 /**
- * Maps bid lines to desk preference buckets (desk family + start shift).
+ * Maps bid lines to desk preference buckets.
  *
- * DG7  — regional 06/07
- * AG15 — regional 14/15
- * DR7  — router 06/07 (non-mixed)
- * AR15 — router 14/15 (non-mixed)
- * DS7  — sector 06/07, DS/DR mixed, AM-mix starts
- * AS7  — sector 14/15, AS/AR mixed, PM-mix starts
- * MID  — midnight (MS, MG, MS/MG, MID MIX)
+ * DS / DS7 — sector 06 / 07
+ * DG / AG — regional AM / PM (06+07 and 14+15)
+ * DR / AR — router AM / PM
+ * DS_DR_MIX — DS/DR mixed desk groups and AM-mix starts
+ * AS_AR_MIX — AS/AR mixed desk groups and PM-mix starts
+ * MID — midnight
  * RELIEF — relief assignments
  */
 final class CondensedDeskClassifier
 {
     /** @var list<string> */
     public const BUCKETS = [
-        'DG7',
-        'AG15',
-        'DR7',
-        'AR15',
+        'DS',
+        'DG',
         'DS7',
-        'AS7',
+        'DR',
+        'DS_DR_MIX',
+        'AG',
+        'AS',
+        'AS15',
+        'AR',
+        'AS_AR_MIX',
         'MID',
         'RELIEF',
     ];
 
     /** @var array<string, string> */
     public const LABELS = [
-        'DG7' => 'Regional 06/07',
-        'AG15' => 'Regional 14/15',
-        'DR7' => 'Router 06/07',
-        'AR15' => 'Router 14/15',
-        'DS7' => 'Sector 06/07 (incl. DS/DR mix)',
-        'AS7' => 'Sector 14/15 (incl. AS/AR mix)',
-        'MID' => 'Midnight',
+        'DS' => 'DS',
+        'DG' => 'DG',
+        'DS7' => 'DS7',
+        'DR' => 'DR',
+        'DS_DR_MIX' => 'DS/DR Mix',
+        'AG' => 'AG',
+        'AS' => 'AS',
+        'AS15' => 'AS15',
+        'AR' => 'AR',
+        'AS_AR_MIX' => 'AS/AR Mix',
+        'MID' => 'Mid',
         'RELIEF' => 'Relief',
+    ];
+
+    /** @var array<string, string> */
+    public const LEGACY_BUCKET_MAP = [
+        'DG7' => 'DG',
+        'AG15' => 'AG',
+        'DR7' => 'DR',
+        'AR15' => 'AR',
+        'DS7' => 'DS7',
+        'AS7' => 'AS15',
     ];
 
     public function __construct(
@@ -56,38 +73,43 @@ final class CondensedDeskClassifier
 
         $group = strtoupper(trim($line->desk_group));
         $startKey = $this->startTimes->rankKey($line->start_time);
-        $shift = $this->shiftFromStartKey($startKey);
 
         if ($this->isMidLine($group, $startKey)) {
             return 'MID';
         }
 
         if ($this->isDsDrMix($group, $startKey)) {
-            return 'DS7';
+            return 'DS_DR_MIX';
         }
 
         if ($this->isAsArMix($group, $startKey)) {
-            return 'AS7';
+            return 'AS_AR_MIX';
         }
 
         $family = $this->dominantFamily($line, $group);
 
         return match ($family) {
-            'regional' => $shift === 'pm' ? 'AG15' : 'DG7',
-            'router' => $shift === 'pm' ? 'AR15' : 'DR7',
-            'sector' => $shift === 'pm' ? 'AS7' : 'DS7',
+            'regional' => $this->regionalBucket($startKey),
+            'router' => $this->routerBucket($startKey),
+            'sector' => $this->sectorBucket($startKey),
             default => 'unknown',
         };
     }
 
-    public function labelForBucket(string $bucket): string
+    public function normalizeBucketKey(string $bucket): string
     {
-        return self::LABELS[$bucket] ?? $bucket;
+        $upper = strtoupper(trim($bucket));
+
+        return self::LEGACY_BUCKET_MAP[$upper] ?? $upper;
     }
 
-    /**
-     * Map a line's clock start to a tiebreak key (6, 7, 14, 15, 22).
-     */
+    public function labelForBucket(string $bucket): string
+    {
+        $key = $this->normalizeBucketKey($bucket);
+
+        return self::LABELS[$key] ?? $bucket;
+    }
+
     public function startTimeTiebreakKey(BidLine $line): string
     {
         $startKey = $this->startTimes->rankKey($line->start_time);
@@ -189,12 +211,46 @@ final class CondensedDeskClassifier
             if (! is_array($entry) || empty($entry['key'])) {
                 continue;
             }
-            if (in_array(strtoupper((string) $entry['key']), self::BUCKETS, true)) {
+            $key = $this->normalizeBucketKey((string) $entry['key']);
+            if (in_array($key, self::BUCKETS, true)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private function regionalBucket(string $startKey): string
+    {
+        return $this->shiftFromStartKey($startKey) === 'pm' ? 'AG' : 'DG';
+    }
+
+    private function routerBucket(string $startKey): string
+    {
+        return $this->shiftFromStartKey($startKey) === 'pm' ? 'AR' : 'DR';
+    }
+
+    private function sectorBucket(string $startKey): string
+    {
+        return match ($this->hourFromStartKey($startKey)) {
+            7 => 'DS7',
+            14 => 'AS',
+            15 => 'AS15',
+            default => $this->shiftFromStartKey($startKey) === 'pm' ? 'AS' : 'DS',
+        };
+    }
+
+    private function hourFromStartKey(string $startKey): ?int
+    {
+        if (preg_match('/^t_(\d{2,4})$/', $startKey, $m)) {
+            $digits = $m[1];
+
+            return strlen($digits) === 4
+                ? (int) substr($digits, 0, 2)
+                : (int) $digits;
+        }
+
+        return null;
     }
 
     private function hasReliefWork(BidLine $line): bool

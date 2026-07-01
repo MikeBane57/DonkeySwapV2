@@ -41,15 +41,19 @@ test('maps regional router and sector lines to desk buckets by shift', function 
     $regionalPm = makeClassifierLine([['code' => 'AG']], deskGroup: 'AG', startTime: '1500');
     $routerAm = makeClassifierLine([['code' => 'DR']], deskGroup: 'DR', startTime: '0700');
     $routerPm = makeClassifierLine([['code' => 'AR']], deskGroup: 'AR', startTime: '1400');
-    $sectorAm = makeClassifierLine([['code' => 'DS']], deskGroup: 'DS', startTime: '0700');
-    $sectorPm = makeClassifierLine([['code' => 'AS']], deskGroup: 'AS', startTime: '1500');
+    $sector06 = makeClassifierLine([['code' => 'DS']], deskGroup: 'DS', startTime: '0600');
+    $sector07 = makeClassifierLine([['code' => 'DS']], deskGroup: 'DS', startTime: '0700');
+    $sector14 = makeClassifierLine([['code' => 'AS']], deskGroup: 'AS', startTime: '1400');
+    $sector15 = makeClassifierLine([['code' => 'AS']], deskGroup: 'AS', startTime: '1500');
 
-    expect($classifier->bucketForLine($regionalAm))->toBe('DG7');
-    expect($classifier->bucketForLine($regionalPm))->toBe('AG15');
-    expect($classifier->bucketForLine($routerAm))->toBe('DR7');
-    expect($classifier->bucketForLine($routerPm))->toBe('AR15');
-    expect($classifier->bucketForLine($sectorAm))->toBe('DS7');
-    expect($classifier->bucketForLine($sectorPm))->toBe('AS7');
+    expect($classifier->bucketForLine($regionalAm))->toBe('DG');
+    expect($classifier->bucketForLine($regionalPm))->toBe('AG');
+    expect($classifier->bucketForLine($routerAm))->toBe('DR');
+    expect($classifier->bucketForLine($routerPm))->toBe('AR');
+    expect($classifier->bucketForLine($sector06))->toBe('DS');
+    expect($classifier->bucketForLine($sector07))->toBe('DS7');
+    expect($classifier->bucketForLine($sector14))->toBe('AS');
+    expect($classifier->bucketForLine($sector15))->toBe('AS15');
 });
 
 test('classifies midnight and relief buckets', function () {
@@ -62,15 +66,15 @@ test('classifies midnight and relief buckets', function () {
     expect($classifier->bucketForLine($relief))->toBe('RELIEF');
 });
 
-test('classifies mixed lines into DS7 and AS7 buckets', function () {
+test('classifies mixed lines into DS_DR_MIX and AS_AR_MIX buckets', function () {
     $classifier = classifier();
 
     $dsDrMix = makeClassifierLine([], deskGroup: 'DS/DR MIX', startTime: 'AM-MIX 0600 0700');
     $asArMix = makeClassifierLine([], deskGroup: 'AS/AR MIX', startTime: 'PM-MIX');
     $midMix = makeClassifierLine([], deskGroup: 'MID MIX', startTime: 'MID-MIX');
 
-    expect($classifier->bucketForLine($dsDrMix))->toBe('DS7');
-    expect($classifier->bucketForLine($asArMix))->toBe('AS7');
+    expect($classifier->bucketForLine($dsDrMix))->toBe('DS_DR_MIX');
+    expect($classifier->bucketForLine($asArMix))->toBe('AS_AR_MIX');
     expect($classifier->bucketForLine($midMix))->toBe('MID');
 });
 
@@ -91,4 +95,11 @@ test('line picker fields expose desk bucket', function () {
     $fields = $classifier->linePickerFields($line);
 
     expect($fields['desk_bucket'])->toBe('DS7');
+});
+
+test('normalizes legacy bucket keys', function () {
+    $classifier = classifier();
+
+    expect($classifier->normalizeBucketKey('DG7'))->toBe('DG');
+    expect($classifier->normalizeBucketKey('AS7'))->toBe('AS15');
 });

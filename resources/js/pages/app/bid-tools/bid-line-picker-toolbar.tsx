@@ -9,15 +9,27 @@ export type LinePickerRow = {
 };
 
 const DESK_BUCKET_LABELS: Record<string, string> = {
-    DG7: 'DG 06/07',
-    AG15: 'AG 14/15',
-    DR7: 'DR 06/07',
-    AR15: 'AR 14/15',
-    DS7: 'DS 06/07',
-    AS7: 'AS 14/15',
+    DS: 'DS',
+    DG: 'DG',
+    DS7: 'DS7',
+    DR: 'DR',
+    DS_DR_MIX: 'DS/DR Mix',
+    AG: 'AG',
+    AS: 'AS',
+    AS15: 'AS15',
+    AR: 'AR',
+    AS_AR_MIX: 'AS/AR Mix',
     MID: 'Mid',
     RELIEF: 'Relief',
+    DG7: 'DG',
+    AG15: 'AG',
+    DR7: 'DR',
+    AR15: 'AR',
 };
+
+export function deskBucketLabel(bucket: string): string {
+    return DESK_BUCKET_LABELS[bucket] ?? bucket;
+}
 
 export function BidLinePickerToolbar({
     lines,
@@ -45,7 +57,20 @@ export function BidLinePickerToolbar({
     }, {});
 
     const buckets = Object.keys(bucketCounts).sort((a, b) => {
-        const order = Object.keys(DESK_BUCKET_LABELS);
+        const order = [
+            'DS',
+            'DG',
+            'DS7',
+            'DR',
+            'DS_DR_MIX',
+            'AG',
+            'AS',
+            'AS15',
+            'AR',
+            'AS_AR_MIX',
+            'MID',
+            'RELIEF',
+        ];
         const aRank = order.indexOf(a);
         const bRank = order.indexOf(b);
         if (aRank === -1 && bRank === -1) {
@@ -87,7 +112,7 @@ export function BidLinePickerToolbar({
                             selectMatching((l) => l.desk_bucket === bucket)
                         }
                     >
-                        {DESK_BUCKET_LABELS[bucket] ?? bucket} ({count})
+                        {deskBucketLabel(bucket)} ({count})
                     </Button>
                 );
             })}

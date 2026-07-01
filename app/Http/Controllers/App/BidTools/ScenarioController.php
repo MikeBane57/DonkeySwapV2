@@ -7,7 +7,6 @@ use App\Http\Requests\BidTools\StoreBidScenarioRequest;
 use App\Http\Requests\BidTools\UpdateBidScenarioRequest;
 use App\Models\BidImport;
 use App\Models\BidScenario;
-use App\Models\BidScenarioVacationRange;
 use App\Services\BidTools\BidLinePickerService;
 use App\Services\BidTools\BidLinePreferenceCatalog;
 use App\Services\BidTools\ScenarioScoreService;
@@ -85,6 +84,12 @@ class ScenarioController extends Controller
 
         $deskKeys = $this->preferenceCatalog->deskKeysForImport($s->bid_import_id);
 
+        $legacyRanges = $s->vacationRanges->map(fn ($r) => [
+            'title' => $r->title ?? '',
+            'starts_on' => $r->starts_on->format('Y-m-d'),
+            'ends_on' => $r->ends_on->format('Y-m-d'),
+        ])->all();
+
         return Inertia::render('app/bid-tools/scenarios/edit', [
             'scenario' => [
                 'id' => $s->id,
@@ -94,19 +99,16 @@ class ScenarioController extends Controller
                 'weights' => $weights,
                 'holiday_rank' => $this->scoreService->holidayEntriesForEditor($s->holiday_rank, $bidYear),
                 'desk_rank' => $this->scoreService->deskEntriesForEditor($s->desk_rank, $deskKeys),
-                'personal_dates' => $this->scoreService->personalDatesForEditor($s->personal_dates ?? []),
+                'personal_dates' => $this->scoreService->personalDatesForEditor(
+                    $s->personal_dates ?? [],
+                    $legacyRanges,
+                ),
                 'code_overrides' => $s->code_overrides ?? [],
                 'import' => [
                     'bid_year' => $s->import->bid_year,
                     'file_hash' => $s->import->file_hash,
                     'is_current' => $s->import->is_current,
                 ],
-                'vacation_ranges' => $s->vacationRanges->map(fn ($r) => [
-                    'id' => $r->id,
-                    'title' => $r->title,
-                    'starts_on' => $r->starts_on->format('Y-m-d'),
-                    'ends_on' => $r->ends_on->format('Y-m-d'),
-                ]),
             ],
             'distinctCodes' => $s->import->meta['distinct_codes'] ?? [],
             'holidaysCatalog' => $this->scoreService->holidaysCatalog($bidYear),
@@ -119,19 +121,6 @@ class ScenarioController extends Controller
     {
         $s = $this->findScenario($request, $scenario);
         $data = $request->validated();
-
-        if (array_key_exists('vacation_ranges', $data)) {
-            $s->vacationRanges()->delete();
-            foreach ($data['vacation_ranges'] ?? [] as $range) {
-                BidScenarioVacationRange::create([
-                    'bid_scenario_id' => $s->id,
-                    'title' => $range['title'] ?? null,
-                    'starts_on' => $range['starts_on'],
-                    'ends_on' => $range['ends_on'],
-                ]);
-            }
-            unset($data['vacation_ranges']);
-        }
 
         $fillKeys = [
             'name', 'vacation_bank', 'weights', 'holiday_rank', 'desk_rank',
@@ -151,6 +140,12 @@ class ScenarioController extends Controller
         $source = $this->findScenario($request, $scenario);
         $source->load('vacationRanges');
 
+        $legacyRanges = $source->vacationRanges->map(fn ($r) => [
+            'title' => $r->title ?? '',
+            'starts_on' => $r->starts_on->format('Y-m-d'),
+            'ends_on' => $r->ends_on->format('Y-m-d'),
+        ])->all();
+
         $copy = BidScenario::create([
             'user_id' => $request->user()->id,
             'bid_import_id' => $source->bid_import_id,
@@ -160,18 +155,12 @@ class ScenarioController extends Controller
             'holiday_rank' => $source->holiday_rank,
             'desk_rank' => $source->desk_rank,
             'start_time_rank' => $source->start_time_rank ?? [],
-            'personal_dates' => $source->personal_dates,
+            'personal_dates' => $this->scoreService->personalDatesForEditor(
+                $source->personal_dates ?? [],
+                $legacyRanges,
+            ),
             'code_overrides' => $source->code_overrides ?? [],
         ]);
-
-        foreach ($source->vacationRanges as $range) {
-            BidScenarioVacationRange::create([
-                'bid_scenario_id' => $copy->id,
-                'title' => $range->title,
-                'starts_on' => $range->starts_on,
-                'ends_on' => $range->ends_on,
-            ]);
-        }
 
         return redirect()
             ->route('bid-tools.scenarios.edit', $copy->id)
