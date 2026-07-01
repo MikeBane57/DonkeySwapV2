@@ -80,14 +80,16 @@ final class RankTierHelper
     /**
      * @param  list<array<string, mixed>>  $entries
      */
-    public static function tierRankForKey(array $entries, string $lineKey): int
+    public static function tierRankForKey(array $entries, string $lineKey, ?callable $normalizeKey = null): int
     {
+        $normalize = $normalizeKey ?? static fn (string $key): string => strtoupper(trim($key));
         $normalized = self::normalizeTierOrder($entries);
         $worst = count(self::orderedTiers($normalized)) + 1;
-        $needle = strtoupper($lineKey);
+        $needle = $normalize($lineKey);
 
         foreach ($normalized as $entry) {
-            if (strtoupper((string) ($entry['key'] ?? '')) !== $needle) {
+            $key = $normalize((string) ($entry['key'] ?? ''));
+            if ($key !== $needle) {
                 continue;
             }
 

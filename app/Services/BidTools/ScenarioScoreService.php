@@ -144,7 +144,11 @@ final class ScenarioScoreService
                     'desk' => round($deskPoints, 2),
                 ],
                 'tier_ranks' => [
-                    'desk' => RankTierHelper::tierRankForKey($deskEntries, $bucket),
+                    'desk' => RankTierHelper::tierRankForKey(
+                        $deskEntries,
+                        $bucket,
+                        fn (string $key): string => $this->condensedDesk->normalizeBucketKey($key),
+                    ),
                 ],
                 'breakdown' => [
                     'holiday' => round($holidayPoints, 2),
@@ -306,6 +310,17 @@ final class ScenarioScoreService
                     return $cmp;
                 }
             }
+
+            $tiebreakCmp = self::compareStartTimeTiebreak(
+                (string) ($a['start_time_tiebreak_key'] ?? 'other'),
+                (string) ($b['start_time_tiebreak_key'] ?? 'other'),
+                $startTimeTiebreak,
+            );
+            if ($tiebreakCmp !== 0) {
+                return $tiebreakCmp;
+            }
+
+            return strcmp((string) ($a['line_num'] ?? ''), (string) ($b['line_num'] ?? ''));
         } elseif ($sortMode === self::SORT_MODE_WEIGHTED) {
             $totalCmp = $b['total'] <=> $a['total'];
             if ($totalCmp !== 0) {
