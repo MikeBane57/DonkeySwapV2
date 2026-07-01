@@ -19,6 +19,7 @@ class BidScenario extends Model
         'start_time_rank',
         'personal_dates',
         'code_overrides',
+        'desk_bucket_mappings',
     ];
 
     protected function casts(): array
@@ -31,6 +32,7 @@ class BidScenario extends Model
             'start_time_rank' => 'array',
             'personal_dates' => 'array',
             'code_overrides' => 'array',
+            'desk_bucket_mappings' => 'array',
         ];
     }
 

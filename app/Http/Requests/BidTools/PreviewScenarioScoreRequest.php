@@ -47,6 +47,10 @@ class PreviewScenarioScoreRequest extends FormRequest
             'personal_dates.*.ends_on' => ['nullable', 'date_format:Y-m-d'],
             'personal_dates.*.label' => ['nullable', 'string', 'max:120'],
             'personal_dates.*.priority' => ['required_with:personal_dates', 'string', Rule::in(['ignore', 'low', 'high'])],
+            'desk_bucket_mappings' => ['nullable', 'array'],
+            'desk_bucket_mappings.*.desk_group' => ['required_with:desk_bucket_mappings', 'string', 'max:64'],
+            'desk_bucket_mappings.*.start_time' => ['nullable', 'string', 'max:64'],
+            'desk_bucket_mappings.*.bucket' => ['required_with:desk_bucket_mappings', 'string', 'max:64'],
         ];
     }
 }

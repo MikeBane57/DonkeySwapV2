@@ -45,7 +45,10 @@ class RankedController extends Controller
         $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
         unset($weights['shift_order'], $weights['strict_shift_order'], $weights['strict_shift_rank'], $weights['start_time']);
 
-        $deskKeys = $this->preferenceCatalog->deskKeysForImport($s->bid_import_id);
+        $deskKeys = $this->preferenceCatalog->deskKeysForImport(
+            $s->bid_import_id,
+            $s->desk_bucket_mappings ?? [],
+        );
 
         $lineRows = $this->linePicker->rowsForImport($s->bid_import_id, $s->id);
 
@@ -187,7 +190,7 @@ class RankedController extends Controller
 
         $fillKeys = [
             'vacation_bank', 'weights', 'holiday_rank', 'desk_rank',
-            'personal_dates',
+            'personal_dates', 'desk_bucket_mappings',
         ];
 
         $overrides = Arr::only($payload, $fillKeys);

@@ -55,6 +55,7 @@ class ScenarioController extends Controller
             'start_time_rank' => [],
             'personal_dates' => [],
             'code_overrides' => [],
+            'desk_bucket_mappings' => [],
         ]);
 
         return redirect()
@@ -79,7 +80,10 @@ class ScenarioController extends Controller
         $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
         unset($weights['shift_order'], $weights['strict_shift_order'], $weights['strict_shift_rank'], $weights['start_time']);
 
-        $deskKeys = $this->preferenceCatalog->deskKeysForImport($s->bid_import_id);
+        $deskKeys = $this->preferenceCatalog->deskKeysForImport(
+            $s->bid_import_id,
+            $s->desk_bucket_mappings ?? [],
+        );
 
         $legacyRanges = $s->vacationRanges->map(fn ($r) => [
             'title' => $r->title ?? '',
@@ -101,6 +105,7 @@ class ScenarioController extends Controller
                     $legacyRanges,
                 ),
                 'code_overrides' => $s->code_overrides ?? [],
+                'desk_bucket_mappings' => $s->desk_bucket_mappings ?? [],
                 'import' => [
                     'bid_year' => $s->import->bid_year,
                     'file_hash' => $s->import->file_hash,
@@ -110,7 +115,10 @@ class ScenarioController extends Controller
             'distinctCodes' => $s->import->meta['distinct_codes'] ?? [],
             'holidaysCatalog' => $this->scoreService->holidaysCatalog($bidYear),
             'deskCatalog' => $this->preferenceCatalog->deskCatalogForImport($s->bid_import_id),
-            'deskBucketReference' => $this->preferenceCatalog->deskBucketReferenceForImport($s->bid_import_id),
+            'deskBucketReference' => $this->preferenceCatalog->deskBucketReferenceForImport(
+                $s->bid_import_id,
+                $s->desk_bucket_mappings ?? [],
+            ),
             'lines' => $this->linePicker->rowsForImport($s->bid_import_id, $s->id),
         ]);
     }
@@ -122,11 +130,12 @@ class ScenarioController extends Controller
 
         $fillKeys = [
             'name', 'vacation_bank', 'weights', 'holiday_rank', 'desk_rank',
-            'personal_dates', 'code_overrides',
+            'personal_dates', 'code_overrides', 'desk_bucket_mappings',
         ];
         $payload = Arr::only($data, $fillKeys);
         $payload['desk_rank'] = $payload['desk_rank'] ?? [];
         $payload['personal_dates'] = $payload['personal_dates'] ?? [];
+        $payload['desk_bucket_mappings'] = $payload['desk_bucket_mappings'] ?? [];
         $s->fill($payload);
         $s->save();
 
@@ -158,6 +167,7 @@ class ScenarioController extends Controller
                 $legacyRanges,
             ),
             'code_overrides' => $source->code_overrides ?? [],
+            'desk_bucket_mappings' => $source->desk_bucket_mappings ?? [],
         ]);
 
         return redirect()

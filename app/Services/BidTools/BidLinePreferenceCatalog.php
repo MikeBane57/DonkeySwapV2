@@ -21,22 +21,24 @@ final class BidLinePreferenceCatalog
     /**
      * @return list<string>
      */
-    public function deskKeysForImport(int $bidImportId): array
+    public function deskKeysForImport(int $bidImportId, array $mappings = []): array
     {
-        return $this->deskClassifier->bucketsPresentInImport($bidImportId);
+        return $this->deskClassifier->bucketsPresentInImport($bidImportId, $mappings);
     }
 
     /**
      * @return list<array{
      *   desk_group: string,
+     *   start_time: string,
+     *   auto_bucket: string,
      *   desk_bucket: string,
+     *   is_manual: bool,
      *   line_count: int,
      *   sample_line_num: string,
-     *   sample_start_time: string,
      * }>
      */
-    public function deskBucketReferenceForImport(int $bidImportId): array
+    public function deskBucketReferenceForImport(int $bidImportId, array $mappings = []): array
     {
-        return $this->deskClassifier->bucketReferenceForImport($bidImportId);
+        return $this->deskClassifier->bucketReferenceForImport($bidImportId, $mappings);
     }
 }
