@@ -52,7 +52,90 @@ type HolidayEntry = {
 
 type KeyedEntry = { key: string; priority: Priority; tier?: number };
 
+type DeskBucketMapping = {
+    desk_group: string;
+    start_time: string | null;
+    bucket: string;
+};
+
+type DeskBucketReferenceRow = {
+    desk_group: string;
+    start_time: string;
+    auto_bucket: string;
+    desk_bucket: string;
+    is_manual: boolean;
+    line_count: number;
+    sample_line_num: string;
+};
+
 type SortMode = 'weighted' | 'priority' | 'blended';
+
+function deskMappingKey(deskGroup: string, startTime: string): string {
+    return `${deskGroup}\0${startTime}`;
+}
+
+function bucketForMappedLine(
+    line: LinePickerRow,
+    mappings: DeskBucketMapping[],
+    referenceByKey: Record<string, DeskBucketReferenceRow>,
+): string {
+    const startTime = line.start_time ?? '';
+    const group = line.desk_group ?? '';
+    const specific = mappings.find(
+        (mapping) =>
+            mapping.desk_group === group &&
+            mapping.start_time !== null &&
+            mapping.start_time !== '' &&
+            mapping.start_time === startTime,
+    );
+    if (specific) {
+        return specific.bucket;
+    }
+
+    const groupOnly = mappings.find(
+        (mapping) =>
+            mapping.desk_group === group &&
+            (mapping.start_time === null || mapping.start_time === ''),
+    );
+    if (groupOnly) {
+        return groupOnly.bucket;
+    }
+
+    return (
+        referenceByKey[deskMappingKey(group, startTime)]?.auto_bucket ??
+        line.desk_bucket ??
+        'unknown'
+    );
+}
+
+function updateDeskBucketMapping(
+    mappings: DeskBucketMapping[],
+    deskGroup: string,
+    startTime: string,
+    autoBucket: string,
+    bucket: string,
+): DeskBucketMapping[] {
+    const withoutRow = mappings.filter(
+        (mapping) =>
+            !(
+                mapping.desk_group === deskGroup &&
+                (mapping.start_time ?? '') === startTime
+            ),
+    );
+
+    if (bucket === autoBucket) {
+        return withoutRow;
+    }
+
+    return [
+        ...withoutRow,
+        {
+            desk_group: deskGroup,
+            start_time: startTime || null,
+            bucket,
+        },
+    ];
+}
 
 function usesTierGroupSort(mode: SortMode): boolean {
     return mode === 'priority' || mode === 'blended';
@@ -146,6 +229,7 @@ export default function BidScenarioEdit({
         holiday_rank: HolidayEntry[];
         desk_rank: KeyedEntry[];
         personal_dates: PersonalDateEntry[];
+        desk_bucket_mappings: DeskBucketMapping[];
         import: {
             bid_year: number;
             file_hash: string;
@@ -155,13 +239,7 @@ export default function BidScenarioEdit({
     distinctCodes: string[];
     holidaysCatalog: { date: string; id: string; label: string }[];
     deskCatalog: { key: string; label: string }[];
-    deskBucketReference: {
-        desk_group: string;
-        desk_bucket: string;
-        line_count: number;
-        sample_line_num: string;
-        sample_start_time: string;
-    }[];
+    deskBucketReference: DeskBucketReferenceRow[];
     lines: LinePickerRow[];
 }) {
     const page = usePage<{
@@ -207,7 +285,34 @@ export default function BidScenarioEdit({
     const [personalDates, setPersonalDates] = useState<PersonalDateEntry[]>(
         scenario.personal_dates.length ? scenario.personal_dates : [],
     );
+    const [deskBucketMappings, setDeskBucketMappings] = useState<
+        DeskBucketMapping[]
+    >(scenario.desk_bucket_mappings ?? []);
     const [saving, setSaving] = useState(false);
+
+    const deskBucketReferenceByKey = useMemo(
+        () =>
+            Object.fromEntries(
+                deskBucketReference.map((row) => [
+                    deskMappingKey(row.desk_group, row.start_time),
+                    row,
+                ]),
+            ) as Record<string, DeskBucketReferenceRow>,
+        [deskBucketReference],
+    );
+
+    const mappedLines = useMemo(
+        () =>
+            lines.map((line) => ({
+                ...line,
+                desk_bucket: bucketForMappedLine(
+                    line,
+                    deskBucketMappings,
+                    deskBucketReferenceByKey,
+                ),
+            })),
+        [lines, deskBucketMappings, deskBucketReferenceByKey],
+    );
 
     const deskKeysInUse = useMemo(
         () => new Set(deskRank.map((d) => d.key)),
@@ -244,6 +349,7 @@ export default function BidScenarioEdit({
                 holiday_rank: holidays,
                 desk_rank: deskRank,
                 personal_dates: personalDatesForSave(personalDates),
+                desk_bucket_mappings: deskBucketMappings,
             },
             {
                 preserveScroll: true,
@@ -261,6 +367,7 @@ export default function BidScenarioEdit({
         holidays,
         deskRank,
         personalDates,
+        deskBucketMappings,
         scenario.id,
     ]);
 
@@ -279,6 +386,7 @@ export default function BidScenarioEdit({
             holiday_rank: holidays,
             desk_rank: deskRank,
             personal_dates: personalDatesForSave(personalDates),
+            desk_bucket_mappings: deskBucketMappings,
         }),
         [
             vacationBank,
@@ -289,6 +397,7 @@ export default function BidScenarioEdit({
             holidays,
             deskRank,
             personalDates,
+            deskBucketMappings,
         ],
     );
 
@@ -619,8 +728,9 @@ export default function BidScenarioEdit({
                         summary={`${deskCatalog.length} types · ${deskBucketReference.length} mappings`}
                     >
                         <p className="text-xs text-muted-foreground">
-                            Preference buckets used for ranking. Below: how desk
-                            groups in your import file map to each bucket.
+                            Preference buckets used for ranking. Map each desk
+                            group and start time from your import file to the
+                            correct bucket when auto-detection is wrong.
                         </p>
                         <div className="mt-3 grid gap-4 lg:grid-cols-2">
                             <div>
@@ -655,6 +765,9 @@ export default function BidScenarioEdit({
                                                     Group
                                                 </th>
                                                 <th className="px-2 py-1 font-medium">
+                                                    Start
+                                                </th>
+                                                <th className="px-2 py-1 font-medium">
                                                     Bucket
                                                 </th>
                                                 <th className="px-2 py-1 font-medium text-right">
@@ -663,34 +776,103 @@ export default function BidScenarioEdit({
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {deskBucketReference.map((row) => (
-                                                <tr
-                                                    key={`${row.desk_group}-${row.desk_bucket}`}
-                                                    className="border-t border-sidebar-border/40"
-                                                >
-                                                    <td className="px-2 py-1 font-mono">
-                                                        {row.desk_group || '—'}
-                                                    </td>
-                                                    <td className="px-2 py-1">
-                                                        {deskBucketLabel(
-                                                            row.desk_bucket,
-                                                        )}
-                                                        {row.desk_bucket ===
-                                                            'MID' && (
-                                                            <span className="ml-1 text-muted-foreground">
-                                                                (e.g.{' '}
-                                                                {
-                                                                    row.sample_line_num
+                                            {deskBucketReference.map((row) => {
+                                                const rowKey = deskMappingKey(
+                                                    row.desk_group,
+                                                    row.start_time,
+                                                );
+                                                const effectiveBucket =
+                                                    bucketForMappedLine(
+                                                        {
+                                                            desk_group:
+                                                                row.desk_group,
+                                                            start_time:
+                                                                row.start_time,
+                                                            desk_bucket:
+                                                                row.desk_bucket,
+                                                        } as LinePickerRow,
+                                                        deskBucketMappings,
+                                                        deskBucketReferenceByKey,
+                                                    );
+                                                const isManual =
+                                                    effectiveBucket !==
+                                                    row.auto_bucket;
+
+                                                return (
+                                                    <tr
+                                                        key={rowKey}
+                                                        className="border-t border-sidebar-border/40"
+                                                    >
+                                                        <td className="px-2 py-1 font-mono">
+                                                            {row.desk_group ||
+                                                                '—'}
+                                                        </td>
+                                                        <td className="px-2 py-1 font-mono text-muted-foreground">
+                                                            {row.start_time ||
+                                                                '—'}
+                                                        </td>
+                                                        <td className="px-2 py-1">
+                                                            <Select
+                                                                value={
+                                                                    effectiveBucket
                                                                 }
-                                                                )
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-2 py-1 text-right tabular-nums">
-                                                        {row.line_count}
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                                                onValueChange={(
+                                                                    value,
+                                                                ) => {
+                                                                    setDeskBucketMappings(
+                                                                        (
+                                                                            current,
+                                                                        ) =>
+                                                                            updateDeskBucketMapping(
+                                                                                current,
+                                                                                row.desk_group,
+                                                                                row.start_time,
+                                                                                row.auto_bucket,
+                                                                                value,
+                                                                            ),
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <SelectTrigger className="h-7 w-full min-w-[8rem] text-xs">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {deskCatalog.map(
+                                                                        (bucket) => (
+                                                                            <SelectItem
+                                                                                key={
+                                                                                    bucket.key
+                                                                                }
+                                                                                value={
+                                                                                    bucket.key
+                                                                                }
+                                                                            >
+                                                                                {
+                                                                                    bucket.label
+                                                                                }
+                                                                            </SelectItem>
+                                                                        ),
+                                                                    )}
+                                                                    <SelectItem value="unknown">
+                                                                        Unknown
+                                                                    </SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                            {isManual && (
+                                                                <p className="mt-0.5 text-[10px] text-amber-700 dark:text-amber-300">
+                                                                    Auto:{' '}
+                                                                    {deskBucketLabel(
+                                                                        row.auto_bucket,
+                                                                    )}
+                                                                </p>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-2 py-1 text-right tabular-nums">
+                                                            {row.line_count}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -710,7 +892,7 @@ export default function BidScenarioEdit({
 
                     <ScenarioWorkspace
                         scenarioId={scenario.id}
-                        lines={lines}
+                        lines={mappedLines}
                         draft={previewDraft}
                     />
 

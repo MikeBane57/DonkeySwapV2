@@ -3,6 +3,7 @@
 namespace App\Services\BidTools;
 
 use App\Models\BidLine;
+use App\Models\BidScenario;
 use App\Models\BidScenarioLineNote;
 
 final class BidLinePickerService
@@ -16,6 +17,12 @@ final class BidLinePickerService
      */
     public function rowsForImport(int $importId, ?int $scenarioId = null): array
     {
+        $mappings = [];
+        if ($scenarioId !== null) {
+            $scenario = BidScenario::query()->find($scenarioId);
+            $mappings = $scenario?->desk_bucket_mappings ?? [];
+        }
+
         $lines = BidLine::query()
             ->where('bid_import_id', $importId)
             ->orderBy('line_num')
@@ -29,8 +36,8 @@ final class BidLinePickerService
                 ->keyBy('bid_line_id');
         }
 
-        $rows = $lines->map(function (BidLine $line) use ($notes) {
-            $picker = $this->deskClassifier->linePickerFields($line);
+        $rows = $lines->map(function (BidLine $line) use ($notes, $mappings) {
+            $picker = $this->deskClassifier->linePickerFields($line, $mappings);
 
             return [
                 ...$picker,

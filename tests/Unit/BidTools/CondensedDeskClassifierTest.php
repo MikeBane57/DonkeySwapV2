@@ -137,3 +137,44 @@ test('normalizes legacy bucket keys', function () {
     expect($classifier->normalizeBucketKey('DG7'))->toBe('DG');
     expect($classifier->normalizeBucketKey('AS7'))->toBe('AS15');
 });
+
+test('manual desk bucket mappings override auto classification', function () {
+    $classifier = classifier();
+
+    $line = makeClassifierLine([], deskGroup: 'MG/DS', startTime: '0600');
+
+    expect($classifier->bucketForLine($line))->not->toBe('MID');
+
+    $mapped = $classifier->bucketForLine($line, [
+        ['desk_group' => 'MG/DS', 'start_time' => '0600', 'bucket' => 'MID'],
+    ]);
+
+    expect($mapped)->toBe('MID');
+});
+
+test('group-only mapping applies when start-specific mapping is absent', function () {
+    $classifier = classifier();
+
+    $line = makeClassifierLine([], deskGroup: 'DG', startTime: '2200');
+
+    expect($classifier->bucketForLine($line))->toBe('DG');
+
+    $mapped = $classifier->bucketForLine($line, [
+        ['desk_group' => 'DG', 'start_time' => null, 'bucket' => 'MID'],
+    ]);
+
+    expect($mapped)->toBe('MID');
+});
+
+test('start-specific mapping wins over group-only mapping', function () {
+    $classifier = classifier();
+
+    $line = makeClassifierLine([], deskGroup: 'DS', startTime: '0700');
+
+    $mapped = $classifier->bucketForLine($line, [
+        ['desk_group' => 'DS', 'start_time' => null, 'bucket' => 'DS'],
+        ['desk_group' => 'DS', 'start_time' => '0700', 'bucket' => 'DS7'],
+    ]);
+
+    expect($mapped)->toBe('DS7');
+});
