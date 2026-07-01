@@ -12,20 +12,22 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
+    PersonalDatesEditor,
+    personalDatesForSave
+    
+} from '@/pages/app/bid-tools/personal-dates-editor';
+import type {PersonalDateEntry} from '@/pages/app/bid-tools/personal-dates-editor';
+import {
     HolidayRankList,
     PreferenceColumnHeader,
     StartTimeTiebreakPicker,
     normalizeCriteriaOrder,
     normalizeStartTimeTiebreakOrder,
-    preferenceColumnClass,
-    type StartTimeTiebreakKey,
+    preferenceColumnClass
+    
 } from '@/pages/app/bid-tools/preference-rank-shared';
+import type {StartTimeTiebreakKey} from '@/pages/app/bid-tools/preference-rank-shared';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
-import {
-    PersonalDatesEditor,
-    personalDatesForSave,
-    type PersonalDateEntry,
-} from '@/pages/app/bid-tools/personal-dates-editor';
 
 export type Priority = 'ignore' | 'low' | 'high';
 export type SortMode = 'weighted' | 'priority' | 'blended';
@@ -125,27 +127,6 @@ function DraggableRow({
             </button>
             {children}
         </div>
-    );
-}
-
-function PrioritySelect({
-    value,
-    onChange,
-}: {
-    value: Priority;
-    onChange: (p: Priority) => void;
-}) {
-    return (
-        <Select value={value} onValueChange={(v) => onChange(v as Priority)}>
-            <SelectTrigger className="h-8 w-[7.5rem] text-xs">
-                <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="ignore">Don&apos;t care</SelectItem>
-            </SelectContent>
-        </Select>
     );
 }
 
