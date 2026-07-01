@@ -25,4 +25,18 @@ final class BidLinePreferenceCatalog
     {
         return $this->deskClassifier->bucketsPresentInImport($bidImportId);
     }
+
+    /**
+     * @return list<array{
+     *   desk_group: string,
+     *   desk_bucket: string,
+     *   line_count: int,
+     *   sample_line_num: string,
+     *   sample_start_time: string,
+     * }>
+     */
+    public function deskBucketReferenceForImport(int $bidImportId): array
+    {
+        return $this->deskClassifier->bucketReferenceForImport($bidImportId);
+    }
 }

@@ -110,6 +110,7 @@ class ScenarioController extends Controller
             'distinctCodes' => $s->import->meta['distinct_codes'] ?? [],
             'holidaysCatalog' => $this->scoreService->holidaysCatalog($bidYear),
             'deskCatalog' => $this->preferenceCatalog->deskCatalogForImport($s->bid_import_id),
+            'deskBucketReference' => $this->preferenceCatalog->deskBucketReferenceForImport($s->bid_import_id),
             'lines' => $this->linePicker->rowsForImport($s->bid_import_id, $s->id),
         ]);
     }
