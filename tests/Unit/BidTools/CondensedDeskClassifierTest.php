@@ -34,48 +34,62 @@ function makeClassifierLine(array $workCodes, string $deskGroup = 'DG', string $
     return $line;
 }
 
-test('maps regional router and sector lines to desk buckets by shift', function () {
+test('maps AM desk groups to DS DG DS7 and DR buckets', function () {
     $classifier = classifier();
 
-    $regionalAm = makeClassifierLine([['code' => 'DG']], deskGroup: 'DG', startTime: '0600');
-    $regionalPm = makeClassifierLine([['code' => 'AG']], deskGroup: 'AG', startTime: '1500');
-    $routerAm = makeClassifierLine([['code' => 'DR']], deskGroup: 'DR', startTime: '0700');
-    $routerPm = makeClassifierLine([['code' => 'AR']], deskGroup: 'AR', startTime: '1400');
-    $sector06 = makeClassifierLine([['code' => 'DS']], deskGroup: 'DS', startTime: '0600');
-    $sector07 = makeClassifierLine([['code' => 'DS']], deskGroup: 'DS', startTime: '0700');
-    $sector14 = makeClassifierLine([['code' => 'AS']], deskGroup: 'AS', startTime: '1400');
-    $sector15 = makeClassifierLine([['code' => 'AS']], deskGroup: 'AS', startTime: '1500');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'DS', startTime: '0600')))->toBe('DS');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'DS', startTime: '0700')))->toBe('DS7');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'DG', startTime: '0600')))->toBe('DG');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'DG', startTime: '0700')))->toBe('DG');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'DR', startTime: '0600')))->toBe('DR');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'DR', startTime: '0700')))->toBe('DR');
+});
 
-    expect($classifier->bucketForLine($regionalAm))->toBe('DG');
-    expect($classifier->bucketForLine($regionalPm))->toBe('AG');
-    expect($classifier->bucketForLine($routerAm))->toBe('DR');
-    expect($classifier->bucketForLine($routerPm))->toBe('AR');
-    expect($classifier->bucketForLine($sector06))->toBe('DS');
-    expect($classifier->bucketForLine($sector07))->toBe('DS7');
-    expect($classifier->bucketForLine($sector14))->toBe('AS');
-    expect($classifier->bucketForLine($sector15))->toBe('AS15');
+test('maps PM desk groups to AS AG AS15 and AR buckets', function () {
+    $classifier = classifier();
+
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'AS', startTime: '1400')))->toBe('AS');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'AS', startTime: '1500')))->toBe('AS15');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'AG', startTime: '1500')))->toBe('AG');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'AR', startTime: '1400')))->toBe('AR');
 });
 
 test('classifies midnight and relief buckets', function () {
     $classifier = classifier();
 
-    $midnight = makeClassifierLine([['code' => 'MS']], deskGroup: 'MG', startTime: '2200');
-    $relief = makeClassifierLine([['code' => 'RELIEF-S4']], deskGroup: 'DG', startTime: '0600');
-
-    expect($classifier->bucketForLine($midnight))->toBe('MID');
-    expect($classifier->bucketForLine($relief))->toBe('RELIEF');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'MS', startTime: '2200')))->toBe('MID');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'MG', startTime: '2200')))->toBe('MID');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'MG/MS', startTime: '2200')))->toBe('MID');
+    expect($classifier->bucketForLine(makeClassifierLine([['code' => 'RELIEF-S4']], deskGroup: 'DG', startTime: '0600')))->toBe('RELIEF');
 });
 
-test('classifies mixed lines into DS_DR_MIX and AS_AR_MIX buckets', function () {
+test('does not classify 2200 starts as mid without MS or MG desk group', function () {
     $classifier = classifier();
 
-    $dsDrMix = makeClassifierLine([], deskGroup: 'DS/DR MIX', startTime: 'AM-MIX 0600 0700');
-    $asArMix = makeClassifierLine([], deskGroup: 'AS/AR MIX', startTime: 'PM-MIX');
-    $midMix = makeClassifierLine([], deskGroup: 'MID MIX', startTime: 'MID-MIX');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'DG', startTime: '2200')))->toBe('DG');
+});
 
-    expect($classifier->bucketForLine($dsDrMix))->toBe('DS_DR_MIX');
-    expect($classifier->bucketForLine($asArMix))->toBe('AS_AR_MIX');
-    expect($classifier->bucketForLine($midMix))->toBe('MID');
+test('classifies mixed lines into DS_DR_MIX and AS_AR_MIX buckets from desk group', function () {
+    $classifier = classifier();
+
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'DS/DR MIX', startTime: '0600')))->toBe('DS_DR_MIX');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'AS/AR MIX', startTime: '1500')))->toBe('AS_AR_MIX');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'MID MIX', startTime: 'MID-MIX')))->toBe('MID');
+});
+
+test('does not classify am or pm mix starts as desk mix without mixed desk group', function () {
+    $classifier = classifier();
+
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'DG', startTime: 'AM-MIX 0600 0700')))->toBe('DG');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'AG', startTime: 'PM-MIX')))->toBe('AG');
+});
+
+test('falls back to dominant work code when desk group is empty', function () {
+    $classifier = classifier();
+
+    $line = makeClassifierLine([['code' => 'DS']], deskGroup: '', startTime: '0700');
+
+    expect($classifier->bucketForLine($line))->toBe('DS7');
 });
 
 test('maps start times to tiebreak keys', function () {
@@ -91,7 +105,7 @@ test('maps start times to tiebreak keys', function () {
 test('line picker fields expose desk bucket', function () {
     $classifier = classifier();
 
-    $line = makeClassifierLine([['code' => 'DS']], deskGroup: 'DS', startTime: '0700');
+    $line = makeClassifierLine([], deskGroup: 'DS', startTime: '0700');
     $fields = $classifier->linePickerFields($line);
 
     expect($fields['desk_bucket'])->toBe('DS7');

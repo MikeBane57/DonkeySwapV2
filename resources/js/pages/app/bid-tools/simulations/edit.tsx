@@ -6,12 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import { personalDatesForSave } from '@/pages/app/bid-tools/personal-dates-editor';
 import {
     BidderProfileFields,
     emptyBidderProfile,
 } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 import type { BidderProfile } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
-import { personalDatesForSave } from '@/pages/app/bid-tools/personal-dates-editor';
 import type { BreadcrumbItem } from '@/types';
 
 type Participant = {

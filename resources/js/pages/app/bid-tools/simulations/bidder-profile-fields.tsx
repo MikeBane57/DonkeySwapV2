@@ -14,17 +14,19 @@ import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolba
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
 import {
     PersonalDatesEditor,
-    personalDatesForSave,
-    type PersonalDateEntry,
+    personalDatesForSave
+    
 } from '@/pages/app/bid-tools/personal-dates-editor';
+import type {PersonalDateEntry} from '@/pages/app/bid-tools/personal-dates-editor';
 import {
     PreferenceColumnHeader,
     StartTimeTiebreakPicker,
     normalizeCriteriaOrder,
     normalizeStartTimeTiebreakOrder,
-    preferenceColumnClass,
-    type StartTimeTiebreakKey,
+    preferenceColumnClass
+    
 } from '@/pages/app/bid-tools/preference-rank-shared';
+import type {StartTimeTiebreakKey} from '@/pages/app/bid-tools/preference-rank-shared';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 

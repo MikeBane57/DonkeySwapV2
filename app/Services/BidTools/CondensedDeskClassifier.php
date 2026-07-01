@@ -5,15 +5,12 @@ namespace App\Services\BidTools;
 use App\Models\BidLine;
 
 /**
- * Maps bid lines to desk preference buckets.
+ * Maps bid lines to desk preference buckets using desk group codes.
  *
- * DS / DS7 — sector 06 / 07
- * DG / AG — regional AM / PM (06+07 and 14+15)
- * DR / AR — router AM / PM
- * DS_DR_MIX — DS/DR mixed desk groups and AM-mix starts
- * AS_AR_MIX — AS/AR mixed desk groups and PM-mix starts
- * MID — midnight
- * RELIEF — relief assignments
+ * AM: DS, DG, DS7 (DS @ 0700), DR, DS/DR Mix
+ * PM: AS, AG, AS15 (AS @ 1500), AR, AS/AR Mix
+ * Mid: MS, MG, MG/MS
+ * Relief: relief work on the line
  */
 final class CondensedDeskClassifier
 {
@@ -74,26 +71,29 @@ final class CondensedDeskClassifier
         $group = strtoupper(trim($line->desk_group));
         $startKey = $this->startTimes->rankKey($line->start_time);
 
-        if ($this->isMidLine($group, $startKey)) {
-            return 'MID';
-        }
-
-        if ($this->isDsDrMix($group, $startKey)) {
+        if ($this->isDsDrMixGroup($group)) {
             return 'DS_DR_MIX';
         }
 
-        if ($this->isAsArMix($group, $startKey)) {
+        if ($this->isAsArMixGroup($group)) {
             return 'AS_AR_MIX';
         }
 
-        $family = $this->dominantFamily($line, $group);
+        if ($this->isMidDeskGroup($group)) {
+            return 'MID';
+        }
 
-        return match ($family) {
-            'regional' => $this->regionalBucket($startKey),
-            'router' => $this->routerBucket($startKey),
-            'sector' => $this->sectorBucket($startKey),
-            default => 'unknown',
-        };
+        $fromGroup = $this->bucketFromDeskType($group, $startKey);
+        if ($fromGroup !== null) {
+            return $fromGroup;
+        }
+
+        $fromWork = $this->bucketFromDominantWorkCode($line, $startKey);
+        if ($fromWork !== null) {
+            return $fromWork;
+        }
+
+        return 'unknown';
     }
 
     public function normalizeBucketKey(string $bucket): string
@@ -220,24 +220,84 @@ final class CondensedDeskClassifier
         return false;
     }
 
-    private function regionalBucket(string $startKey): string
+    private function bucketFromDeskType(string $group, string $startKey): ?string
     {
-        return $this->shiftFromStartKey($startKey) === 'pm' ? 'AG' : 'DG';
+        if ($group === '') {
+            return null;
+        }
+
+        if ($this->deskTypeMatches($group, 'DG')) {
+            return 'DG';
+        }
+
+        if ($this->deskTypeMatches($group, 'DR')) {
+            return 'DR';
+        }
+
+        if ($this->deskTypeMatches($group, 'DS')) {
+            return $this->startsAtHour($startKey, 7) ? 'DS7' : 'DS';
+        }
+
+        if ($this->deskTypeMatches($group, 'AG')) {
+            return 'AG';
+        }
+
+        if ($this->deskTypeMatches($group, 'AR')) {
+            return 'AR';
+        }
+
+        if ($this->deskTypeMatches($group, 'AS')) {
+            return $this->startsAtHour($startKey, 15) ? 'AS15' : 'AS';
+        }
+
+        return null;
     }
 
-    private function routerBucket(string $startKey): string
+    private function bucketFromDominantWorkCode(BidLine $line, string $startKey): ?string
     {
-        return $this->shiftFromStartKey($startKey) === 'pm' ? 'AR' : 'DR';
+        $code = $this->dominantWorkCode($line);
+        if ($code === null || $code === '') {
+            return null;
+        }
+
+        return $this->bucketFromDeskType($code, $startKey);
     }
 
-    private function sectorBucket(string $startKey): string
+    private function dominantWorkCode(BidLine $line): ?string
     {
-        return match ($this->hourFromStartKey($startKey)) {
-            7 => 'DS7',
-            14 => 'AS',
-            15 => 'AS15',
-            default => $this->shiftFromStartKey($startKey) === 'pm' ? 'AS' : 'DS',
-        };
+        $freq = [];
+        foreach ($line->days as $day) {
+            if ($day->is_off || $day->normalized_code === null) {
+                continue;
+            }
+            $code = strtoupper(trim($day->normalized_code));
+            if ($code === '') {
+                continue;
+            }
+            $freq[$code] = ($freq[$code] ?? 0) + 1;
+        }
+
+        if ($freq === []) {
+            return null;
+        }
+
+        arsort($freq);
+
+        return array_key_first($freq);
+    }
+
+    private function deskTypeMatches(string $group, string $type): bool
+    {
+        if ($group === $type) {
+            return true;
+        }
+
+        return (bool) preg_match('/^'.preg_quote($type, '/').'(\b|\/)/', $group);
+    }
+
+    private function startsAtHour(string $startKey, int $hour): bool
+    {
+        return $this->hourFromStartKey($startKey) === $hour;
     }
 
     private function hourFromStartKey(string $startKey): ?int
@@ -269,25 +329,25 @@ final class CondensedDeskClassifier
         return false;
     }
 
-    private function isMidLine(string $group, string $startKey): bool
+    private function isMidDeskGroup(string $group): bool
     {
-        if (str_contains($group, 'MID') || preg_match('/^(MS|MG)/', $group)) {
+        if ($group === '') {
+            return false;
+        }
+
+        if (preg_match('/^(MS|MG)\b/', $group)) {
             return true;
         }
 
-        if ($startKey === 'mid_mix' || $startKey === 'mid' || preg_match('/^t_22/', $startKey)) {
+        if (preg_match('/MG\/MS|MS\/MG/', $group)) {
             return true;
         }
 
-        return false;
+        return str_contains($group, 'MID') && str_contains($group, 'MIX');
     }
 
-    private function isDsDrMix(string $group, string $startKey): bool
+    private function isDsDrMixGroup(string $group): bool
     {
-        if (str_starts_with($startKey, 'am_mix')) {
-            return true;
-        }
-
         if ($group === '') {
             return false;
         }
@@ -297,21 +357,14 @@ final class CondensedDeskClassifier
         }
 
         if (str_contains($group, 'MIX') && ! str_contains($group, 'MID')) {
-            $hasDs = str_contains($group, 'DS');
-            $hasDr = str_contains($group, 'DR');
-
-            return $hasDs || $hasDr;
+            return str_contains($group, 'DS') && str_contains($group, 'DR');
         }
 
         return false;
     }
 
-    private function isAsArMix(string $group, string $startKey): bool
+    private function isAsArMixGroup(string $group): bool
     {
-        if ($startKey === 'pm_mix') {
-            return true;
-        }
-
         if ($group === '') {
             return false;
         }
@@ -321,79 +374,9 @@ final class CondensedDeskClassifier
         }
 
         if (str_contains($group, 'MIX') && ! str_contains($group, 'MID')) {
-            $hasAs = str_contains($group, 'AS');
-            $hasAr = str_contains($group, 'AR');
-
-            return $hasAs || $hasAr;
+            return str_contains($group, 'AS') && str_contains($group, 'AR');
         }
 
         return false;
-    }
-
-    /**
-     * @return 'regional'|'router'|'sector'|null
-     */
-    private function dominantFamily(BidLine $line, string $group): ?string
-    {
-        $freq = ['regional' => 0, 'router' => 0, 'sector' => 0];
-
-        foreach ($line->days as $day) {
-            if ($day->is_off || $day->normalized_code === null) {
-                continue;
-            }
-
-            $family = $this->familyForCode(strtoupper(trim($day->normalized_code)));
-            if ($family !== null) {
-                $freq[$family]++;
-            }
-        }
-
-        arsort($freq);
-        $top = array_key_first($freq);
-        if ($top !== null && $freq[$top] > 0) {
-            return $top;
-        }
-
-        return $this->familyForCode($group);
-    }
-
-    /**
-     * @return 'regional'|'router'|'sector'|null
-     */
-    private function familyForCode(string $code): ?string
-    {
-        if ($code === '') {
-            return null;
-        }
-
-        if (preg_match('/^(AG|DG)/', $code)) {
-            return 'regional';
-        }
-
-        if (preg_match('/^(AR|DR)/', $code)) {
-            return 'router';
-        }
-
-        if (preg_match('/^(AS|DS)/', $code)) {
-            return 'sector';
-        }
-
-        return null;
-    }
-
-    /**
-     * @return 'am'|'pm'|'mid'
-     */
-    private function shiftFromStartKey(string $startKey): string
-    {
-        if ($startKey === 'pm' || $startKey === 'pm_mix' || preg_match('/^t_1[45]/', $startKey)) {
-            return 'pm';
-        }
-
-        if ($startKey === 'mid' || $startKey === 'mid_mix' || preg_match('/^t_22/', $startKey)) {
-            return 'mid';
-        }
-
-        return 'am';
     }
 }
