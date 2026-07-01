@@ -399,3 +399,35 @@ function writeDeskStartTradeoffCsv(int $bidYear): string
 
     return $path;
 }
+
+/**
+ * Two-line import for PM vs Mid desk tier ordering (552: AG 1500, 551: MG 2200).
+ */
+function writeMidPmDeskTierCsv(int $bidYear): string
+{
+    $range = BidYearRange::fromBidYear($bidYear);
+    $path = tempnam(sys_get_temp_dir(), 'bidcsv').'.csv';
+    $fh = fopen($path, 'wb');
+    $headers = ['Line Num', 'Group', 'Start Time', 'Rotation'];
+    foreach ($range->eachDate() as $d) {
+        $headers[] = $d->format('j-M-y');
+    }
+    $headers[] = 'workdays';
+    fputcsv($fh, $headers);
+
+    foreach ([
+        ['551', 'MG', '2200'],
+        ['552', 'AG', '1500'],
+    ] as [$lineNum, $group, $start]) {
+        $row = [$lineNum, $group, $start, 'A'];
+        foreach ($range->eachDate() as $d) {
+            $row[] = $group;
+        }
+        $row[] = '0';
+        fputcsv($fh, $row);
+    }
+
+    fclose($fh);
+
+    return $path;
+}

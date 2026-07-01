@@ -459,8 +459,8 @@ export default function BidScenarioEdit({
                                 </Select>
                                 <p className="text-xs text-muted-foreground">
                                     {sortMode === 'weighted'
-                                        ? 'Lines are ranked by total weighted score. Category order below only breaks ties when totals match.'
-                                        : 'Uses category order with equal preference groups — e.g. 06:00 Sector beats 06:00 Regional when Sector/Router are grouped above Regional.'}
+                                        ? 'Lines are ranked by total weighted score first. Desk tier groups (AM → PM → Mid) are not used in weighted mode — switch to Blended to enforce group order.'
+                                        : 'Uses your desk tier groups first, then category order (desk → holidays → personal). Lower tier number ranks higher (AM group before PM before Mid).'}
                                 </p>
                             </div>
                             <div className="space-y-2">

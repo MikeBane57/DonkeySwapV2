@@ -247,6 +247,11 @@ export function ScenarioRankingPanel({
                                 </SelectItem>
                             </SelectContent>
                         </Select>
+                        <p className="text-[11px] text-muted-foreground">
+                            {sortMode === 'weighted'
+                                ? 'Weighted sorts by total score. Use Blended to enforce AM → PM → Mid desk groups.'
+                                : 'Blended applies desk tier groups before holidays and personal dates.'}
+                        </p>
                     </div>
                 </div>
 
