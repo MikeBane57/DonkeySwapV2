@@ -47,13 +47,13 @@ final class BidLinePickerService
      */
     private function sortPickerRows(array $rows): array
     {
-        $order = array_flip(['am', 'pm', 'mid', 'relief', 'other']);
+        $order = array_flip(CondensedDeskClassifier::BUCKETS);
 
         usort($rows, function (array $a, array $b) use ($order): int {
-            $aShift = is_string($a['desk_shift'] ?? null) ? $a['desk_shift'] : 'other';
-            $bShift = is_string($b['desk_shift'] ?? null) ? $b['desk_shift'] : 'other';
-            $aRank = $order[$aShift] ?? 99;
-            $bRank = $order[$bShift] ?? 99;
+            $aBucket = is_string($a['desk_bucket'] ?? null) ? $a['desk_bucket'] : 'unknown';
+            $bBucket = is_string($b['desk_bucket'] ?? null) ? $b['desk_bucket'] : 'unknown';
+            $aRank = $order[$aBucket] ?? 99;
+            $bRank = $order[$bBucket] ?? 99;
             if ($aRank !== $bRank) {
                 return $aRank <=> $bRank;
             }

@@ -75,7 +75,6 @@ test('comparing many bid lines stores slim scores in session', function () {
             ),
             'holiday_rank' => $scenario->holiday_rank,
             'desk_rank' => $scenario->desk_rank ?? [],
-            'start_time_rank' => $scenario->start_time_rank ?? [],
         ])
         ->assertOk()
         ->assertJsonCount(60, 'scored_rows')

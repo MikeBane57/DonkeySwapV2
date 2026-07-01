@@ -19,19 +19,7 @@ final class CondensedBidderProfileMapper
     ];
 
     /** @var list<string> */
-    public const DESK_KEYS = ['XG', 'XR', 'XS', 'MID', 'RELIEF'];
-
-    /** @var list<string> */
-    public const START_TIME_KEYS = ['6', '7', '14', '15', '22'];
-
-    /** @var array<string, string> */
-    public const START_TIME_RANK_KEY_MAP = [
-        '6' => 't_0600',
-        '7' => 't_0700',
-        '14' => 't_1400',
-        '15' => 't_1500',
-        '22' => 't_2200',
-    ];
+    public const DESK_KEYS = CondensedDeskClassifier::BUCKETS;
 
     public function __construct(
         private readonly FederalHolidayCalendar $holidays,
@@ -41,7 +29,6 @@ final class CondensedBidderProfileMapper
      * @return array{
      *   holiday_rank: list<array{key: string, priority: string}>,
      *   desk_rank: list<array{key: string, priority: string}>,
-     *   start_time_rank: list<array{key: string, priority: string}>,
      * }
      */
     public function condensedDefaults(): array
@@ -49,13 +36,6 @@ final class CondensedBidderProfileMapper
         return [
             'holiday_rank' => $this->defaultKeyedRank(array_keys(self::HOLIDAY_GROUPS)),
             'desk_rank' => $this->defaultKeyedRank(self::DESK_KEYS),
-            'start_time_rank' => [
-                ['key' => '6', 'priority' => 'high', 'tier' => 1],
-                ['key' => '7', 'priority' => 'high', 'tier' => 1],
-                ['key' => '14', 'priority' => 'high', 'tier' => 2],
-                ['key' => '15', 'priority' => 'high', 'tier' => 2],
-                ['key' => '22', 'priority' => 'high', 'tier' => 3],
-            ],
         ];
     }
 
@@ -67,7 +47,6 @@ final class CondensedBidderProfileMapper
     {
         $bidYear = (int) $import->bid_year;
         $deskKeys = app(CondensedDeskClassifier::class)->bucketsPresentInImport($import->id);
-        $startKeys = app(BidLinePreferenceCatalog::class)->startTimeKeysForImport($import->id);
 
         $condensedDefaults = $this->condensedDefaults();
 
@@ -80,10 +59,6 @@ final class CondensedBidderProfileMapper
                 $profile['desk_rank'] ?? $condensedDefaults['desk_rank'],
                 $deskKeys,
             ),
-            'start_time_rank' => $this->expandStartTimeRank(
-                $profile['start_time_rank'] ?? $condensedDefaults['start_time_rank'],
-                $startKeys,
-            ),
         ];
     }
 
@@ -91,7 +66,6 @@ final class CondensedBidderProfileMapper
      * @return array{
      *   holiday_rank: list<array{key: string, priority: string}>,
      *   desk_rank: list<array{key: string, priority: string}>,
-     *   start_time_rank: list<array{key: string, priority: string}>,
      * }
      */
     public function toCondensedPayload(BidScenario $scenario): array
@@ -102,7 +76,6 @@ final class CondensedBidderProfileMapper
         return [
             'holiday_rank' => $this->toCondensedHolidayRank($scenario->holiday_rank ?? [], $bidYear),
             'desk_rank' => $this->toCondensedDeskRank($scenario->desk_rank ?? []),
-            'start_time_rank' => $this->toCondensedStartTimeRank($scenario->start_time_rank ?? []),
         ];
     }
 
@@ -152,8 +125,6 @@ final class CondensedBidderProfileMapper
     }
 
     /**
-     * Expand condensed desk ranks to buckets present in the import.
-     *
      * @param  list<array{key: string, priority?: string}>|mixed  $condensed
      * @param  list<string>  $importKeys
      * @return list<array{key: string, priority: string}>
@@ -175,50 +146,6 @@ final class CondensedBidderProfileMapper
                 }
                 $out[] = $row;
                 $seen[$key] = true;
-            }
-        }
-
-        foreach ($importKeys as $key) {
-            if (isset($seen[$key])) {
-                continue;
-            }
-            $out[] = ['key' => $key, 'priority' => 'ignore'];
-        }
-
-        return RankTierHelper::normalizeTierOrder($out);
-    }
-
-    /**
-     * @param  list<array{key: string, priority?: string}>|mixed  $condensed
-     * @param  list<string>  $importKeys
-     * @return list<array{key: string, priority: string}>
-     */
-    public function expandStartTimeRank(mixed $condensed, array $importKeys): array
-    {
-        $ordered = $this->normalizeKeyedRank($condensed, self::START_TIME_KEYS);
-        $out = [];
-        $seen = [];
-
-        foreach ($ordered as $entry) {
-            $hourKey = $entry['key'];
-            $priority = $entry['priority'];
-            $rankKey = self::START_TIME_RANK_KEY_MAP[$hourKey] ?? null;
-
-            if ($rankKey === null) {
-                continue;
-            }
-
-            $matches = $this->importKeysForHour($rankKey, $importKeys);
-            foreach ($matches as $matchKey) {
-                if (isset($seen[$matchKey])) {
-                    continue;
-                }
-                $row = ['key' => $matchKey, 'priority' => $priority];
-                if (isset($entry['tier'])) {
-                    $row['tier'] = (int) $entry['tier'];
-                }
-                $out[] = $row;
-                $seen[$matchKey] = true;
             }
         }
 
@@ -274,7 +201,7 @@ final class CondensedBidderProfileMapper
             if (! is_array($row) || empty($row['key'])) {
                 continue;
             }
-            $byKey[$row['key']] = $row;
+            $byKey[strtoupper($row['key'])] = $row;
         }
 
         $out = [];
@@ -282,39 +209,6 @@ final class CondensedBidderProfileMapper
             $source = $byKey[$deskKey] ?? null;
             $entry = [
                 'key' => $deskKey,
-                'priority' => is_array($source) ? ($source['priority'] ?? 'high') : 'high',
-            ];
-            if (is_array($source) && isset($source['tier'])) {
-                $entry['tier'] = (int) $source['tier'];
-            }
-            $out[] = $entry;
-        }
-
-        return RankTierHelper::normalizeTierOrder($out);
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $full
-     * @return list<array{key: string, priority: string}>
-     */
-    public function toCondensedStartTimeRank(array $full): array
-    {
-        $byRankKey = [];
-        foreach ($full as $row) {
-            if (! is_array($row) || empty($row['key'])) {
-                continue;
-            }
-            $byRankKey[$row['key']] = $row;
-        }
-
-        $out = [];
-        foreach (self::START_TIME_KEYS as $hourKey) {
-            $rankKey = self::START_TIME_RANK_KEY_MAP[$hourKey];
-            $source = $byRankKey[$rankKey]
-                ?? $byRankKey[str_replace('t_0', 't_', $rankKey)]
-                ?? null;
-            $entry = [
-                'key' => $hourKey,
                 'priority' => is_array($source) ? ($source['priority'] ?? 'high') : 'high',
             ];
             if (is_array($source) && isset($source['tier'])) {
@@ -340,6 +234,7 @@ final class CondensedBidderProfileMapper
     }
 
     /**
+     * @param  mixed  $raw
      * @param  list<string>  $defaultKeys
      * @return list<array{key: string, priority: string}>
      */
@@ -379,20 +274,6 @@ final class CondensedBidderProfileMapper
         }
 
         return RankTierHelper::normalizeTierOrder($out);
-    }
-
-    /**
-     * @param  list<string>  $importKeys
-     * @return list<string>
-     */
-    private function importKeysForHour(string $rankKey, array $importKeys): array
-    {
-        $matches = array_values(array_filter(
-            $importKeys,
-            fn (string $key) => $key === $rankKey || $key === str_replace('t_0', 't_', $rankKey),
-        ));
-
-        return $matches !== [] ? $matches : (in_array($rankKey, $importKeys, true) ? [$rankKey] : []);
     }
 
     /**

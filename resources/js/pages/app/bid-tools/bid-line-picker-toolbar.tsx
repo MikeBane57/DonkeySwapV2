@@ -1,14 +1,22 @@
 import { Button } from '@/components/ui/button';
-import type { DeskGroupShift } from '@/pages/app/bid-tools/desk-group-shift';
-import { normalizeLineShift } from '@/pages/app/bid-tools/line-shift';
 
 export type LinePickerRow = {
     id: number;
     line_num: string;
     desk_group: string;
     start_time: string;
-    desk_shift: DeskGroupShift | 'other' | null;
     desk_bucket: string;
+};
+
+const DESK_BUCKET_LABELS: Record<string, string> = {
+    DG7: 'DG 06/07',
+    AG15: 'AG 14/15',
+    DR7: 'DR 06/07',
+    AR15: 'AR 14/15',
+    DS7: 'DS 06/07',
+    AS7: 'AS 14/15',
+    MID: 'Mid',
+    RELIEF: 'Relief',
 };
 
 export function BidLinePickerToolbar({
@@ -29,10 +37,29 @@ export function BidLinePickerToolbar({
         }
     };
 
-    const amCount = lines.filter((l) => l.desk_shift === 'am').length;
-    const pmCount = lines.filter((l) => l.desk_shift === 'pm').length;
-    const midCount = lines.filter((l) => l.desk_shift === 'mid').length;
-    const reliefCount = lines.filter((l) => l.desk_shift === 'relief').length;
+    const bucketCounts = lines.reduce<Record<string, number>>((acc, line) => {
+        const bucket = line.desk_bucket || 'unknown';
+        acc[bucket] = (acc[bucket] ?? 0) + 1;
+
+        return acc;
+    }, {});
+
+    const buckets = Object.keys(bucketCounts).sort((a, b) => {
+        const order = Object.keys(DESK_BUCKET_LABELS);
+        const aRank = order.indexOf(a);
+        const bRank = order.indexOf(b);
+        if (aRank === -1 && bRank === -1) {
+            return a.localeCompare(b);
+        }
+        if (aRank === -1) {
+            return 1;
+        }
+        if (bRank === -1) {
+            return -1;
+        }
+
+        return aRank - bRank;
+    });
 
     return (
         <div className="flex flex-wrap gap-2">
@@ -44,50 +71,26 @@ export function BidLinePickerToolbar({
             >
                 Select all
             </Button>
-            {amCount > 0 && (
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => selectMatching((l) => l.desk_shift === 'am')}
-                >
-                    AM ({amCount})
-                </Button>
-            )}
-            {pmCount > 0 && (
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => selectMatching((l) => l.desk_shift === 'pm')}
-                >
-                    PM ({pmCount})
-                </Button>
-            )}
-            {midCount > 0 && (
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                        selectMatching((l) => l.desk_shift === 'mid')
-                    }
-                >
-                    Mid ({midCount})
-                </Button>
-            )}
-            {reliefCount > 0 && (
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                        selectMatching((l) => l.desk_shift === 'relief')
-                    }
-                >
-                    Relief ({reliefCount})
-                </Button>
-            )}
+            {buckets.map((bucket) => {
+                const count = bucketCounts[bucket] ?? 0;
+                if (count === 0) {
+                    return null;
+                }
+
+                return (
+                    <Button
+                        key={bucket}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                            selectMatching((l) => l.desk_bucket === bucket)
+                        }
+                    >
+                        {DESK_BUCKET_LABELS[bucket] ?? bucket} ({count})
+                    </Button>
+                );
+            })}
             <Button type="button" variant="ghost" size="sm" onClick={onClear}>
                 Clear
             </Button>
@@ -100,17 +103,13 @@ export function mapLineToPickerRow(line: {
     line_num: string;
     desk_group: string;
     start_time: string;
-    desk_shift?: string | null;
     desk_bucket?: string;
 }): LinePickerRow {
-    const shift = normalizeLineShift(line.desk_shift);
-
     return {
         id: line.id,
         line_num: line.line_num,
         desk_group: line.desk_group,
         start_time: line.start_time,
-        desk_shift: shift ?? 'other',
         desk_bucket: line.desk_bucket ?? 'unknown',
     };
 }

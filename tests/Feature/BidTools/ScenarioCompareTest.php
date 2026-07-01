@@ -32,40 +32,37 @@ test('user can compare multiple scenarios on the same import', function () {
         'weights' => [
             'holiday' => 3,
             'personal' => 1,
-            'start_time' => 1,
             'desk' => 1,
             'vacation_penalty' => 1,
-            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+            'criteria_order' => ['holiday', 'personal', 'desk'],
         ],
     ]);
 
     $scenarioB = BidScenario::create([
         'user_id' => $user->id,
         'bid_import_id' => $import->id,
-        'name' => 'Start time focus',
+        'name' => 'Desk focus B',
         'vacation_bank' => 10,
         'weights' => [
             'holiday' => 1,
             'personal' => 1,
-            'start_time' => 3,
-            'desk' => 1,
+            'desk' => 3,
             'vacation_penalty' => 1,
-            'criteria_order' => ['start_time', 'holiday', 'personal', 'desk'],
+            'criteria_order' => ['desk', 'holiday', 'personal'],
         ],
     ]);
 
     $scenarioC = BidScenario::create([
         'user_id' => $user->id,
         'bid_import_id' => $import->id,
-        'name' => 'Desk focus',
+        'name' => 'Desk focus C',
         'vacation_bank' => 8,
         'weights' => [
             'holiday' => 1,
             'personal' => 1,
-            'start_time' => 1,
             'desk' => 3,
             'vacation_penalty' => 1,
-            'criteria_order' => ['desk', 'holiday', 'personal', 'start_time'],
+            'criteria_order' => ['desk', 'holiday', 'personal'],
         ],
     ]);
 

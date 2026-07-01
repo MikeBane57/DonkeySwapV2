@@ -16,14 +16,13 @@ function sampleBidderProfile(array $overrides = []): array
         'vacation_bank' => 12,
         'holiday_rank' => $condensed['holiday_rank'],
         'desk_rank' => $condensed['desk_rank'],
-        'start_time_rank' => $condensed['start_time_rank'],
         'weights' => [
             'holiday' => 2,
             'personal' => 1,
-            'start_time' => 1,
             'desk' => 1,
             'vacation_penalty' => 1,
-            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+            'criteria_order' => ['holiday', 'personal', 'desk'],
+            'start_time_tiebreak_order' => ['6', '7', '14', '15', '22'],
         ],
         'personal_dates' => [],
         'vacation_ranges' => [],
@@ -61,10 +60,9 @@ test('user can add bidder with inline profile and run simulation', function () {
             'profile' => sampleBidderProfile(['weights' => [
                 'holiday' => 3,
                 'personal' => 1,
-                'start_time' => 1,
                 'desk' => 1,
                 'vacation_penalty' => 1,
-                'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+                'criteria_order' => ['holiday', 'personal', 'desk'],
             ]]),
         ])
         ->assertRedirect(route('bid-tools.simulations.edit', $simulation->id));
@@ -76,10 +74,9 @@ test('user can add bidder with inline profile and run simulation', function () {
             'profile' => sampleBidderProfile(['weights' => [
                 'holiday' => 1,
                 'personal' => 1,
-                'start_time' => 3,
-                'desk' => 1,
+                'desk' => 3,
                 'vacation_penalty' => 1,
-                'criteria_order' => ['start_time', 'holiday', 'personal', 'desk'],
+                'criteria_order' => ['desk', 'holiday', 'personal'],
             ]]),
         ])
         ->assertRedirect(route('bid-tools.simulations.edit', $simulation->id));

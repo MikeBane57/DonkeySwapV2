@@ -11,20 +11,15 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import type { DeskGroupShift } from '@/pages/app/bid-tools/desk-group-shift';
 import {
     HolidayRankList,
     PreferenceColumnHeader,
-    ShiftOrderPicker,
-    normalizeShiftOrder,
+    StartTimeTiebreakPicker,
+    normalizeCriteriaOrder,
+    normalizeStartTimeTiebreakOrder,
     preferenceColumnClass,
+    type StartTimeTiebreakKey,
 } from '@/pages/app/bid-tools/preference-rank-shared';
-import {
-    normalizeStrictShiftOrder,
-    normalizeStrictShiftRank,
-    StrictShiftOrderField,
-} from '@/pages/app/bid-tools/strict-shift-order-field';
-import type { StrictShiftClass } from '@/pages/app/bid-tools/strict-shift-rank';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
 export type Priority = 'ignore' | 'low' | 'high';
@@ -46,32 +41,26 @@ export type ScenarioRankingState = {
     weights: {
         holiday: number;
         personal: number;
-        start_time: number;
         desk: number;
         vacation_penalty: number;
         sort_mode: SortMode;
-        strict_shift_order: boolean;
-        strict_shift_rank?: StrictShiftClass[];
         criteria_order: string[];
-        shift_order?: DeskGroupShift[];
+        start_time_tiebreak_order?: StartTimeTiebreakKey[];
     };
     holiday_rank: HolidayEntry[];
     desk_rank: KeyedEntry[];
-    start_time_rank: KeyedEntry[];
     personal_dates: PersonalEntry[];
 };
 
 const CRITERIA_LABELS: Record<string, string> = {
     holiday: 'Holidays',
     personal: 'Personal',
-    start_time: 'Start',
     desk: 'Desk',
 };
 
 const WEIGHT_LABELS: Record<string, string> = {
     holiday: 'Hol',
     personal: 'Per',
-    start_time: 'Start',
     desk: 'Desk',
     vacation_penalty: 'Vac',
 };
@@ -170,7 +159,6 @@ export function rankingStateToSavePayload(
         weights: value.weights,
         holiday_rank: value.holiday_rank,
         desk_rank: value.desk_rank,
-        start_time_rank: value.start_time_rank,
         personal_dates: value.personal_dates.filter((p) => p.date),
     };
 }
@@ -180,28 +168,19 @@ export function ScenarioRankingPanel({
     onChange,
     holidaysCatalog,
     deskCatalog,
-    startTimeCatalog,
 }: {
     value: ScenarioRankingState;
     onChange: (next: ScenarioRankingState) => void;
     holidaysCatalog: { date: string; id: string; label: string }[];
     deskCatalog: { key: string; label: string }[];
-    startTimeCatalog: { key: string; label: string }[];
 }) {
     const sortMode = value.weights.sort_mode;
     const deskKeysInUse = useMemo(
         () => new Set(value.desk_rank.map((d) => d.key)),
         [value.desk_rank],
     );
-    const startKeysInUse = useMemo(
-        () => new Set(value.start_time_rank.map((d) => d.key)),
-        [value.start_time_rank],
-    );
 
     const addDeskOptions = deskCatalog.filter((d) => !deskKeysInUse.has(d.key));
-    const addStartOptions = startTimeCatalog.filter(
-        (d) => !startKeysInUse.has(d.key),
-    );
 
     const deskLabels = useMemo(
         () =>
@@ -209,13 +188,6 @@ export function ScenarioRankingPanel({
                 deskCatalog.map((d) => [d.key, d.label]),
             ) as Record<string, string>,
         [deskCatalog],
-    );
-    const startLabels = useMemo(
-        () =>
-            Object.fromEntries(
-                startTimeCatalog.map((d) => [d.key, d.label]),
-            ) as Record<string, string>,
-        [startTimeCatalog],
     );
 
     const setWeights = (patch: Partial<ScenarioRankingState['weights']>) => {
@@ -297,21 +269,6 @@ export function ScenarioRankingPanel({
                     </div>
                 </div>
 
-                <StrictShiftOrderField
-                    id="ranked-strict-shift-order"
-                    compact
-                    checked={value.weights.strict_shift_order}
-                    onCheckedChange={(checked) =>
-                        setWeights({ strict_shift_order: checked })
-                    }
-                    rank={normalizeStrictShiftRank(
-                        value.weights.strict_shift_rank,
-                    )}
-                    onRankChange={(strict_shift_rank) =>
-                        setWeights({ strict_shift_rank })
-                    }
-                />
-
                 <div className="space-y-1">
                     <Label className="text-xs">Category weights</Label>
                     <div className="flex flex-wrap gap-2">
@@ -319,7 +276,6 @@ export function ScenarioRankingPanel({
                             [
                                 'holiday',
                                 'personal',
-                                'start_time',
                                 'desk',
                                 'vacation_penalty',
                             ] as const
@@ -374,13 +330,17 @@ export function ScenarioRankingPanel({
                         ))}
                     </div>
                 </div>
-                <ShiftOrderPicker
-                    value={normalizeShiftOrder(value.weights.shift_order)}
-                    onChange={(shift_order) => setWeights({ shift_order })}
+                <StartTimeTiebreakPicker
+                    value={normalizeStartTimeTiebreakOrder(
+                        value.weights.start_time_tiebreak_order,
+                    )}
+                    onChange={(start_time_tiebreak_order) =>
+                        setWeights({ start_time_tiebreak_order })
+                    }
                 />
             </section>
 
-            <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+            <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
                 <div className={preferenceColumnClass}>
                     <PreferenceColumnHeader
                         title="Holidays"
@@ -446,59 +406,6 @@ export function ScenarioRankingPanel({
                             onChange({
                                 ...value,
                                 desk_rank: value.desk_rank.filter(
-                                    (d) => d.key !== key,
-                                ),
-                            })
-                        }
-                        compact
-                        hideLabel
-                    />
-                </div>
-
-                <div className={preferenceColumnClass}>
-                    <PreferenceColumnHeader title="Start time" />
-                    {addStartOptions.length > 0 && (
-                        <Select
-                            onValueChange={(key) =>
-                                onChange({
-                                    ...value,
-                                    start_time_rank: [
-                                        ...value.start_time_rank,
-                                        {
-                                            key,
-                                            priority: 'high',
-                                            tier:
-                                                value.start_time_rank.length +
-                                                1,
-                                        },
-                                    ],
-                                })
-                            }
-                        >
-                            <SelectTrigger className="h-8 w-full text-xs">
-                                <SelectValue placeholder="Add start…" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {addStartOptions.map((d) => (
-                                    <SelectItem key={d.key} value={d.key}>
-                                        {d.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                    <TieredRankList
-                        idPrefix="ranked-start"
-                        label="Start time"
-                        entries={value.start_time_rank}
-                        labels={startLabels}
-                        onChange={(start_time_rank) =>
-                            onChange({ ...value, start_time_rank })
-                        }
-                        onRemoveKey={(key) =>
-                            onChange({
-                                ...value,
-                                start_time_rank: value.start_time_rank.filter(
                                     (d) => d.key !== key,
                                 ),
                             })
@@ -607,18 +514,13 @@ export function scenarioToRankingState(scenario: {
     weights: Record<string, unknown> & {
         criteria_order?: string[];
         sort_mode?: string;
+        start_time_tiebreak_order?: string[];
+        shift_order?: string[];
     };
     holiday_rank: HolidayEntry[];
     desk_rank: KeyedEntry[];
-    start_time_rank: KeyedEntry[];
     personal_dates: PersonalEntry[];
 }): ScenarioRankingState {
-    const criteria = scenario.weights?.criteria_order;
-    const criteriaOrder =
-        Array.isArray(criteria) && criteria.length === 4
-            ? [...criteria]
-            : ['holiday', 'personal', 'start_time', 'desk'];
-
     const sortMode = scenario.weights?.sort_mode;
     const normalizedSortMode: SortMode =
         sortMode === 'weighted' ||
@@ -632,22 +534,19 @@ export function scenarioToRankingState(scenario: {
         weights: {
             holiday: Number(scenario.weights?.holiday ?? 1),
             personal: Number(scenario.weights?.personal ?? 1),
-            start_time: Number(scenario.weights?.start_time ?? 1),
             desk: Number(scenario.weights?.desk ?? 1),
             vacation_penalty: Number(scenario.weights?.vacation_penalty ?? 1),
             sort_mode: normalizedSortMode,
-            strict_shift_order: normalizeStrictShiftOrder(
-                scenario.weights?.strict_shift_order,
+            criteria_order: normalizeCriteriaOrder(
+                scenario.weights?.criteria_order,
             ),
-            strict_shift_rank: normalizeStrictShiftRank(
-                scenario.weights?.strict_shift_rank,
+            start_time_tiebreak_order: normalizeStartTimeTiebreakOrder(
+                scenario.weights?.start_time_tiebreak_order ??
+                    scenario.weights?.shift_order,
             ),
-            criteria_order: criteriaOrder,
-            shift_order: normalizeShiftOrder(scenario.weights?.shift_order),
         },
         holiday_rank: scenario.holiday_rank,
         desk_rank: scenario.desk_rank,
-        start_time_rank: scenario.start_time_rank,
         personal_dates: scenario.personal_dates,
     };
 }

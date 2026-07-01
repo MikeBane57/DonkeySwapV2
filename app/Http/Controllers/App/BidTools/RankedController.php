@@ -34,18 +34,18 @@ class RankedController extends Controller
         $s->load(['import', 'vacationRanges']);
         $bidYear = (int) $s->import->bid_year;
 
-        $weights = array_merge([
-            'holiday' => 1.0,
-            'personal' => 1.0,
-            'start_time' => 1.0,
-            'desk' => 1.0,
-            'vacation_penalty' => 1.0,
-            'strict_shift_order' => false,
-            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
-        ], $s->weights ?? []);
+        $weights = array_merge(
+            ScenarioScoreService::defaultWeights(),
+            $s->weights ?? [],
+        );
+        $weights['criteria_order'] = ScenarioScoreService::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
+        $weights['start_time_tiebreak_order'] = ScenarioScoreService::normalizeStartTimeTiebreakOrder(
+            $weights['start_time_tiebreak_order'] ?? $weights['shift_order'] ?? null,
+        );
+        $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
+        unset($weights['shift_order'], $weights['strict_shift_order'], $weights['strict_shift_rank'], $weights['start_time']);
 
         $deskKeys = $this->preferenceCatalog->deskKeysForImport($s->bid_import_id);
-        $startKeys = $this->preferenceCatalog->startTimeKeysForImport($s->bid_import_id);
 
         $lineRows = $this->linePicker->rowsForImport($s->bid_import_id, $s->id);
 
@@ -61,12 +61,10 @@ class RankedController extends Controller
                 'weights' => $weights,
                 'holiday_rank' => $this->scoreService->holidayEntriesForEditor($s->holiday_rank, $bidYear),
                 'desk_rank' => $this->scoreService->deskEntriesForEditor($s->desk_rank, $deskKeys),
-                'start_time_rank' => $this->scoreService->startTimeEntriesForEditor($s->start_time_rank, $startKeys),
                 'personal_dates' => $this->scoreService->personalDatesForEditor($s->personal_dates ?? []),
             ],
             'holidaysCatalog' => $this->scoreService->holidaysCatalog($bidYear),
             'deskCatalog' => $this->preferenceCatalog->deskCatalogForImport($s->bid_import_id),
-            'startTimeCatalog' => $this->preferenceCatalog->startTimeCatalogForImport($s->bid_import_id),
             'lines' => $lineRows,
         ]);
     }
@@ -180,7 +178,7 @@ class RankedController extends Controller
 
         $fillKeys = [
             'vacation_bank', 'weights', 'holiday_rank', 'desk_rank',
-            'start_time_rank', 'personal_dates',
+            'personal_dates',
         ];
 
         $overrides = Arr::only($payload, $fillKeys);

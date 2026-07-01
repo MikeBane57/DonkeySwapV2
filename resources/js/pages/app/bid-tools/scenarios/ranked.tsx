@@ -72,7 +72,6 @@ export default function BidScenarioRanked({
     lines: rawLines,
     holidaysCatalog,
     deskCatalog,
-    startTimeCatalog,
 }: {
     scenario: {
         id: number;
@@ -83,13 +82,11 @@ export default function BidScenarioRanked({
         weights: Record<string, unknown> & { criteria_order?: string[] };
         holiday_rank: ScenarioRankingState['holiday_rank'];
         desk_rank: ScenarioRankingState['desk_rank'];
-        start_time_rank: ScenarioRankingState['start_time_rank'];
         personal_dates: ScenarioRankingState['personal_dates'];
     };
     lines: (LinePickerRow & { submitted_externally?: boolean })[];
     holidaysCatalog: { date: string; id: string; label: string }[];
     deskCatalog: { key: string; label: string }[];
-    startTimeCatalog: { key: string; label: string }[];
 }) {
     const lines = useMemo(
         () => rawLines.map((l) => mapLineToPickerRow(l)),
@@ -186,7 +183,6 @@ export default function BidScenarioRanked({
                         weights: ranking.weights,
                         holiday_rank: ranking.holiday_rank,
                         desk_rank: ranking.desk_rank,
-                        start_time_rank: ranking.start_time_rank,
                         personal_dates: ranking.personal_dates.filter(
                             (p) => p.date,
                         ),
@@ -313,7 +309,6 @@ export default function BidScenarioRanked({
                             onChange={setRanking}
                             holidaysCatalog={holidaysCatalog}
                             deskCatalog={deskCatalog}
-                            startTimeCatalog={startTimeCatalog}
                         />
                         {saveMessage && (
                             <p className="mt-3 text-xs text-muted-foreground">

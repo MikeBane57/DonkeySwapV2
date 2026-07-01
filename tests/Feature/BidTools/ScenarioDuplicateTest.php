@@ -30,14 +30,14 @@ test('user can duplicate a scenario with preferences and vacation ranges', funct
         'weights' => [
             'holiday' => 3,
             'personal' => 1,
-            'start_time' => 2,
-            'desk' => 1,
+            'desk' => 2,
             'vacation_penalty' => 1,
-            'criteria_order' => ['start_time', 'holiday', 'personal', 'desk'],
+            'criteria_order' => ['desk', 'holiday', 'personal'],
+            'start_time_tiebreak_order' => ['7', '6', '14', '15', '22'],
         ],
         'holiday_rank' => [['key' => 'christmas', 'priority' => 'high']],
-        'desk_rank' => [['key' => 'XG', 'priority' => 'high']],
-        'start_time_rank' => [['key' => '6', 'priority' => 'high']],
+        'desk_rank' => [['key' => 'DS7', 'priority' => 'high']],
+        'start_time_rank' => [],
         'personal_dates' => [['date' => '2026-07-04', 'label' => 'July 4', 'priority' => 'high']],
     ]);
 
@@ -63,7 +63,7 @@ test('user can duplicate a scenario with preferences and vacation ranges', funct
     expect($copy->name)->toBe('My prefs (copy)');
     expect($copy->vacation_bank)->toBe(9);
     expect((float) $copy->weights['holiday'])->toBe(3.0);
-    expect($copy->weights['criteria_order'])->toBe(['start_time', 'holiday', 'personal', 'desk']);
+    expect($copy->weights['criteria_order'])->toBe(['desk', 'holiday', 'personal']);
     expect($copy->personal_dates)->toHaveCount(1);
     expect($copy->vacationRanges)->toHaveCount(1);
     expect($copy->vacationRanges->first()->title)->toBe('Summer');

@@ -33,11 +33,11 @@ final class ScenarioScoreService
         private readonly LineMetricsService $lineMetrics,
         private readonly DominantDeskAnalyzer $dominantDesk,
         private readonly CondensedDeskClassifier $condensedDesk,
-        private readonly DeskGroupShiftClassifier $deskShift,
-        private readonly StartTimeNormalizer $startTimes,
         private readonly VacationCostCalculator $vacation,
-        private readonly LineShiftClassifier $lineShift,
     ) {}
+
+    /** @var list<string> */
+    public const START_TIME_TIEBREAK_KEYS = ['6', '7', '14', '15', '22'];
 
     /**
      * @param  list<int>  $lineIds
@@ -51,16 +51,15 @@ final class ScenarioScoreService
         $weights = array_merge(self::defaultWeights(), $weights);
 
         $criteriaOrder = self::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
-        $shiftOrder = self::normalizeShiftOrder($weights['shift_order'] ?? null);
+        $startTimeTiebreak = self::normalizeStartTimeTiebreakOrder(
+            $weights['start_time_tiebreak_order'] ?? $weights['shift_order'] ?? null,
+        );
         $sortMode = self::normalizeSortMode($weights['sort_mode'] ?? null);
-        $strictShiftOrder = self::normalizeStrictShiftOrder($weights['strict_shift_order'] ?? null);
-        $strictShiftRank = self::normalizeStrictShiftRank($weights['strict_shift_rank'] ?? null);
 
         $bidYear = (int) $scenario->import->bid_year;
         $holidayEntries = $this->normalizeHolidayRank($scenario->holiday_rank, $bidYear);
         $personalEntries = $this->normalizePersonalDates($scenario->personal_dates ?? []);
         $deskEntries = $this->normalizeKeyedRank($scenario->desk_rank, $this->defaultDeskRank());
-        $startEntries = $this->normalizeKeyedRank($scenario->start_time_rank, $this->defaultStartRank());
 
         $lines = BidLine::query()
             ->where('bid_import_id', $scenario->bid_import_id)
@@ -112,12 +111,8 @@ final class ScenarioScoreService
             }
             $personalPoints *= (float) ($weights['personal'] ?? 1);
 
-            $lineStartKey = $this->startTimes->rankKey($line->start_time);
-            $startPoints = $this->scoreKeyedPreference($startEntries, $lineStartKey)
-                * (float) ($weights['start_time'] ?? 1);
-
             $deskInfo = $this->dominantDesk->analyze($line);
-            $bucket = $this->deskBucketForLine($line, $deskEntries);
+            $bucket = $this->condensedDesk->bucketForLine($line);
             $deskPoints = $this->scoreKeyedPreference($deskEntries, $bucket)
                 * (float) ($weights['desk'] ?? 1);
 
@@ -130,34 +125,27 @@ final class ScenarioScoreService
             $parts = [
                 'holiday' => $holidayPoints,
                 'personal' => $personalPoints,
-                'start_time' => $startPoints,
                 'desk' => $deskPoints,
             ];
 
-            $total = $holidayPoints + $personalPoints + $startPoints + $deskPoints - $vacPenalty;
-
-            $shiftClass = $this->lineShift->classify($line);
+            $total = $holidayPoints + $personalPoints + $deskPoints - $vacPenalty;
 
             $out[] = [
                 'bid_line_id' => $line->id,
                 'line_num' => $line->line_num,
-                'desk_shift' => $this->deskShift->shiftForDeskGroup($line->desk_group),
                 'total' => round($total, 2),
-                'shift_class' => $shiftClass,
+                'start_time_tiebreak_key' => $this->condensedDesk->startTimeTiebreakKey($line),
                 'parts' => [
                     'holiday' => round($holidayPoints, 2),
                     'personal' => round($personalPoints, 2),
-                    'start_time' => round($startPoints, 2),
                     'desk' => round($deskPoints, 2),
                 ],
                 'tier_ranks' => [
-                    'start_time' => RankTierHelper::tierRankForKey($startEntries, $lineStartKey),
                     'desk' => RankTierHelper::tierRankForKey($deskEntries, $bucket),
                 ],
                 'breakdown' => [
                     'holiday' => round($holidayPoints, 2),
                     'personal' => round($personalPoints, 2),
-                    'start_time' => round($startPoints, 2),
                     'desk' => round($deskPoints, 2),
                     'vacation_cost' => $vacCost,
                     'vacation_penalty' => round($vacPenalty, 2),
@@ -169,7 +157,7 @@ final class ScenarioScoreService
             ];
         }
 
-        usort($out, fn ($a, $b) => self::compareScoredLines($a, $b, $criteriaOrder, $sortMode, $strictShiftOrder, $shiftOrder, $strictShiftRank));
+        usort($out, fn ($a, $b) => self::compareScoredLines($a, $b, $criteriaOrder, $sortMode, $startTimeTiebreak));
 
         return $out;
     }
@@ -182,23 +170,44 @@ final class ScenarioScoreService
         return [
             'holiday' => 1.0,
             'personal' => 1.0,
-            'start_time' => 1.0,
             'desk' => 1.0,
             'vacation_penalty' => 1.0,
             'sort_mode' => self::SORT_MODE_BLENDED,
-            'strict_shift_order' => false,
-            'strict_shift_rank' => ['am', 'pm', 'mid', 'relief'],
-            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
-            'shift_order' => ['am', 'pm', 'mid'],
+            'criteria_order' => ['holiday', 'personal', 'desk'],
+            'start_time_tiebreak_order' => ['6', '7', '14', '15', '22'],
         ];
     }
 
     /**
      * @return list<string>
      */
-    public static function normalizeShiftOrder(mixed $raw): array
+    public static function normalizeStartTimeTiebreakOrder(mixed $raw): array
     {
-        $default = ['am', 'pm', 'mid'];
+        $default = self::START_TIME_TIEBREAK_KEYS;
+
+        if (is_array($raw)) {
+            $migrated = [];
+            foreach ($raw as $item) {
+                if (! is_string($item)) {
+                    continue;
+                }
+                if ($item === 'am') {
+                    $migrated[] = '6';
+                    $migrated[] = '7';
+                } elseif ($item === 'pm') {
+                    $migrated[] = '14';
+                    $migrated[] = '15';
+                } elseif ($item === 'mid') {
+                    $migrated[] = '22';
+                } elseif (in_array($item, $default, true)) {
+                    $migrated[] = $item;
+                }
+            }
+            if ($migrated !== []) {
+                $raw = $migrated;
+            }
+        }
+
         if (! is_array($raw)) {
             return $default;
         }
@@ -220,31 +229,10 @@ final class ScenarioScoreService
         return $order;
     }
 
-    /**
-     * @return list<string>
-     */
-    public static function normalizeStrictShiftRank(mixed $raw): array
+    /** @deprecated Use normalizeStartTimeTiebreakOrder */
+    public static function normalizeShiftOrder(mixed $raw): array
     {
-        $default = ['am', 'pm', 'mid', 'relief'];
-        if (! is_array($raw)) {
-            return $default;
-        }
-
-        $allowed = array_flip($default);
-        $order = [];
-        foreach ($raw as $key) {
-            if (is_string($key) && isset($allowed[$key]) && ! in_array($key, $order, true)) {
-                $order[] = $key;
-            }
-        }
-
-        foreach ($default as $key) {
-            if (! in_array($key, $order, true)) {
-                $order[] = $key;
-            }
-        }
-
-        return $order;
+        return self::normalizeStartTimeTiebreakOrder($raw);
     }
 
     public static function normalizeSortMode(mixed $raw): string
@@ -259,7 +247,7 @@ final class ScenarioScoreService
      */
     public static function normalizeCriteriaOrder(mixed $raw): array
     {
-        $default = ['holiday', 'personal', 'start_time', 'desk'];
+        $default = ['holiday', 'personal', 'desk'];
         if (! is_array($raw)) {
             return $default;
         }
@@ -281,40 +269,28 @@ final class ScenarioScoreService
         return $order;
     }
 
-    public static function normalizeStrictShiftOrder(mixed $raw): bool
-    {
-        return filter_var($raw, FILTER_VALIDATE_BOOL);
-    }
-
     /**
      * @param  array<string, mixed>  $a
      * @param  array<string, mixed>  $b
      * @param  list<string>  $criteriaOrder
+     * @param  list<string>  $startTimeTiebreak
      */
     public static function compareScoredLines(
         array $a,
         array $b,
         array $criteriaOrder,
         string $sortMode,
-        bool $strictShiftOrder = false,
-        array $shiftOrder = ['am', 'pm', 'mid'],
-        array $strictShiftRank = ['am', 'pm', 'mid', 'relief'],
+        array $startTimeTiebreak = ['6', '7', '14', '15', '22'],
     ): int {
-        if ($strictShiftOrder) {
-            $shiftCmp = self::compareShiftClass($a, $b, $strictShiftRank);
-            if ($shiftCmp !== 0) {
-                return $shiftCmp;
-            }
-        }
         if (self::usesTierGroupSort($sortMode)) {
             foreach ($criteriaOrder as $criterion) {
                 if (! is_string($criterion)) {
                     continue;
                 }
 
-                if (in_array($criterion, ['start_time', 'desk'], true)) {
-                    $aTier = (int) ($a['tier_ranks'][$criterion] ?? PHP_INT_MAX);
-                    $bTier = (int) ($b['tier_ranks'][$criterion] ?? PHP_INT_MAX);
+                if ($criterion === 'desk') {
+                    $aTier = (int) ($a['tier_ranks']['desk'] ?? PHP_INT_MAX);
+                    $bTier = (int) ($b['tier_ranks']['desk'] ?? PHP_INT_MAX);
                     if ($aTier !== $bTier) {
                         return $aTier <=> $bTier;
                     }
@@ -346,41 +322,25 @@ final class ScenarioScoreService
             return $totalCmp;
         }
 
-        $shiftCmp = self::compareShiftRank(
-            is_string($a['desk_shift'] ?? null) ? $a['desk_shift'] : null,
-            is_string($b['desk_shift'] ?? null) ? $b['desk_shift'] : null,
-            $shiftOrder,
+        $tiebreakCmp = self::compareStartTimeTiebreak(
+            (string) ($a['start_time_tiebreak_key'] ?? 'other'),
+            (string) ($b['start_time_tiebreak_key'] ?? 'other'),
+            $startTimeTiebreak,
         );
-        if ($shiftCmp !== 0) {
-            return $shiftCmp;
+        if ($tiebreakCmp !== 0) {
+            return $tiebreakCmp;
         }
 
         return strcmp((string) ($a['line_num'] ?? ''), (string) ($b['line_num'] ?? ''));
     }
 
     /**
-     * @param  array<string, mixed>  $a
-     * @param  array<string, mixed>  $b
-     * @param  list<string>  $strictShiftRank
+     * @param  list<string>  $tiebreakOrder
      */
-    private static function compareShiftClass(array $a, array $b, array $strictShiftRank): int
+    private static function compareStartTimeTiebreak(string $aKey, string $bKey, array $tiebreakOrder): int
     {
-        $orderKeys = array_merge($strictShiftRank, [LineShiftClassifier::SHIFT_OTHER]);
-        $order = array_flip($orderKeys);
-        $worst = count($order);
-        $left = $order[$a['shift_class'] ?? LineShiftClassifier::SHIFT_OTHER] ?? $worst;
-        $right = $order[$b['shift_class'] ?? LineShiftClassifier::SHIFT_OTHER] ?? $worst;
-
-        return $left <=> $right;
-    }
-
-    /**
-     * @param  list<string>  $shiftOrder
-     */
-    private static function compareShiftRank(?string $aShift, ?string $bShift, array $shiftOrder): int
-    {
-        $aRank = self::shiftRank($aShift, $shiftOrder);
-        $bRank = self::shiftRank($bShift, $shiftOrder);
+        $aRank = self::tiebreakRank($aKey, $tiebreakOrder);
+        $bRank = self::tiebreakRank($bKey, $tiebreakOrder);
         if ($aRank === $bRank) {
             return 0;
         }
@@ -389,15 +349,15 @@ final class ScenarioScoreService
     }
 
     /**
-     * @param  list<string>  $shiftOrder
+     * @param  list<string>  $tiebreakOrder
      */
-    private static function shiftRank(?string $shift, array $shiftOrder): int
+    private static function tiebreakRank(string $key, array $tiebreakOrder): int
     {
-        if ($shift === null || $shift === '') {
+        if ($key === '' || $key === 'other') {
             return PHP_INT_MAX;
         }
 
-        $idx = array_search($shift, $shiftOrder, true);
+        $idx = array_search($key, $tiebreakOrder, true);
 
         return $idx === false ? PHP_INT_MAX : (int) $idx;
     }
@@ -427,9 +387,6 @@ final class ScenarioScoreService
         return $right <=> $left;
     }
 
-    /**
-     * @return list<array{date: string, label: string, priority: string, id?: string}>
-     */
     /**
      * @return list<array{date: string, id: string, label: string}>
      */
@@ -478,62 +435,11 @@ final class ScenarioScoreService
             ->all();
     }
 
-    /**
-     * @return list<array{key: string, priority: string}>
-     */
-    public function defaultStartTimeEntries(): array
-    {
-        return collect($this->defaultStartRank())
-            ->map(fn (string $k) => ['key' => $k, 'priority' => 'high'])
-            ->all();
-    }
-
-    /**
-     * @param  list<array{key: string, priority?: string}>  $deskEntries
-     */
-    private function deskBucketForLine(BidLine $line, array $deskEntries): string
-    {
-        if ($this->condensedDesk->usesCondensedBuckets($deskEntries)) {
-            return $this->condensedDesk->bucketForLine($line);
-        }
-
-        return $this->dominantDesk->analyze($line)['group_bucket'];
-    }
-
-    /**
-     * @param  list<array{key: string, priority: string}>  $entries
-     */
-    private function scoreKeyedPreference(array $entries, string $lineKey): float
-    {
-        $normalized = RankTierHelper::normalizeTierOrder($entries);
-        $tierCount = count(RankTierHelper::orderedTiers($normalized));
-
-        foreach ($normalized as $i => $e) {
-            $key = $e['key'];
-            $p = $e['priority'] ?? 'high';
-            if ($p === 'ignore') {
-                continue;
-            }
-            if ($lineKey === $key) {
-                $mul = self::PRIORITY_MUL[$p] ?? 1.0;
-                $tierWeight = RankTierHelper::tierWeight($normalized, $i);
-
-                return $mul * $tierWeight;
-            }
-        }
-
-        return 0.0;
-    }
-
     public function holidayEntriesForEditor(mixed $raw, int $bidYear): array
     {
         return $this->normalizeHolidayRank($raw, $bidYear);
     }
 
-    /**
-     * @param  list<string>|list<array<string, mixed>>|null  $raw
-     * @return list<array{key: string, priority: string}>
-     */
     /**
      * @param  list<string>|list<array<string, mixed>>|null  $raw
      * @param  list<string>|null  $importKeys  Desk buckets present in CSV (merged into editor if missing)
@@ -543,22 +449,6 @@ final class ScenarioScoreService
         $defaults = ($importKeys !== null && $importKeys !== [])
             ? $importKeys
             : $this->defaultDeskRank();
-
-        return $this->mergeMissingKeyedEntries(
-            $this->normalizeKeyedRank($raw, $defaults),
-            $importKeys ?? []
-        );
-    }
-
-    /**
-     * @param  list<string>|list<array<string, mixed>>|null  $raw
-     * @param  list<string>|null  $importKeys  Start-time rank keys present in CSV
-     */
-    public function startTimeEntriesForEditor(mixed $raw, ?array $importKeys = null): array
-    {
-        $defaults = ($importKeys !== null && $importKeys !== [])
-            ? $importKeys
-            : $this->defaultStartRank();
 
         return $this->mergeMissingKeyedEntries(
             $this->normalizeKeyedRank($raw, $defaults),
@@ -710,15 +600,31 @@ final class ScenarioScoreService
      */
     private function defaultDeskRank(): array
     {
-        return ['DG', 'DS', 'DR', 'AG', 'mix', 'mg_ms'];
+        return CondensedDeskClassifier::BUCKETS;
     }
 
     /**
-     * @return list<string>
+     * @param  list<array{key: string, priority: string}>  $entries
      */
-    private function defaultStartRank(): array
+    private function scoreKeyedPreference(array $entries, string $lineKey): float
     {
-        return ['t_0600', 't_0700', 'am', 'pm', 'mid', 'am_mix_0600_0700'];
+        $normalized = RankTierHelper::normalizeTierOrder($entries);
+
+        foreach ($normalized as $i => $e) {
+            $key = $e['key'];
+            $p = $e['priority'] ?? 'high';
+            if ($p === 'ignore') {
+                continue;
+            }
+            if ($lineKey === $key) {
+                $mul = self::PRIORITY_MUL[$p] ?? 1.0;
+                $tierWeight = RankTierHelper::tierWeight($normalized, $i);
+
+                return $mul * $tierWeight;
+            }
+        }
+
+        return 0.0;
     }
 
     /**
@@ -737,7 +643,6 @@ final class ScenarioScoreService
             'weights',
             'holiday_rank',
             'desk_rank',
-            'start_time_rank',
             'personal_dates',
         ];
 

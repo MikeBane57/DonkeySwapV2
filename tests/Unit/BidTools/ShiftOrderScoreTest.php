@@ -2,93 +2,51 @@
 
 use App\Services\BidTools\ScenarioScoreService;
 
-test('shift order breaks ties by desk shift before line number', function () {
-    $criteriaOrder = ['holiday', 'personal', 'start_time', 'desk'];
+test('start time tiebreak order breaks ties before line number', function () {
+    $criteriaOrder = ['holiday', 'personal', 'desk'];
 
-    $pmLine = [
+    $sevenLine = [
         'total' => 10,
         'line_num' => '100',
-        'desk_shift' => 'pm',
-        'tier_ranks' => [],
+        'start_time_tiebreak_key' => '7',
+        'tier_ranks' => ['desk' => 1],
         'parts' => [],
     ];
-    $amLine = [
+    $sixLine = [
         'total' => 10,
         'line_num' => '50',
-        'desk_shift' => 'am',
-        'tier_ranks' => [],
+        'start_time_tiebreak_key' => '6',
+        'tier_ranks' => ['desk' => 1],
         'parts' => [],
     ];
 
-    $defaultOrder = ScenarioScoreService::compareScoredLines(
-        $pmLine,
-        $amLine,
+    $sixFirst = ScenarioScoreService::compareScoredLines(
+        $sevenLine,
+        $sixLine,
         $criteriaOrder,
         'weighted',
-        false,
-        ['am', 'pm', 'mid'],
+        ['6', '7', '14', '15', '22'],
     );
-    expect($defaultOrder)->toBeGreaterThan(0);
+    expect($sixFirst)->toBeGreaterThan(0);
 
-    $pmFirst = ScenarioScoreService::compareScoredLines(
-        $pmLine,
-        $amLine,
+    $sevenFirst = ScenarioScoreService::compareScoredLines(
+        $sevenLine,
+        $sixLine,
         $criteriaOrder,
         'weighted',
-        false,
-        ['pm', 'am', 'mid'],
+        ['7', '6', '14', '15', '22'],
     );
-    expect($pmFirst)->toBeLessThan(0);
+    expect($sevenFirst)->toBeLessThan(0);
 });
 
-test('normalize shift order fills missing shifts and drops invalid values', function () {
-    expect(ScenarioScoreService::normalizeShiftOrder(['mid', 'am']))->toBe(['mid', 'am', 'pm']);
-    expect(ScenarioScoreService::normalizeShiftOrder(null))->toBe(['am', 'pm', 'mid']);
-    expect(ScenarioScoreService::normalizeShiftOrder(['am', 'am', 'nope', 'pm']))->toBe(['am', 'pm', 'mid']);
+test('normalize start time tiebreak order fills missing hours and migrates legacy shift order', function () {
+    expect(ScenarioScoreService::normalizeStartTimeTiebreakOrder(['7', '6']))->toBe(['7', '6', '14', '15', '22']);
+    expect(ScenarioScoreService::normalizeStartTimeTiebreakOrder(null))->toBe(['6', '7', '14', '15', '22']);
+    expect(ScenarioScoreService::normalizeStartTimeTiebreakOrder(['pm', 'am']))->toBe(['14', '15', '6', '7', '22']);
+    expect(ScenarioScoreService::normalizeShiftOrder(['mid', 'am']))->toBe(['22', '6', '7', '14', '15']);
 });
 
-test('normalize strict shift rank fills missing buckets and drops invalid values', function () {
-    expect(ScenarioScoreService::normalizeStrictShiftRank(['pm', 'mid', 'am']))->toBe(['pm', 'mid', 'am', 'relief']);
-    expect(ScenarioScoreService::normalizeStrictShiftRank(null))->toBe(['am', 'pm', 'mid', 'relief']);
-});
-
-test('strict shift rank breaks ties before other criteria when enabled', function () {
-    $criteriaOrder = ['holiday', 'personal', 'start_time', 'desk'];
-
-    $pmLine = [
-        'total' => 5,
-        'line_num' => '100',
-        'shift_class' => 'pm',
-        'tier_ranks' => [],
-        'parts' => [],
-    ];
-    $amLine = [
-        'total' => 10,
-        'line_num' => '50',
-        'shift_class' => 'am',
-        'tier_ranks' => [],
-        'parts' => [],
-    ];
-
-    $amFirst = ScenarioScoreService::compareScoredLines(
-        $pmLine,
-        $amLine,
-        $criteriaOrder,
-        'weighted',
-        true,
-        ['am', 'pm', 'mid'],
-        ['am', 'pm', 'mid', 'relief'],
-    );
-    expect($amFirst)->toBeGreaterThan(0);
-
-    $pmFirst = ScenarioScoreService::compareScoredLines(
-        $pmLine,
-        $amLine,
-        $criteriaOrder,
-        'weighted',
-        true,
-        ['am', 'pm', 'mid'],
-        ['pm', 'mid', 'am', 'relief'],
-    );
-    expect($pmFirst)->toBeLessThan(0);
+test('criteria order defaults to holiday personal desk only', function () {
+    expect(ScenarioScoreService::normalizeCriteriaOrder(null))->toBe(['holiday', 'personal', 'desk']);
+    expect(ScenarioScoreService::normalizeCriteriaOrder(['desk', 'start_time', 'holiday']))->toBe(['desk', 'holiday', 'personal']);
 });

@@ -13,20 +13,15 @@ import {
 } from '@/components/ui/select';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
-import type { DeskGroupShift } from '@/pages/app/bid-tools/desk-group-shift';
 import {
     PreferenceColumnHeader,
-    ShiftOrderPicker,
-    normalizeShiftOrder,
+    StartTimeTiebreakPicker,
+    normalizeCriteriaOrder,
+    normalizeStartTimeTiebreakOrder,
     preferenceColumnClass,
+    type StartTimeTiebreakKey,
 } from '@/pages/app/bid-tools/preference-rank-shared';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
-import {
-    normalizeStrictShiftOrder,
-    normalizeStrictShiftRank,
-    StrictShiftOrderField,
-} from '@/pages/app/bid-tools/strict-shift-order-field';
-import type { StrictShiftClass } from '@/pages/app/bid-tools/strict-shift-rank';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
 export type Priority = 'ignore' | 'low' | 'high';
@@ -55,18 +50,14 @@ export type BidderProfile = {
     vacation_bank: number;
     holiday_rank: KeyedRankEntry[];
     desk_rank: KeyedRankEntry[];
-    start_time_rank: KeyedRankEntry[];
     weights: {
         holiday: number;
         personal: number;
-        start_time: number;
         desk: number;
         vacation_penalty: number;
         sort_mode: SortMode;
-        strict_shift_order: boolean;
-        strict_shift_rank?: StrictShiftClass[];
         criteria_order: string[];
-        shift_order?: DeskGroupShift[];
+        start_time_tiebreak_order?: StartTimeTiebreakKey[];
     };
     personal_dates: PersonalDate[];
     vacation_ranges: VacationRange[];
@@ -75,7 +66,6 @@ export type BidderProfile = {
 const CRITERIA_LABELS: Record<string, string> = {
     holiday: 'Holidays',
     personal: 'Personal dates',
-    start_time: 'Start time',
     desk: 'Desk type',
 };
 
@@ -87,19 +77,14 @@ const HOLIDAY_LABELS: Record<string, string> = {
 };
 
 const DESK_LABELS: Record<string, string> = {
-    XG: 'Regional',
-    XR: 'Router',
-    XS: 'Sector',
+    DG7: 'Regional 06/07',
+    AG15: 'Regional 14/15',
+    DR7: 'Router 06/07',
+    AR15: 'Router 14/15',
+    DS7: 'Sector 06/07',
+    AS7: 'Sector 14/15',
     MID: 'Midnight',
     RELIEF: 'Relief',
-};
-
-const START_TIME_LABELS: Record<string, string> = {
-    '6': '06:00',
-    '7': '07:00',
-    '14': '14:00',
-    '15': '15:00',
-    '22': '22:00',
 };
 
 const dateInputClass = 'h-8 text-xs [color-scheme:dark]';
@@ -220,18 +205,15 @@ export function emptyBidderProfile(defaults: BidderProfile): BidderProfile {
         vacation_bank: defaults.vacation_bank,
         holiday_rank: defaults.holiday_rank.map((e) => ({ ...e })),
         desk_rank: defaults.desk_rank.map((e) => ({ ...e })),
-        start_time_rank: defaults.start_time_rank.map((e) => ({ ...e })),
         weights: {
             ...defaults.weights,
             sort_mode: defaults.weights.sort_mode ?? 'blended',
-            strict_shift_order: normalizeStrictShiftOrder(
-                defaults.weights.strict_shift_order,
+            criteria_order: normalizeCriteriaOrder(
+                defaults.weights.criteria_order,
             ),
-            strict_shift_rank: normalizeStrictShiftRank(
-                defaults.weights.strict_shift_rank,
+            start_time_tiebreak_order: normalizeStartTimeTiebreakOrder(
+                defaults.weights.start_time_tiebreak_order,
             ),
-            criteria_order: [...defaults.weights.criteria_order],
-            shift_order: normalizeShiftOrder(defaults.weights.shift_order),
         },
         personal_dates: [],
         vacation_ranges: [],
@@ -260,10 +242,7 @@ export function BidderProfileFields({
     value: BidderProfile;
     onChange: (profile: BidderProfile) => void;
     idPrefix?: string;
-    rankDefaults?: Pick<
-        BidderProfile,
-        'holiday_rank' | 'desk_rank' | 'start_time_rank'
-    >;
+    rankDefaults?: Pick<BidderProfile, 'holiday_rank' | 'desk_rank'>;
     scenarioId?: number;
     lines?: LinePickerRow[];
 }) {
@@ -275,10 +254,6 @@ export function BidderProfileFields({
         value.desk_rank,
         rankDefaults?.desk_rank ?? [],
     );
-    const startTimeRank = normalizeRankEntries(
-        value.start_time_rank,
-        rankDefaults?.start_time_rank ?? [],
-    );
     const setWeights = (patch: Partial<BidderProfile['weights']>) => {
         onChange({ ...value, weights: { ...value.weights, ...patch } });
     };
@@ -289,13 +264,12 @@ export function BidderProfileFields({
             weights: value.weights,
             holiday_rank: holidayRank,
             desk_rank: deskRank,
-            start_time_rank: startTimeRank,
             personal_dates: value.personal_dates.filter((p) => p.date),
             vacation_ranges: value.vacation_ranges.filter(
                 (r) => r.starts_on && r.ends_on,
             ),
         }),
-        [value, holidayRank, deskRank, startTimeRank],
+        [value, holidayRank, deskRank],
     );
 
     return (
@@ -330,11 +304,11 @@ export function BidderProfileFields({
             </BidToolsCollapsibleSection>
 
             <BidToolsCollapsibleSection
-                title="Holidays, desk & start"
-                summary={`${holidayRank.length} hol · ${deskRank.length} desk · ${startTimeRank.length} start`}
+                title="Holidays & desk"
+                summary={`${holidayRank.length} hol · ${deskRank.length} desk`}
                 defaultOpen
             >
-                <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+                <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
                     <div className={preferenceColumnClass}>
                         <PreferenceColumnHeader title="Holidays" />
                         <TieredRankList
@@ -363,26 +337,14 @@ export function BidderProfileFields({
                             hideLabel
                         />
                     </div>
-                    <div className={preferenceColumnClass}>
-                        <PreferenceColumnHeader title="Start time" />
-                        <TieredRankList
-                            idPrefix={`${idPrefix}-start`}
-                            label="Start time"
-                            entries={startTimeRank}
-                            labels={START_TIME_LABELS}
-                            onChange={(start_time_rank) =>
-                                onChange({ ...value, start_time_rank })
-                            }
-                            compact
-                            hideLabel
-                        />
-                    </div>
                 </div>
                 <div className="mt-3 border-t border-sidebar-border/50 pt-3">
-                    <ShiftOrderPicker
-                        value={normalizeShiftOrder(value.weights.shift_order)}
-                        onChange={(shift_order) =>
-                            setWeights({ shift_order })
+                    <StartTimeTiebreakPicker
+                        value={normalizeStartTimeTiebreakOrder(
+                            value.weights.start_time_tiebreak_order,
+                        )}
+                        onChange={(start_time_tiebreak_order) =>
+                            setWeights({ start_time_tiebreak_order })
                         }
                     />
                 </div>
@@ -642,19 +604,6 @@ export function BidderProfileFields({
                         </div>
                     </div>
                 </div>
-                <StrictShiftOrderField
-                    id={`${idPrefix}-strict-shift-order`}
-                    checked={value.weights.strict_shift_order ?? false}
-                    onCheckedChange={(checked) =>
-                        setWeights({ strict_shift_order: checked })
-                    }
-                    rank={normalizeStrictShiftRank(
-                        value.weights.strict_shift_rank,
-                    )}
-                    onRankChange={(strict_shift_rank) =>
-                        setWeights({ strict_shift_rank })
-                    }
-                />
             </BidToolsCollapsibleSection>
 
             <BidToolsCollapsibleSection title="Weights">
@@ -670,12 +619,6 @@ export function BidderProfileFields({
                         label="Personal weight"
                         value={value.weights.personal}
                         onChange={(personal) => setWeights({ personal })}
-                    />
-                    <WeightSlider
-                        id={`${idPrefix}-w-start`}
-                        label="Start time weight"
-                        value={value.weights.start_time}
-                        onChange={(start_time) => setWeights({ start_time })}
                     />
                     <WeightSlider
                         id={`${idPrefix}-w-desk`}

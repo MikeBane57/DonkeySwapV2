@@ -15,21 +15,16 @@ import {
 import AppLayout from '@/layouts/app-layout';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
-import type { DeskGroupShift } from '@/pages/app/bid-tools/desk-group-shift';
 import {
     HolidayRankList,
     PreferenceColumnHeader,
-    ShiftOrderPicker,
-    normalizeShiftOrder,
+    StartTimeTiebreakPicker,
+    normalizeCriteriaOrder,
+    normalizeStartTimeTiebreakOrder,
     preferenceColumnClass,
+    type StartTimeTiebreakKey,
 } from '@/pages/app/bid-tools/preference-rank-shared';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
-import {
-    normalizeStrictShiftOrder,
-    normalizeStrictShiftRank,
-    StrictShiftOrderField,
-} from '@/pages/app/bid-tools/strict-shift-order-field';
-import type { StrictShiftClass } from '@/pages/app/bid-tools/strict-shift-rank';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 import type { BreadcrumbItem } from '@/types';
 
@@ -67,7 +62,6 @@ function usesTierGroupSort(mode: SortMode): boolean {
 const CRITERIA_LABELS: Record<string, string> = {
     holiday: 'Holidays',
     personal: 'Personal dates',
-    start_time: 'Start time',
     desk: 'Desk type',
 };
 
@@ -161,7 +155,6 @@ export default function BidScenarioEdit({
     distinctCodes,
     holidaysCatalog,
     deskCatalog,
-    startTimeCatalog,
     lines,
 }: {
     scenario: {
@@ -170,14 +163,12 @@ export default function BidScenarioEdit({
         vacation_bank: number;
         weights: Record<string, unknown> & {
             sort_mode?: SortMode;
-            strict_shift_order?: boolean;
-            strict_shift_rank?: StrictShiftClass[];
             criteria_order?: string[];
-            shift_order?: DeskGroupShift[];
+            start_time_tiebreak_order?: StartTimeTiebreakKey[];
+            shift_order?: string[];
         };
         holiday_rank: HolidayEntry[];
         desk_rank: KeyedEntry[];
-        start_time_rank: KeyedEntry[];
         personal_dates: PersonalEntry[];
         import: {
             bid_year: number;
@@ -189,7 +180,6 @@ export default function BidScenarioEdit({
     distinctCodes: string[];
     holidaysCatalog: { date: string; id: string; label: string }[];
     deskCatalog: { key: string; label: string }[];
-    startTimeCatalog: { key: string; label: string }[];
     lines: LinePickerRow[];
 }) {
     const page = usePage<{
@@ -205,7 +195,6 @@ export default function BidScenarioEdit({
     const [weights, setWeights] = useState({
         holiday: Number(scenario.weights?.holiday ?? 1),
         personal: Number(scenario.weights?.personal ?? 1),
-        start_time: Number(scenario.weights?.start_time ?? 1),
         desk: Number(scenario.weights?.desk ?? 1),
         vacation_penalty: Number(scenario.weights?.vacation_penalty ?? 1),
     });
@@ -217,31 +206,22 @@ export default function BidScenarioEdit({
 
         return 'blended';
     });
-    const [strictShiftOrder, setStrictShiftOrder] = useState(() =>
-        normalizeStrictShiftOrder(scenario.weights?.strict_shift_order),
+    const [criteriaOrder, setCriteriaOrder] = useState<string[]>(() =>
+        normalizeCriteriaOrder(scenario.weights?.criteria_order),
     );
-    const [strictShiftRank, setStrictShiftRank] = useState<StrictShiftClass[]>(
-        () => normalizeStrictShiftRank(scenario.weights?.strict_shift_rank),
-    );
-    const [criteriaOrder, setCriteriaOrder] = useState<string[]>(() => {
-        const o = scenario.weights?.criteria_order;
-        if (Array.isArray(o) && o.length === 4) {
-            return [...o];
-        }
-
-        return ['holiday', 'personal', 'start_time', 'desk'];
-    });
-    const [shiftOrder, setShiftOrder] = useState<DeskGroupShift[]>(() =>
-        normalizeShiftOrder(scenario.weights?.shift_order),
+    const [startTimeTiebreakOrder, setStartTimeTiebreakOrder] = useState<
+        StartTimeTiebreakKey[]
+    >(() =>
+        normalizeStartTimeTiebreakOrder(
+            scenario.weights?.start_time_tiebreak_order ??
+                scenario.weights?.shift_order,
+        ),
     );
 
     const [holidays, setHolidays] = useState<HolidayEntry[]>(
         scenario.holiday_rank,
     );
     const [deskRank, setDeskRank] = useState<KeyedEntry[]>(scenario.desk_rank);
-    const [startRank, setStartRank] = useState<KeyedEntry[]>(
-        scenario.start_time_rank,
-    );
     const [personalDates, setPersonalDates] = useState<PersonalEntry[]>(
         scenario.personal_dates.length ? scenario.personal_dates : [],
     );
@@ -263,15 +243,7 @@ export default function BidScenarioEdit({
         () => new Set(deskRank.map((d) => d.key)),
         [deskRank],
     );
-    const startKeysInUse = useMemo(
-        () => new Set(startRank.map((d) => d.key)),
-        [startRank],
-    );
-
     const addDeskOptions = deskCatalog.filter((d) => !deskKeysInUse.has(d.key));
-    const addStartOptions = startTimeCatalog.filter(
-        (d) => !startKeysInUse.has(d.key),
-    );
 
     const deskLabels = useMemo(
         () =>
@@ -280,14 +252,6 @@ export default function BidScenarioEdit({
             ) as Record<string, string>,
         [deskCatalog],
     );
-    const startLabels = useMemo(
-        () =>
-            Object.fromEntries(
-                startTimeCatalog.map((d) => [d.key, d.label]),
-            ) as Record<string, string>,
-        [startTimeCatalog],
-    );
-
     const submit = useCallback(() => {
         setSaving(true);
         router.put(
@@ -301,18 +265,14 @@ export default function BidScenarioEdit({
                 weights: {
                     holiday: Number(weights.holiday) || 0,
                     personal: Number(weights.personal) || 0,
-                    start_time: Number(weights.start_time) || 0,
                     desk: Number(weights.desk) || 0,
                     vacation_penalty: Number(weights.vacation_penalty) || 0,
                     sort_mode: sortMode,
-                    strict_shift_order: strictShiftOrder,
-                    strict_shift_rank: strictShiftRank,
                     criteria_order: criteriaOrder,
-                    shift_order: shiftOrder,
+                    start_time_tiebreak_order: startTimeTiebreakOrder,
                 },
                 holiday_rank: holidays,
                 desk_rank: deskRank,
-                start_time_rank: startRank,
                 personal_dates: personalDates.filter((p) => p.date),
                 vacation_ranges: ranges.filter((r) => r.starts_on && r.ends_on),
             },
@@ -327,13 +287,10 @@ export default function BidScenarioEdit({
         vacationBank,
         weights,
         sortMode,
-        strictShiftOrder,
-        strictShiftRank,
         criteriaOrder,
-        shiftOrder,
+        startTimeTiebreakOrder,
         holidays,
         deskRank,
-        startRank,
         personalDates,
         ranges,
         scenario.id,
@@ -345,18 +302,14 @@ export default function BidScenarioEdit({
             weights: {
                 holiday: Number(weights.holiday) || 0,
                 personal: Number(weights.personal) || 0,
-                start_time: Number(weights.start_time) || 0,
                 desk: Number(weights.desk) || 0,
                 vacation_penalty: Number(weights.vacation_penalty) || 0,
                 sort_mode: sortMode,
                 criteria_order: criteriaOrder,
-                strict_shift_order: strictShiftOrder,
-                strict_shift_rank: strictShiftRank,
-                shift_order: shiftOrder,
+                start_time_tiebreak_order: startTimeTiebreakOrder,
             },
             holiday_rank: holidays,
             desk_rank: deskRank,
-            start_time_rank: startRank,
             personal_dates: personalDates.filter((p) => p.date),
             vacation_ranges: ranges.filter((r) => r.starts_on && r.ends_on),
         }),
@@ -365,12 +318,9 @@ export default function BidScenarioEdit({
             weights,
             sortMode,
             criteriaOrder,
-            strictShiftOrder,
-            strictShiftRank,
-            shiftOrder,
+            startTimeTiebreakOrder,
             holidays,
             deskRank,
-            startRank,
             personalDates,
             ranges,
         ],
@@ -694,21 +644,14 @@ export default function BidScenarioEdit({
                                 </div>
                             </div>
                         </div>
-                        <StrictShiftOrderField
-                            id="strict-shift-order"
-                            checked={strictShiftOrder}
-                            onCheckedChange={setStrictShiftOrder}
-                            rank={strictShiftRank}
-                            onRankChange={setStrictShiftRank}
-                        />
                     </BidToolsCollapsibleSection>
 
                     <BidToolsCollapsibleSection
-                        title="Holidays, desk & start"
-                        summary={`${holidays.length} hol · ${deskRank.length} desk · ${startRank.length} start`}
+                        title="Holidays & desk"
+                        summary={`${holidays.length} hol · ${deskRank.length} desk`}
                         defaultOpen
                     >
-                        <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+                        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
                             <div className={preferenceColumnClass}>
                                 <PreferenceColumnHeader
                                     title="Holidays"
@@ -777,59 +720,11 @@ export default function BidScenarioEdit({
                                     hideLabel
                                 />
                             </div>
-
-                            <div className={preferenceColumnClass}>
-                                <PreferenceColumnHeader title="Start time" />
-                                {addStartOptions.length > 0 && (
-                                    <Select
-                                        onValueChange={(key) => {
-                                            setStartRank([
-                                                ...startRank,
-                                                {
-                                                    key,
-                                                    priority: 'high',
-                                                    tier: startRank.length + 1,
-                                                },
-                                            ]);
-                                        }}
-                                    >
-                                        <SelectTrigger className="h-8 w-full text-xs">
-                                            <SelectValue placeholder="Add start…" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {addStartOptions.map((d) => (
-                                                <SelectItem
-                                                    key={d.key}
-                                                    value={d.key}
-                                                >
-                                                    {d.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                                <TieredRankList
-                                    idPrefix="scenario-start"
-                                    label="Start time"
-                                    entries={startRank}
-                                    labels={startLabels}
-                                    onChange={setStartRank}
-                                    onRemoveKey={(key) =>
-                                        setStartRank(
-                                            startRank.filter(
-                                                (d) => d.key !== key,
-                                            ),
-                                        )
-                                    }
-                                    compact
-                                    hideLabel
-                                />
-                            </div>
                         </div>
                         <div className="mt-4 border-t border-sidebar-border/50 pt-4">
-                            <ShiftOrderPicker
-                                value={shiftOrder}
-                                onChange={setShiftOrder}
+                            <StartTimeTiebreakPicker
+                                value={startTimeTiebreakOrder}
+                                onChange={setStartTimeTiebreakOrder}
                             />
                         </div>
                     </BidToolsCollapsibleSection>
@@ -931,7 +826,6 @@ export default function BidScenarioEdit({
                                 [
                                     'holiday',
                                     'personal',
-                                    'start_time',
                                     'desk',
                                     'vacation_penalty',
                                 ] as const

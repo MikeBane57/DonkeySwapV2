@@ -79,11 +79,10 @@ test('preview score accepts draft profile changes', function () {
         'weights' => [
             'holiday' => 1,
             'personal' => 1,
-            'start_time' => 1,
             'desk' => 1,
             'vacation_penalty' => 1,
             'sort_mode' => 'weighted',
-            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+            'criteria_order' => ['holiday', 'personal', 'desk'],
         ],
     ]);
 
@@ -107,11 +106,10 @@ test('preview score accepts draft profile changes', function () {
                 'weights' => [
                     'holiday' => 10,
                     'personal' => 0,
-                    'start_time' => 0,
                     'desk' => 0,
                     'vacation_penalty' => 0,
                     'sort_mode' => 'weighted',
-                    'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+                    'criteria_order' => ['holiday', 'personal', 'desk'],
                 ],
             ],
         ],

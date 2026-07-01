@@ -10,7 +10,6 @@ final class BidScenarioProfileBuilder
 {
     public function __construct(
         private readonly ScenarioScoreService $scoreService,
-        private readonly BidLinePreferenceCatalog $preferenceCatalog,
         private readonly CondensedBidderProfileMapper $condensedMapper,
     ) {}
 
@@ -26,7 +25,6 @@ final class BidScenarioProfileBuilder
             'weights' => ScenarioScoreService::defaultWeights(),
             'holiday_rank' => $condensed['holiday_rank'],
             'desk_rank' => $condensed['desk_rank'],
-            'start_time_rank' => $condensed['start_time_rank'],
             'personal_dates' => [],
             'vacation_ranges' => [],
         ];
@@ -44,10 +42,11 @@ final class BidScenarioProfileBuilder
             $scenario->weights ?? [],
         );
         $weights['criteria_order'] = ScenarioScoreService::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
-        $weights['shift_order'] = ScenarioScoreService::normalizeShiftOrder($weights['shift_order'] ?? null);
+        $weights['start_time_tiebreak_order'] = ScenarioScoreService::normalizeStartTimeTiebreakOrder(
+            $weights['start_time_tiebreak_order'] ?? $weights['shift_order'] ?? null,
+        );
         $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
-        $weights['strict_shift_order'] = ScenarioScoreService::normalizeStrictShiftOrder($weights['strict_shift_order'] ?? null);
-        $weights['strict_shift_rank'] = ScenarioScoreService::normalizeStrictShiftRank($weights['strict_shift_rank'] ?? null);
+        unset($weights['shift_order'], $weights['strict_shift_order'], $weights['strict_shift_rank'], $weights['start_time']);
 
         $condensed = $this->condensedMapper->toCondensedPayload($scenario);
 
@@ -56,7 +55,6 @@ final class BidScenarioProfileBuilder
             'weights' => $weights,
             'holiday_rank' => $condensed['holiday_rank'],
             'desk_rank' => $condensed['desk_rank'],
-            'start_time_rank' => $condensed['start_time_rank'],
             'personal_dates' => $this->scoreService->personalDatesForEditor($scenario->personal_dates ?? []),
             'vacation_ranges' => $scenario->vacationRanges->map(fn ($r) => [
                 'title' => $r->title ?? '',
@@ -85,7 +83,7 @@ final class BidScenarioProfileBuilder
             'weights' => $merged['weights'],
             'holiday_rank' => $merged['holiday_rank'],
             'desk_rank' => $merged['desk_rank'],
-            'start_time_rank' => $merged['start_time_rank'],
+            'start_time_rank' => [],
             'personal_dates' => $merged['personal_dates'],
             'code_overrides' => [],
         ]);
@@ -108,7 +106,6 @@ final class BidScenarioProfileBuilder
             'weights' => $merged['weights'],
             'holiday_rank' => $merged['holiday_rank'],
             'desk_rank' => $merged['desk_rank'],
-            'start_time_rank' => $merged['start_time_rank'],
             'personal_dates' => $merged['personal_dates'],
         ]);
         $scenario->save();
@@ -139,21 +136,20 @@ final class BidScenarioProfileBuilder
             is_array($profile['weights'] ?? null) ? $profile['weights'] : [],
         );
 
-        if (! is_array($weights['criteria_order'] ?? null) || count($weights['criteria_order']) !== 4) {
-            $weights['criteria_order'] = $defaults['weights']['criteria_order'];
-        }
-        $weights['criteria_order'] = ScenarioScoreService::normalizeCriteriaOrder($weights['criteria_order']);
+        $weights['criteria_order'] = ScenarioScoreService::normalizeCriteriaOrder(
+            $weights['criteria_order'] ?? $defaults['weights']['criteria_order'],
+        );
         $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
-        $weights['strict_shift_order'] = ScenarioScoreService::normalizeStrictShiftOrder($weights['strict_shift_order'] ?? null);
-        $weights['strict_shift_rank'] = ScenarioScoreService::normalizeStrictShiftRank($weights['strict_shift_rank'] ?? null);
-        $weights['shift_order'] = ScenarioScoreService::normalizeShiftOrder($weights['shift_order'] ?? null);
+        $weights['start_time_tiebreak_order'] = ScenarioScoreService::normalizeStartTimeTiebreakOrder(
+            $weights['start_time_tiebreak_order'] ?? $weights['shift_order'] ?? null,
+        );
+        unset($weights['shift_order'], $weights['strict_shift_order'], $weights['strict_shift_rank'], $weights['start_time']);
 
         return [
             'vacation_bank' => (int) ($profile['vacation_bank'] ?? $defaults['vacation_bank']),
             'weights' => $weights,
             'holiday_rank' => $expanded['holiday_rank'],
             'desk_rank' => $expanded['desk_rank'],
-            'start_time_rank' => $expanded['start_time_rank'],
             'personal_dates' => is_array($profile['personal_dates'] ?? null)
                 ? $profile['personal_dates']
                 : $defaults['personal_dates'],

@@ -1,246 +1,65 @@
 <?php
 
 use App\Models\BidLine;
-use App\Models\BidLineDay;
 use App\Models\BidScenario;
 use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
-use App\Services\BidTools\LineShiftClassifier;
 use App\Services\BidTools\ScenarioScoreService;
-use App\Services\BidTools\StartTimeNormalizer;
-use Carbon\CarbonImmutable;
 
-function shiftClassifier(): LineShiftClassifier
-{
-    return new LineShiftClassifier(new StartTimeNormalizer);
-}
-
-function makeShiftLine(
-    array $workCodes,
-    string $deskGroup = 'DG',
-    string $startTime = '0600',
-): BidLine {
-    $line = new BidLine([
-        'desk_group' => $deskGroup,
-        'start_time' => $startTime,
-    ]);
-    $line->setRelation('days', collect($workCodes)->map(function (array $entry, int $idx) {
-        $day = new BidLineDay([
-            'assignment_date' => CarbonImmutable::create(2026, 3, 1)->addDays($idx),
-            'raw_cell' => $entry['raw'] ?? $entry['code'],
-            'is_off' => $entry['off'] ?? false,
-            'normalized_code' => ($entry['off'] ?? false) ? null : strtoupper($entry['code']),
-        ]);
-
-        return $day;
-    }));
-
-    return $line;
-}
-
-test('classifies start times into am pm and mid buckets', function () {
-    $classifier = shiftClassifier();
-
-    expect($classifier->startShiftBucket('0600'))->toBe('am');
-    expect($classifier->startShiftBucket('AM-MIX 0600 0700'))->toBe('am');
-    expect($classifier->startShiftBucket('1500'))->toBe('pm');
-    expect($classifier->startShiftBucket('PM-MIX'))->toBe('pm');
-    expect($classifier->startShiftBucket('2200'))->toBe('mid');
-    expect($classifier->startShiftBucket('MID-MIX'))->toBe('mid');
-});
-
-test('relief lines classify as relief regardless of start time', function () {
-    $classifier = shiftClassifier();
-
-    $relief = makeShiftLine([
-        ['code' => 'RELIEF-S4'],
-    ], deskGroup: 'DG', startTime: '0600');
-
-    expect($classifier->classify($relief))->toBe(LineShiftClassifier::SHIFT_RELIEF);
-});
-
-test('non relief lines classify from desk group prefix', function () {
-    $classifier = shiftClassifier();
-
-    $am = makeShiftLine([], deskGroup: 'DG', startTime: '1500');
-    $pm = makeShiftLine([], deskGroup: 'AG', startTime: '0600');
-    $mid = makeShiftLine([], deskGroup: 'MG', startTime: '0600');
-
-    expect($classifier->classify($am))->toBe('am');
-    expect($classifier->classify($pm))->toBe('pm');
-    expect($classifier->classify($mid))->toBe('mid');
-});
-
-test('strict shift order ranks am before pm before mid before relief', function () {
+test('start time tiebreak ranks preferred hour when desk tiers match', function () {
     config(['features.bid_tools' => true]);
 
     $user = User::factory()->create();
     $bidYear = 2026;
-    $path = writeStartTimeHolidayTradeoffCsv($bidYear);
+    $path = writeDeskStartTradeoffCsv($bidYear);
 
     $import = app(BidLineCsvImportService::class)->importFromPath(
         $path,
-        'shift-order.csv',
+        'tiebreak.csv',
         $user->id,
         $bidYear,
         null,
-        'Shift order import',
+        'Tiebreak import',
     )['import'];
 
     @unlink($path);
 
-    $amLine = BidLine::query()
+    $dg0600 = BidLine::query()
         ->where('bid_import_id', $import->id)
         ->where('line_num', '551')
         ->firstOrFail();
-    $pmLine = BidLine::query()
+    $dg0700 = BidLine::query()
         ->where('bid_import_id', $import->id)
-        ->where('line_num', '552')
+        ->where('line_num', '553')
         ->firstOrFail();
 
     $scenario = BidScenario::create([
         'user_id' => $user->id,
         'bid_import_id' => $import->id,
-        'name' => 'Strict shift order',
+        'name' => 'Tiebreak test',
         'vacation_bank' => 10,
         'weights' => [
-            'holiday' => 100,
+            'holiday' => 0,
             'personal' => 0,
-            'start_time' => 0,
-            'desk' => 0,
+            'desk' => 1,
             'vacation_penalty' => 0,
             'sort_mode' => 'weighted',
-            'strict_shift_order' => true,
-            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
+            'criteria_order' => ['holiday', 'personal', 'desk'],
+            'start_time_tiebreak_order' => ['7', '6', '14', '15', '22'],
         ],
-        'holiday_rank' => app(ScenarioScoreService::class)->defaultHolidayEntries($bidYear),
-        'desk_rank' => [],
+        'holiday_rank' => [],
+        'desk_rank' => [
+            ['key' => 'DG7', 'priority' => 'high', 'tier' => 1],
+        ],
         'start_time_rank' => [],
         'personal_dates' => [],
     ]);
 
     $scores = app(ScenarioScoreService::class)->scoreLines(
         $scenario,
-        [$pmLine->id, $amLine->id],
+        [$dg0600->id, $dg0700->id],
     );
 
-    expect($scores)->toHaveCount(2);
-    expect($scores[0]['bid_line_id'])->toBe($amLine->id);
-    expect($scores[1]['bid_line_id'])->toBe($pmLine->id);
-    expect($scores[0]['total'])->toBeLessThan($scores[1]['total']);
-});
-
-test('strict shift rank order is user configurable', function () {
-    config(['features.bid_tools' => true]);
-
-    $user = User::factory()->create();
-    $bidYear = 2026;
-    $path = writeStartTimeHolidayTradeoffCsv($bidYear);
-
-    $import = app(BidLineCsvImportService::class)->importFromPath(
-        $path,
-        'shift-rank-custom.csv',
-        $user->id,
-        $bidYear,
-        null,
-        'Custom shift rank import',
-    )['import'];
-
-    @unlink($path);
-
-    $amLine = BidLine::query()
-        ->where('bid_import_id', $import->id)
-        ->where('line_num', '551')
-        ->firstOrFail();
-    $pmLine = BidLine::query()
-        ->where('bid_import_id', $import->id)
-        ->where('line_num', '552')
-        ->firstOrFail();
-
-    $scenario = BidScenario::create([
-        'user_id' => $user->id,
-        'bid_import_id' => $import->id,
-        'name' => 'PM first strict shift rank',
-        'vacation_bank' => 10,
-        'weights' => [
-            'holiday' => 100,
-            'personal' => 0,
-            'start_time' => 0,
-            'desk' => 0,
-            'vacation_penalty' => 0,
-            'sort_mode' => 'weighted',
-            'strict_shift_order' => true,
-            'strict_shift_rank' => ['pm', 'mid', 'am', 'relief'],
-            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
-        ],
-        'holiday_rank' => app(ScenarioScoreService::class)->defaultHolidayEntries($bidYear),
-        'desk_rank' => [],
-        'start_time_rank' => [],
-        'personal_dates' => [],
-    ]);
-
-    $scores = app(ScenarioScoreService::class)->scoreLines(
-        $scenario,
-        [$amLine->id, $pmLine->id],
-    );
-
-    expect($scores)->toHaveCount(2);
-    expect($scores[0]['bid_line_id'])->toBe($pmLine->id);
-    expect($scores[1]['bid_line_id'])->toBe($amLine->id);
-});
-
-test('without strict shift order holidays can outrank shift class', function () {
-    config(['features.bid_tools' => true]);
-
-    $user = User::factory()->create();
-    $bidYear = 2026;
-    $path = writeStartTimeHolidayTradeoffCsv($bidYear);
-
-    $import = app(BidLineCsvImportService::class)->importFromPath(
-        $path,
-        'shift-order-off.csv',
-        $user->id,
-        $bidYear,
-        null,
-        'Shift order off import',
-    )['import'];
-
-    @unlink($path);
-
-    $amLine = BidLine::query()
-        ->where('bid_import_id', $import->id)
-        ->where('line_num', '551')
-        ->firstOrFail();
-    $pmLine = BidLine::query()
-        ->where('bid_import_id', $import->id)
-        ->where('line_num', '552')
-        ->firstOrFail();
-
-    $scenario = BidScenario::create([
-        'user_id' => $user->id,
-        'bid_import_id' => $import->id,
-        'name' => 'Weighted holidays win',
-        'vacation_bank' => 10,
-        'weights' => [
-            'holiday' => 100,
-            'personal' => 0,
-            'start_time' => 0,
-            'desk' => 0,
-            'vacation_penalty' => 0,
-            'sort_mode' => 'weighted',
-            'strict_shift_order' => false,
-            'criteria_order' => ['holiday', 'personal', 'start_time', 'desk'],
-        ],
-        'holiday_rank' => app(ScenarioScoreService::class)->defaultHolidayEntries($bidYear),
-        'desk_rank' => [],
-        'start_time_rank' => [],
-        'personal_dates' => [],
-    ]);
-
-    $scores = app(ScenarioScoreService::class)->scoreLines(
-        $scenario,
-        [$amLine->id, $pmLine->id],
-    );
-
-    expect($scores[0]['bid_line_id'])->toBe($pmLine->id);
+    expect($scores[0]['bid_line_id'])->toBe($dg0700->id);
+    expect($scores[0]['start_time_tiebreak_key'])->toBe('7');
 });

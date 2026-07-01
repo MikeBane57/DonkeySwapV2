@@ -9,11 +9,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import type { DeskGroupShift } from '@/pages/app/bid-tools/desk-group-shift';
 
 export type Priority = 'ignore' | 'low' | 'high';
 
-/** Shared layout tokens for holidays / desk / start columns */
+export type StartTimeTiebreakKey = '6' | '7' | '14' | '15' | '22';
+
+/** Shared layout tokens for holidays / desk columns */
 export const preferenceColumnClass = 'flex min-w-0 flex-col gap-1.5';
 export const preferencePuckGroupClass =
     'flex min-w-[9.5rem] flex-col gap-1 rounded-md border border-sidebar-border/60 bg-muted/10 px-2 py-1.5';
@@ -22,12 +23,20 @@ export const preferencePuckRowClass =
 export const preferencePuckLabelClass =
     'min-w-0 flex-1 truncate text-xs leading-tight';
 
-export const SHIFT_ORDER_DEFAULT: DeskGroupShift[] = ['am', 'pm', 'mid'];
+export const START_TIME_TIEBREAK_DEFAULT: StartTimeTiebreakKey[] = [
+    '6',
+    '7',
+    '14',
+    '15',
+    '22',
+];
 
-export const SHIFT_LABELS: Record<DeskGroupShift, string> = {
-    am: 'AM (D*)',
-    pm: 'PM (A*)',
-    mid: 'Mid (M*)',
+export const START_TIME_TIEBREAK_LABELS: Record<StartTimeTiebreakKey, string> = {
+    '6': '06:00',
+    '7': '07:00',
+    '14': '14:00',
+    '15': '15:00',
+    '22': '22:00',
 };
 
 function moveIndex<T>(list: T[], from: number, to: number): T[] {
@@ -123,24 +132,24 @@ export function DraggablePreferenceRow({
     );
 }
 
-export function ShiftOrderPicker({
+export function StartTimeTiebreakPicker({
     value,
     onChange,
 }: {
-    value: DeskGroupShift[];
-    onChange: (order: DeskGroupShift[]) => void;
+    value: StartTimeTiebreakKey[];
+    onChange: (order: StartTimeTiebreakKey[]) => void;
 }) {
     return (
         <div className="space-y-1.5">
-            <Label className="text-xs">Start shift order</Label>
+            <Label className="text-xs">Preferred start time tiebreaker</Label>
             <p className="text-[11px] text-muted-foreground">
-                Drag to set which desk shift (AM / PM / Mid) ranks higher when
-                lines are otherwise tied.
+                Drag to set which clock start ranks higher when lines are
+                otherwise tied within the same desk tier.
             </p>
             <div className={`${preferencePuckGroupClass} flex-row flex-wrap gap-1.5`}>
-                {value.map((shift, idx) => (
+                {value.map((hour, idx) => (
                     <DraggablePreferenceRow
-                        key={shift}
+                        key={hour}
                         index={idx}
                         onReorder={(from, to) =>
                             onChange(moveIndex(value, from, to))
@@ -149,7 +158,7 @@ export function ShiftOrderPicker({
                         <span
                             className={`${preferencePuckLabelClass} font-medium`}
                         >
-                            {SHIFT_LABELS[shift]}
+                            {START_TIME_TIEBREAK_LABELS[hour]}
                         </span>
                     </DraggablePreferenceRow>
                 ))}
@@ -199,27 +208,79 @@ export function HolidayRankList({
     );
 }
 
-export function normalizeShiftOrder(
+export function normalizeStartTimeTiebreakOrder(
     raw: unknown,
-): DeskGroupShift[] {
-    const allowed: DeskGroupShift[] = ['am', 'pm', 'mid'];
+): StartTimeTiebreakKey[] {
+    const allowed: StartTimeTiebreakKey[] = [...START_TIME_TIEBREAK_DEFAULT];
     if (!Array.isArray(raw)) {
-        return [...SHIFT_ORDER_DEFAULT];
+        return [...START_TIME_TIEBREAK_DEFAULT];
     }
 
-    const order: DeskGroupShift[] = [];
+    const order: StartTimeTiebreakKey[] = [];
     for (const item of raw) {
+        if (item === 'am') {
+            if (!order.includes('6')) {
+                order.push('6');
+            }
+            if (!order.includes('7')) {
+                order.push('7');
+            }
+            continue;
+        }
+        if (item === 'pm') {
+            if (!order.includes('14')) {
+                order.push('14');
+            }
+            if (!order.includes('15')) {
+                order.push('15');
+            }
+            continue;
+        }
+        if (item === 'mid' && !order.includes('22')) {
+            order.push('22');
+            continue;
+        }
         if (
-            (item === 'am' || item === 'pm' || item === 'mid') &&
+            (item === '6' ||
+                item === '7' ||
+                item === '14' ||
+                item === '15' ||
+                item === '22') &&
             !order.includes(item)
         ) {
             order.push(item);
         }
     }
 
-    for (const shift of allowed) {
-        if (!order.includes(shift)) {
-            order.push(shift);
+    for (const hour of allowed) {
+        if (!order.includes(hour)) {
+            order.push(hour);
+        }
+    }
+
+    return order;
+}
+
+export function normalizeCriteriaOrder(raw: unknown): string[] {
+    const defaultOrder = ['holiday', 'personal', 'desk'];
+    if (!Array.isArray(raw)) {
+        return defaultOrder;
+    }
+
+    const allowed = new Set(defaultOrder);
+    const order: string[] = [];
+    for (const item of raw) {
+        if (item === 'start_time') {
+            continue;
+        }
+        if (typeof item === 'string' && allowed.has(item) && !order.includes(item)) {
+            order.push(item);
+        }
+    }
+
+    for (const key of defaultOrder) {
+        if (!order.includes(key)) {
+            order.push(key);
         }
     }
 

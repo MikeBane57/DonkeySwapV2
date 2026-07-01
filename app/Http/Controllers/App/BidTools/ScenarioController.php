@@ -44,13 +44,9 @@ class ScenarioController extends Controller
         $bidYear = (int) $import->bid_year;
 
         $deskKeys = $this->preferenceCatalog->deskKeysForImport($import->id);
-        $startKeys = $this->preferenceCatalog->startTimeKeysForImport($import->id);
         $deskRank = $deskKeys === []
             ? $this->scoreService->defaultDeskEntries()
             : $this->scoreService->deskEntriesForEditor([], $deskKeys);
-        $startRank = $startKeys === []
-            ? $this->scoreService->defaultStartTimeEntries()
-            : $this->scoreService->startTimeEntriesForEditor([], $startKeys);
 
         $scenario = BidScenario::create([
             'user_id' => $user->id,
@@ -60,7 +56,7 @@ class ScenarioController extends Controller
             'weights' => ScenarioScoreService::defaultWeights(),
             'holiday_rank' => $this->scoreService->defaultHolidayEntries($bidYear),
             'desk_rank' => $deskRank,
-            'start_time_rank' => $startRank,
+            'start_time_rank' => [],
             'personal_dates' => [],
             'code_overrides' => [],
         ]);
@@ -81,13 +77,13 @@ class ScenarioController extends Controller
             $s->weights ?? [],
         );
         $weights['criteria_order'] = ScenarioScoreService::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
-        $weights['shift_order'] = ScenarioScoreService::normalizeShiftOrder($weights['shift_order'] ?? null);
+        $weights['start_time_tiebreak_order'] = ScenarioScoreService::normalizeStartTimeTiebreakOrder(
+            $weights['start_time_tiebreak_order'] ?? $weights['shift_order'] ?? null,
+        );
         $weights['sort_mode'] = ScenarioScoreService::normalizeSortMode($weights['sort_mode'] ?? null);
-        $weights['strict_shift_order'] = ScenarioScoreService::normalizeStrictShiftOrder($weights['strict_shift_order'] ?? null);
-        $weights['strict_shift_rank'] = ScenarioScoreService::normalizeStrictShiftRank($weights['strict_shift_rank'] ?? null);
+        unset($weights['shift_order'], $weights['strict_shift_order'], $weights['strict_shift_rank'], $weights['start_time']);
 
         $deskKeys = $this->preferenceCatalog->deskKeysForImport($s->bid_import_id);
-        $startKeys = $this->preferenceCatalog->startTimeKeysForImport($s->bid_import_id);
 
         return Inertia::render('app/bid-tools/scenarios/edit', [
             'scenario' => [
@@ -98,7 +94,6 @@ class ScenarioController extends Controller
                 'weights' => $weights,
                 'holiday_rank' => $this->scoreService->holidayEntriesForEditor($s->holiday_rank, $bidYear),
                 'desk_rank' => $this->scoreService->deskEntriesForEditor($s->desk_rank, $deskKeys),
-                'start_time_rank' => $this->scoreService->startTimeEntriesForEditor($s->start_time_rank, $startKeys),
                 'personal_dates' => $this->scoreService->personalDatesForEditor($s->personal_dates ?? []),
                 'code_overrides' => $s->code_overrides ?? [],
                 'import' => [
@@ -116,7 +111,6 @@ class ScenarioController extends Controller
             'distinctCodes' => $s->import->meta['distinct_codes'] ?? [],
             'holidaysCatalog' => $this->scoreService->holidaysCatalog($bidYear),
             'deskCatalog' => $this->preferenceCatalog->deskCatalogForImport($s->bid_import_id),
-            'startTimeCatalog' => $this->preferenceCatalog->startTimeCatalogForImport($s->bid_import_id),
             'lines' => $this->linePicker->rowsForImport($s->bid_import_id, $s->id),
         ]);
     }
@@ -141,11 +135,10 @@ class ScenarioController extends Controller
 
         $fillKeys = [
             'name', 'vacation_bank', 'weights', 'holiday_rank', 'desk_rank',
-            'start_time_rank', 'personal_dates', 'code_overrides',
+            'personal_dates', 'code_overrides',
         ];
         $payload = Arr::only($data, $fillKeys);
         $payload['desk_rank'] = $payload['desk_rank'] ?? [];
-        $payload['start_time_rank'] = $payload['start_time_rank'] ?? [];
         $payload['personal_dates'] = $payload['personal_dates'] ?? [];
         $s->fill($payload);
         $s->save();
@@ -166,7 +159,7 @@ class ScenarioController extends Controller
             'weights' => $source->weights,
             'holiday_rank' => $source->holiday_rank,
             'desk_rank' => $source->desk_rank,
-            'start_time_rank' => $source->start_time_rank,
+            'start_time_rank' => $source->start_time_rank ?? [],
             'personal_dates' => $source->personal_dates,
             'code_overrides' => $source->code_overrides ?? [],
         ]);

@@ -8,7 +8,7 @@ function mapper(): CondensedBidderProfileMapper
     return new CondensedBidderProfileMapper(new FederalHolidayCalendar);
 }
 
-test('condensed defaults include holiday desk and start time ranks', function () {
+test('condensed defaults include holiday and desk ranks', function () {
     $defaults = mapper()->condensedDefaults();
 
     expect($defaults['holiday_rank'])->toHaveCount(4);
@@ -19,29 +19,16 @@ test('condensed defaults include holiday desk and start time ranks', function ()
         'july_4',
     ]);
 
-    expect($defaults['desk_rank'])->toHaveCount(5);
+    expect($defaults['desk_rank'])->toHaveCount(8);
     expect(collect($defaults['desk_rank'])->pluck('key')->all())->toBe([
-        'XG',
-        'XR',
-        'XS',
+        'DG7',
+        'AG15',
+        'DR7',
+        'AR15',
+        'DS7',
+        'AS7',
         'MID',
         'RELIEF',
-    ]);
-
-    expect($defaults['start_time_rank'])->toHaveCount(5);
-    expect(collect($defaults['start_time_rank'])->pluck('key')->all())->toBe([
-        '6',
-        '7',
-        '14',
-        '15',
-        '22',
-    ]);
-    expect(collect($defaults['start_time_rank'])->pluck('tier')->all())->toBe([
-        1,
-        1,
-        2,
-        2,
-        3,
     ]);
 });
 
@@ -67,51 +54,30 @@ test('expand desk rank keeps only condensed buckets present in import', function
     $mapper = mapper();
 
     $expanded = $mapper->expandDeskRank([
-        ['key' => 'XG', 'priority' => 'high'],
-        ['key' => 'XR', 'priority' => 'low'],
-        ['key' => 'XS', 'priority' => 'high'],
+        ['key' => 'DG7', 'priority' => 'high'],
+        ['key' => 'DR7', 'priority' => 'low'],
+        ['key' => 'DS7', 'priority' => 'high'],
         ['key' => 'MID', 'priority' => 'ignore'],
         ['key' => 'RELIEF', 'priority' => 'high'],
-    ], ['XG', 'XR', 'XS']);
+    ], ['DG7', 'DR7', 'DS7']);
 
     $byKey = collect($expanded)->keyBy('key');
 
-    expect($byKey->keys()->all())->toBe(['XG', 'XR', 'XS']);
-    expect($byKey['XR']['priority'])->toBe('low');
-});
-
-test('expand start time rank maps hour keys to import start keys', function () {
-    $mapper = mapper();
-
-    $expanded = $mapper->expandStartTimeRank([
-        ['key' => '6', 'priority' => 'high', 'tier' => 1],
-        ['key' => '7', 'priority' => 'high', 'tier' => 1],
-        ['key' => '14', 'priority' => 'ignore', 'tier' => 2],
-        ['key' => '15', 'priority' => 'high', 'tier' => 2],
-        ['key' => '22', 'priority' => 'low', 'tier' => 3],
-    ], ['t_0600', 't_0700', 't_1400']);
-
-    $byKey = collect($expanded)->keyBy('key');
-
-    expect($byKey['t_0600']['priority'])->toBe('high');
-    expect($byKey['t_0700']['priority'])->toBe('high');
-    expect($byKey['t_0600']['tier'])->toBe(1);
-    expect($byKey['t_0700']['tier'])->toBe(1);
-    expect($byKey['t_1400']['priority'])->toBe('ignore');
-    expect($byKey['t_1400']['tier'])->toBe(2);
+    expect($byKey->keys()->all())->toBe(['DG7', 'DR7', 'DS7']);
+    expect($byKey['DR7']['priority'])->toBe('low');
 });
 
 test('to condensed desk rank preserves stored bucket priorities', function () {
     $mapper = mapper();
 
     $condensed = $mapper->toCondensedDeskRank([
-        ['key' => 'XG', 'priority' => 'high'],
-        ['key' => 'XR', 'priority' => 'low'],
-        ['key' => 'XS', 'priority' => 'ignore'],
+        ['key' => 'DG7', 'priority' => 'high'],
+        ['key' => 'DR7', 'priority' => 'low'],
+        ['key' => 'DS7', 'priority' => 'ignore'],
     ]);
 
     $byKey = collect($condensed)->keyBy('key');
 
-    expect($byKey['XR']['priority'])->toBe('low');
-    expect($byKey['XS']['priority'])->toBe('ignore');
+    expect($byKey['DR7']['priority'])->toBe('low');
+    expect($byKey['DS7']['priority'])->toBe('ignore');
 });

@@ -10,17 +10,17 @@ use App\Services\BidTools\ScenarioScoreService;
 
 test('tier rank for key treats grouped entries as the same rank', function () {
     $entries = [
-        ['key' => 't_0600', 'priority' => 'high', 'tier' => 1],
-        ['key' => 't_0700', 'priority' => 'low', 'tier' => 1],
-        ['key' => 't_1500', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DG7', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR7', 'priority' => 'low', 'tier' => 1],
+        ['key' => 'AG15', 'priority' => 'high', 'tier' => 2],
     ];
 
-    expect(RankTierHelper::tierRankForKey($entries, 't_0600'))->toBe(1);
-    expect(RankTierHelper::tierRankForKey($entries, 't_0700'))->toBe(1);
-    expect(RankTierHelper::tierRankForKey($entries, 't_1500'))->toBe(2);
+    expect(RankTierHelper::tierRankForKey($entries, 'DG7'))->toBe(1);
+    expect(RankTierHelper::tierRankForKey($entries, 'DR7'))->toBe(1);
+    expect(RankTierHelper::tierRankForKey($entries, 'AG15'))->toBe(2);
 });
 
-test('blended mode ranks desk group before start subgroup when start tiers match', function () {
+test('blended mode ranks desk tier before start time tiebreak when totals match', function () {
     config(['features.bid_tools' => true]);
 
     $user = User::factory()->create();
@@ -45,25 +45,14 @@ test('blended mode ranks desk group before start subgroup when start tiers match
 
     $deskKeys = app(BidLinePreferenceCatalog::class)
         ->deskKeysForImport($import->id);
-    $startKeys = app(BidLinePreferenceCatalog::class)
-        ->startTimeKeysForImport($import->id);
 
     $deskRank = collect($deskKeys)->map(fn (string $key) => [
         'key' => $key,
         'priority' => 'high',
-        'tier' => match (strtoupper($key)) {
-            'DS', 'DR' => 1,
-            'DG' => 2,
-            default => 3,
-        },
-    ])->values()->all();
-
-    $startRank = collect($startKeys)->map(fn (string $key) => [
-        'key' => $key,
-        'priority' => 'high',
         'tier' => match ($key) {
-            't_0600', 't_0700' => 1,
-            default => 2,
+            'DS7', 'DR7' => 1,
+            'DG7' => 2,
+            default => 3,
         },
     ])->values()->all();
 
@@ -75,15 +64,15 @@ test('blended mode ranks desk group before start subgroup when start tiers match
         'weights' => [
             'holiday' => 0,
             'personal' => 0,
-            'start_time' => 1,
             'desk' => 1,
             'vacation_penalty' => 0,
             'sort_mode' => 'blended',
-            'criteria_order' => ['start_time', 'desk', 'holiday', 'personal'],
+            'criteria_order' => ['desk', 'holiday', 'personal'],
+            'start_time_tiebreak_order' => ['6', '7', '14', '15', '22'],
         ],
         'holiday_rank' => [],
         'desk_rank' => $deskRank,
-        'start_time_rank' => $startRank,
+        'start_time_rank' => [],
         'personal_dates' => [],
     ]);
 
@@ -94,8 +83,6 @@ test('blended mode ranks desk group before start subgroup when start tiers match
 
     $byId = collect($scores)->keyBy('bid_line_id');
 
-    expect($byId[$ds0600->id]['tier_ranks']['start_time'])
-        ->toBe($byId[$dg0600->id]['tier_ranks']['start_time']);
     expect($byId[$ds0600->id]['tier_ranks']['desk'])
         ->toBeLessThan($byId[$dg0600->id]['tier_ranks']['desk']);
     expect($scores[0]['bid_line_id'])->toBe($ds0600->id);

@@ -3,7 +3,6 @@
 use App\Models\BidLine;
 use App\Models\BidLineDay;
 use App\Services\BidTools\CondensedDeskClassifier;
-use App\Services\BidTools\LineShiftClassifier;
 use App\Services\BidTools\StartTimeNormalizer;
 use Carbon\CarbonImmutable;
 use Tests\TestCase;
@@ -12,10 +11,7 @@ uses(TestCase::class);
 
 function classifier(): CondensedDeskClassifier
 {
-    return new CondensedDeskClassifier(
-        new StartTimeNormalizer,
-        new LineShiftClassifier(new StartTimeNormalizer),
-    );
+    return new CondensedDeskClassifier(new StartTimeNormalizer);
 }
 
 function makeClassifierLine(array $workCodes, string $deskGroup = 'DG', string $startTime = '0600'): BidLine
@@ -38,92 +34,61 @@ function makeClassifierLine(array $workCodes, string $deskGroup = 'DG', string $
     return $line;
 }
 
-test('maps regional router sector and midnight desk codes', function () {
+test('maps regional router and sector lines to desk buckets by shift', function () {
     $classifier = classifier();
 
-    expect($classifier->bucketForNormalizedCode('AG1'))->toBe('XG');
-    expect($classifier->bucketForNormalizedCode('DG'))->toBe('XG');
-    expect($classifier->bucketForNormalizedCode('AR'))->toBe('XR');
-    expect($classifier->bucketForNormalizedCode('DR2'))->toBe('XR');
-    expect($classifier->bucketForNormalizedCode('AS'))->toBe('XS');
-    expect($classifier->bucketForNormalizedCode('DS4'))->toBe('XS');
-    expect($classifier->bucketForNormalizedCode('MS'))->toBe('MID');
-    expect($classifier->bucketForNormalizedCode('MG1'))->toBe('MID');
-    expect($classifier->bucketForNormalizedCode('RELIEF-S4'))->toBe('RELIEF');
+    $regionalAm = makeClassifierLine([['code' => 'DG']], deskGroup: 'DG', startTime: '0600');
+    $regionalPm = makeClassifierLine([['code' => 'AG']], deskGroup: 'AG', startTime: '1500');
+    $routerAm = makeClassifierLine([['code' => 'DR']], deskGroup: 'DR', startTime: '0700');
+    $routerPm = makeClassifierLine([['code' => 'AR']], deskGroup: 'AR', startTime: '1400');
+    $sectorAm = makeClassifierLine([['code' => 'DS']], deskGroup: 'DS', startTime: '0700');
+    $sectorPm = makeClassifierLine([['code' => 'AS']], deskGroup: 'AS', startTime: '1500');
+
+    expect($classifier->bucketForLine($regionalAm))->toBe('DG7');
+    expect($classifier->bucketForLine($regionalPm))->toBe('AG15');
+    expect($classifier->bucketForLine($routerAm))->toBe('DR7');
+    expect($classifier->bucketForLine($routerPm))->toBe('AR15');
+    expect($classifier->bucketForLine($sectorAm))->toBe('DS7');
+    expect($classifier->bucketForLine($sectorPm))->toBe('AS7');
 });
 
-test('classifies mixed start times into router and midnight buckets', function () {
+test('classifies midnight and relief buckets', function () {
     $classifier = classifier();
 
-    expect($classifier->bucketForStartTimeMix('AM-MIX 0600 0700'))->toBe('XR');
-    expect($classifier->bucketForStartTimeMix('PM-MIX'))->toBe('XR');
-    expect($classifier->bucketForStartTimeMix('MID-MIX'))->toBe('MID');
-});
+    $midnight = makeClassifierLine([['code' => 'MS']], deskGroup: 'MG', startTime: '2200');
+    $relief = makeClassifierLine([['code' => 'RELIEF-S4']], deskGroup: 'DG', startTime: '0600');
 
-test('classifies a line from dominant workday desk codes', function () {
-    $classifier = classifier();
-
-    $regional = makeClassifierLine([
-        ['code' => 'AG1'],
-        ['code' => 'AG1'],
-        ['code' => 'DG2'],
-    ]);
-    expect($classifier->bucketForLine($regional))->toBe('XG');
-
-    $router = makeClassifierLine([
-        ['code' => 'AR'],
-        ['code' => 'DR1'],
-    ]);
-    expect($classifier->bucketForLine($router))->toBe('XR');
-
-    $sector = makeClassifierLine([
-        ['code' => 'AS'],
-        ['code' => 'DS'],
-    ]);
-    expect($classifier->bucketForLine($sector))->toBe('XS');
-
-    $midnight = makeClassifierLine([
-        ['code' => 'MS'],
-        ['code' => 'MG'],
-    ], deskGroup: 'MG', startTime: '2200');
     expect($classifier->bucketForLine($midnight))->toBe('MID');
+    expect($classifier->bucketForLine($relief))->toBe('RELIEF');
 });
 
-test('classifies mixed group and start time lines into router or midnight', function () {
+test('classifies mixed lines into DS7 and AS7 buckets', function () {
     $classifier = classifier();
 
-    $amMix = makeClassifierLine([], deskGroup: 'AM/PM MIX', startTime: 'AM-MIX 0600 0700');
-    expect($classifier->bucketForLine($amMix))->toBe('XR');
-
+    $dsDrMix = makeClassifierLine([], deskGroup: 'DS/DR MIX', startTime: 'AM-MIX 0600 0700');
+    $asArMix = makeClassifierLine([], deskGroup: 'AS/AR MIX', startTime: 'PM-MIX');
     $midMix = makeClassifierLine([], deskGroup: 'MID MIX', startTime: 'MID-MIX');
+
+    expect($classifier->bucketForLine($dsDrMix))->toBe('DS7');
+    expect($classifier->bucketForLine($asArMix))->toBe('AS7');
     expect($classifier->bucketForLine($midMix))->toBe('MID');
 });
 
-test('maps start times to am pm and mid picker buckets', function () {
+test('maps start times to tiebreak keys', function () {
     $classifier = classifier();
 
-    expect($classifier->startShiftBucket('0600'))->toBe('am');
-    expect($classifier->startShiftBucket('AM-MIX 0600 0700'))->toBe('am');
-    expect($classifier->startShiftBucket('1500'))->toBe('pm');
-    expect($classifier->startShiftBucket('PM-MIX'))->toBe('pm');
-    expect($classifier->startShiftBucket('2200'))->toBe('mid');
-    expect($classifier->startShiftBucket('MID-MIX'))->toBe('mid');
+    expect($classifier->startTimeTiebreakKey(makeClassifierLine([], startTime: '0600')))->toBe('6');
+    expect($classifier->startTimeTiebreakKey(makeClassifierLine([], startTime: '0700')))->toBe('7');
+    expect($classifier->startTimeTiebreakKey(makeClassifierLine([], startTime: '1500')))->toBe('15');
+    expect($classifier->startTimeTiebreakKey(makeClassifierLine([], startTime: '2200')))->toBe('22');
+    expect($classifier->startTimeTiebreakKey(makeClassifierLine([], startTime: 'AM-MIX 0600 0700')))->toBe('6');
 });
 
-test('line picker shift uses desk group prefix and relief classification', function () {
+test('line picker fields expose desk bucket', function () {
     $classifier = classifier();
 
-    $amLine = makeClassifierLine([], deskGroup: 'DG', startTime: '1500');
-    expect($classifier->linePickerFields($amLine)['desk_shift'])->toBe('am');
+    $line = makeClassifierLine([['code' => 'DS']], deskGroup: 'DS', startTime: '0700');
+    $fields = $classifier->linePickerFields($line);
 
-    $pmLine = makeClassifierLine([], deskGroup: 'AG', startTime: '0600');
-    expect($classifier->linePickerFields($pmLine)['desk_shift'])->toBe('pm');
-
-    $midLine = makeClassifierLine([], deskGroup: 'MG', startTime: '0600');
-    expect($classifier->linePickerFields($midLine)['desk_shift'])->toBe('mid');
-
-    $relief = makeClassifierLine([
-        ['code' => 'RELIEF-S4'],
-    ], deskGroup: 'DG', startTime: '0600');
-    expect($classifier->linePickerFields($relief)['desk_shift'])->toBe('relief');
+    expect($fields['desk_bucket'])->toBe('DS7');
 });
