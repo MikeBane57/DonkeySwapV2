@@ -431,3 +431,36 @@ function writeMidPmDeskTierCsv(int $bidYear): string
 
     return $path;
 }
+
+/**
+ * Two DG lines with configurable off dates (x = off, DG = work).
+ *
+ * @param  array<string, list<string>>  $offDatesByLineNum  Y-m-d dates off per line_num
+ */
+function writeSameGroupHolidayScoreCsv(int $bidYear, array $offDatesByLineNum): string
+{
+    $range = BidYearRange::fromBidYear($bidYear);
+    $path = tempnam(sys_get_temp_dir(), 'bidcsv').'.csv';
+    $fh = fopen($path, 'wb');
+    $headers = ['Line Num', 'Group', 'Start Time', 'Rotation'];
+    foreach ($range->eachDate() as $d) {
+        $headers[] = $d->format('j-M-y');
+    }
+    $headers[] = 'workdays';
+    fputcsv($fh, $headers);
+
+    foreach ($offDatesByLineNum as $lineNum => $offDates) {
+        $offLookup = array_flip($offDates);
+        $row = [(string) $lineNum, 'DG', '0600', 'A'];
+        foreach ($range->eachDate() as $d) {
+            $key = $d->format('Y-m-d');
+            $row[] = isset($offLookup[$key]) ? 'x' : 'DG';
+        }
+        $row[] = '0';
+        fputcsv($fh, $row);
+    }
+
+    fclose($fh);
+
+    return $path;
+}
