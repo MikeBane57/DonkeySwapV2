@@ -26,7 +26,7 @@ type ScenarioOption = {
     bid_import_id: number;
     bid_year: number;
     vacation_bank: number;
-    sort_mode: 'weighted' | 'priority' | 'blended';
+    sort_mode: 'weighted' | 'priority' | 'blended' | 'group_ranked';
     criteria_order: string[];
     import_stale: boolean;
 };
@@ -65,7 +65,7 @@ type ScenarioSummary = {
     bid_year: number;
     vacation_bank: number;
     weights: Record<string, number>;
-    sort_mode: 'weighted' | 'priority' | 'blended';
+    sort_mode: 'weighted' | 'priority' | 'blended' | 'group_ranked';
     criteria_order: string[];
     import_stale: boolean;
 };
