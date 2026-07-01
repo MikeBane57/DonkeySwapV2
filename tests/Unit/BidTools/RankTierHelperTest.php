@@ -64,3 +64,16 @@ test('missing tiers default to one tier per list position', function () {
     expect($normalized[1]['tier'])->toBe(2);
     expect($normalized[2]['tier'])->toBe(3);
 });
+
+test('list rank for key follows editor list order', function () {
+    $entries = [
+        ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'AG', 'priority' => 'high', 'tier' => 2],
+    ];
+
+    expect(RankTierHelper::listRankForKey($entries, 'DS'))->toBe(1);
+    expect(RankTierHelper::listRankForKey($entries, 'DG'))->toBe(2);
+    expect(RankTierHelper::listRankForKey($entries, 'AG'))->toBe(3);
+    expect(RankTierHelper::listRankForKey($entries, 'MID'))->toBe(4);
+});

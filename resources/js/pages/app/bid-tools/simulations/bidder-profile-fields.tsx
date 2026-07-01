@@ -38,7 +38,7 @@ export type KeyedRankEntry = {
     tier?: number;
 };
 
-export type SortMode = 'weighted' | 'priority' | 'blended';
+export type SortMode = 'weighted' | 'priority' | 'blended' | 'group_ranked';
 
 export type BidderProfile = {
     vacation_bank: number;
@@ -354,6 +354,9 @@ export function BidderProfileFields({
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
+                                <SelectItem value="group_ranked">
+                                    Group ranked — G1, G2… then category order
+                                </SelectItem>
                                 <SelectItem value="blended">
                                     Blended — groups + category order
                                 </SelectItem>

@@ -14,11 +14,14 @@ final class ScenarioScoreService
 
     public const SORT_MODE_BLENDED = 'blended';
 
+    public const SORT_MODE_GROUP_RANKED = 'group_ranked';
+
     /** @var list<string> */
     public const SORT_MODES = [
         self::SORT_MODE_WEIGHTED,
         self::SORT_MODE_PRIORITY,
         self::SORT_MODE_BLENDED,
+        self::SORT_MODE_GROUP_RANKED,
     ];
 
     private const PRIORITY_MUL = [
@@ -151,6 +154,11 @@ final class ScenarioScoreService
                     'holiday' => $this->holidayTierRank($holidayEntries, $byDate),
                     'personal' => $this->personalTierRank($personalEntries, $byDate),
                     'desk' => RankTierHelper::tierRankForKey(
+                        $deskEntries,
+                        $bucket,
+                        fn (string $key): string => $this->condensedDesk->normalizeBucketKey($key),
+                    ),
+                    'desk_order' => RankTierHelper::listRankForKey(
                         $deskEntries,
                         $bucket,
                         fn (string $key): string => $this->condensedDesk->normalizeBucketKey($key),
@@ -295,7 +303,37 @@ final class ScenarioScoreService
         string $sortMode,
         array $startTimeTiebreak = ['6', '7', '14', '15', '22'],
     ): int {
-        if (self::usesTierGroupSort($sortMode)) {
+        if ($sortMode === self::SORT_MODE_GROUP_RANKED) {
+            $aGroup = (int) ($a['tier_ranks']['desk'] ?? PHP_INT_MAX);
+            $bGroup = (int) ($b['tier_ranks']['desk'] ?? PHP_INT_MAX);
+            if ($aGroup !== $bGroup) {
+                return $aGroup <=> $bGroup;
+            }
+
+            foreach ($criteriaOrder as $criterion) {
+                if (! is_string($criterion)) {
+                    continue;
+                }
+
+                $cmp = $criterion === 'desk'
+                    ? self::compareDeskOrderRanks($a, $b)
+                    : self::compareCriterionTierRanks($a, $b, $criterion);
+                if ($cmp !== 0) {
+                    return $cmp;
+                }
+            }
+
+            $tiebreakCmp = self::compareStartTimeTiebreak(
+                (string) ($a['start_time_tiebreak_key'] ?? 'other'),
+                (string) ($b['start_time_tiebreak_key'] ?? 'other'),
+                $startTimeTiebreak,
+            );
+            if ($tiebreakCmp !== 0) {
+                return $tiebreakCmp;
+            }
+
+            return strcmp((string) ($a['line_num'] ?? ''), (string) ($b['line_num'] ?? ''));
+        } elseif (self::usesTierGroupSort($sortMode)) {
             foreach ($criteriaOrder as $criterion) {
                 if (! is_string($criterion)) {
                     continue;
@@ -379,6 +417,21 @@ final class ScenarioScoreService
     public static function usesTierGroupSort(string $sortMode): bool
     {
         return in_array($sortMode, [self::SORT_MODE_PRIORITY, self::SORT_MODE_BLENDED], true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @param  array<string, mixed>  $b
+     */
+    private static function compareDeskOrderRanks(array $a, array $b): int
+    {
+        $aRank = (int) ($a['tier_ranks']['desk_order'] ?? PHP_INT_MAX);
+        $bRank = (int) ($b['tier_ranks']['desk_order'] ?? PHP_INT_MAX);
+        if ($aRank === $bRank) {
+            return 0;
+        }
+
+        return $aRank <=> $bRank;
     }
 
     /**

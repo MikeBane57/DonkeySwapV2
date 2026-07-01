@@ -73,7 +73,7 @@ type DeskBucketReferenceRow = {
     sample_line_num: string;
 };
 
-type SortMode = 'weighted' | 'priority' | 'blended';
+type SortMode = 'weighted' | 'priority' | 'blended' | 'group_ranked';
 
 function deskMappingKey(deskGroup: string, startTime: string): string {
     return `${deskGroup}\0${startTime}`;
@@ -143,8 +143,8 @@ function updateDeskBucketMapping(
     ];
 }
 
-function usesTierGroupSort(mode: SortMode): boolean {
-    return mode === 'priority' || mode === 'blended';
+function usesCategoryOrderSort(mode: SortMode): boolean {
+    return mode === 'priority' || mode === 'blended' || mode === 'group_ranked';
 }
 
 const CRITERIA_LABELS: Record<string, string> = {
@@ -267,7 +267,7 @@ export default function BidScenarioEdit({
     });
     const [sortMode, setSortMode] = useState<SortMode>(() => {
         const mode = scenario.weights?.sort_mode;
-        if (mode === 'priority' || mode === 'blended' || mode === 'weighted') {
+        if (mode === 'priority' || mode === 'blended' || mode === 'weighted' || mode === 'group_ranked') {
             return mode;
         }
 
@@ -584,6 +584,9 @@ export default function BidScenarioEdit({
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="group_ranked">
+                                            Group ranked — G1, G2… then category order
+                                        </SelectItem>
                                         <SelectItem value="blended">
                                             Blended — groups + category order
                                             (recommended)
@@ -598,13 +601,15 @@ export default function BidScenarioEdit({
                                 </Select>
                                 <p className="text-xs text-muted-foreground">
                                     {sortMode === 'weighted'
-                                        ? 'Lines are ranked by total weighted score first. Desk tier groups (AM → PM → Mid) are not used in weighted mode — switch to Blended to enforce group order.'
-                                        : `Lines are compared in your category order (${categoryOrderSummary}), using each list's ranking position — not the numeric weights below. Desk tiers still use your AM / PM / Mid groups.`}
+                                        ? 'Lines are ranked by total weighted score first. Desk tier groups (AM → PM → Mid) are not used in weighted mode — switch to Group ranked or Blended to enforce group order.'
+                                        : sortMode === 'group_ranked'
+                                          ? `All G1 desk lines rank before G2, then G3, etc. Within each group, lines sort by your category order (${categoryOrderSummary}). Desk uses list position in that group.`
+                                          : `Lines are compared in your category order (${categoryOrderSummary}), using each list's ranking position — not the numeric weights below. Desk tiers still use your AM / PM / Mid groups.`}
                                 </p>
                             </div>
                             <div className="space-y-2">
                                 <Label>
-                                    {usesTierGroupSort(sortMode)
+                                    {usesCategoryOrderSort(sortMode)
                                         ? 'Category ranking order'
                                         : 'Overall priority when totals are close'}
                                 </Label>

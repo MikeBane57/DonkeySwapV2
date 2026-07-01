@@ -30,7 +30,7 @@ import type {StartTimeTiebreakKey} from '@/pages/app/bid-tools/preference-rank-s
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
 export type Priority = 'ignore' | 'low' | 'high';
-export type SortMode = 'weighted' | 'priority' | 'blended';
+export type SortMode = 'weighted' | 'priority' | 'blended' | 'group_ranked';
 
 export type HolidayEntry = {
     date: string;
@@ -70,8 +70,8 @@ const WEIGHT_LABELS: Record<string, string> = {
     vacation_penalty: 'Vac',
 };
 
-function usesTierGroupSort(mode: SortMode): boolean {
-    return mode === 'priority' || mode === 'blended';
+function usesCategoryOrderSort(mode: SortMode): boolean {
+    return mode === 'priority' || mode === 'blended' || mode === 'group_ranked';
 }
 
 function moveIndex<T>(list: T[], from: number, to: number): T[] {
@@ -236,6 +236,9 @@ export function ScenarioRankingPanel({
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
+                                <SelectItem value="group_ranked">
+                                    Group ranked
+                                </SelectItem>
                                 <SelectItem value="blended">
                                     Blended (recommended)
                                 </SelectItem>
@@ -249,8 +252,10 @@ export function ScenarioRankingPanel({
                         </Select>
                         <p className="text-[11px] text-muted-foreground">
                             {sortMode === 'weighted'
-                                ? 'Weighted sorts by total score. Use Blended to enforce AM → PM → Mid desk groups.'
-                                : `Blended compares categories in your order (${value.weights.criteria_order.map((id) => CRITERIA_LABELS[id] ?? id).join(' → ')}), using list position — not the weights below.`}
+                                ? 'Weighted sorts by total score. Use Group ranked or Blended to enforce desk tier groups.'
+                                : sortMode === 'group_ranked'
+                                  ? `Group ranked fills G1 using category order (${value.weights.criteria_order.map((id) => CRITERIA_LABELS[id] ?? id).join(' → ')}), then G2, etc.`
+                                  : `Blended compares categories in your order (${value.weights.criteria_order.map((id) => CRITERIA_LABELS[id] ?? id).join(' → ')}), using list position — not the weights below.`}
                         </p>
                     </div>
                 </div>
@@ -289,7 +294,7 @@ export function ScenarioRankingPanel({
 
                 <div className="space-y-1">
                     <Label className="text-xs">
-                        {usesTierGroupSort(sortMode)
+                        {usesCategoryOrderSort(sortMode)
                             ? 'Category order'
                             : 'Tie-break order'}
                     </Label>
@@ -430,7 +435,8 @@ export function scenarioToRankingState(scenario: {
     const normalizedSortMode: SortMode =
         sortMode === 'weighted' ||
         sortMode === 'priority' ||
-        sortMode === 'blended'
+        sortMode === 'blended' ||
+        sortMode === 'group_ranked'
             ? sortMode
             : 'blended';
 

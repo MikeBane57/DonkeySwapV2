@@ -102,4 +102,32 @@ final class RankTierHelper
 
         return $worst;
     }
+
+    /**
+     * 1-based list position for a key in a ranked list (ties share the first index).
+     *
+     * @param  list<array<string, mixed>>  $entries
+     */
+    public static function listRankForKey(array $entries, string $lineKey, ?callable $normalizeKey = null): int
+    {
+        $normalize = $normalizeKey ?? static fn (string $key): string => strtoupper(trim($key));
+        $normalized = self::normalizeTierOrder($entries);
+        $worst = count($normalized) + 1;
+        $needle = $normalize($lineKey);
+
+        foreach ($normalized as $i => $entry) {
+            $key = $normalize((string) ($entry['key'] ?? ''));
+            if ($key !== $needle) {
+                continue;
+            }
+
+            if (($entry['priority'] ?? 'high') === 'ignore') {
+                return $worst;
+            }
+
+            return $i + 1;
+        }
+
+        return $worst;
+    }
 }
