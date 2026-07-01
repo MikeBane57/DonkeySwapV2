@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import { deskBucketLabel } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
 import {
     PersonalDatesEditor,
@@ -129,6 +130,7 @@ export default function BidScenarioEdit({
     distinctCodes,
     holidaysCatalog,
     deskCatalog,
+    deskBucketReference,
     lines,
 }: {
     scenario: {
@@ -153,6 +155,13 @@ export default function BidScenarioEdit({
     distinctCodes: string[];
     holidaysCatalog: { date: string; id: string; label: string }[];
     deskCatalog: { key: string; label: string }[];
+    deskBucketReference: {
+        desk_group: string;
+        desk_bucket: string;
+        line_count: number;
+        sample_line_num: string;
+        sample_start_time: string;
+    }[];
     lines: LinePickerRow[];
 }) {
     const page = usePage<{
@@ -602,6 +611,90 @@ export default function BidScenarioEdit({
                                     />
                                 </div>
                             ))}
+                        </div>
+                    </BidToolsCollapsibleSection>
+
+                    <BidToolsCollapsibleSection
+                        title="Desk bucket catalog"
+                        summary={`${deskCatalog.length} types · ${deskBucketReference.length} mappings`}
+                    >
+                        <p className="text-xs text-muted-foreground">
+                            Preference buckets used for ranking. Below: how desk
+                            groups in your import file map to each bucket.
+                        </p>
+                        <div className="mt-3 grid gap-4 lg:grid-cols-2">
+                            <div>
+                                <p className="mb-2 text-xs font-medium text-foreground">
+                                    All bucket types
+                                </p>
+                                <ul className="space-y-1 text-xs">
+                                    {deskCatalog.map((d) => (
+                                        <li
+                                            key={d.key}
+                                            className="flex justify-between gap-2 rounded border border-sidebar-border/50 px-2 py-1"
+                                        >
+                                            <span className="font-mono">
+                                                {d.key}
+                                            </span>
+                                            <span className="text-muted-foreground">
+                                                {d.label}
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                            <div>
+                                <p className="mb-2 text-xs font-medium text-foreground">
+                                    Import file mapping
+                                </p>
+                                <div className="max-h-64 overflow-auto rounded border border-sidebar-border/50">
+                                    <table className="w-full text-xs">
+                                        <thead className="sticky top-0 bg-muted/80">
+                                            <tr className="text-left">
+                                                <th className="px-2 py-1 font-medium">
+                                                    Group
+                                                </th>
+                                                <th className="px-2 py-1 font-medium">
+                                                    Bucket
+                                                </th>
+                                                <th className="px-2 py-1 font-medium text-right">
+                                                    Lines
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {deskBucketReference.map((row) => (
+                                                <tr
+                                                    key={`${row.desk_group}-${row.desk_bucket}`}
+                                                    className="border-t border-sidebar-border/40"
+                                                >
+                                                    <td className="px-2 py-1 font-mono">
+                                                        {row.desk_group || '—'}
+                                                    </td>
+                                                    <td className="px-2 py-1">
+                                                        {deskBucketLabel(
+                                                            row.desk_bucket,
+                                                        )}
+                                                        {row.desk_bucket ===
+                                                            'MID' && (
+                                                            <span className="ml-1 text-muted-foreground">
+                                                                (e.g.{' '}
+                                                                {
+                                                                    row.sample_line_num
+                                                                }
+                                                                )
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-2 py-1 text-right tabular-nums">
+                                                        {row.line_count}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </BidToolsCollapsibleSection>
 

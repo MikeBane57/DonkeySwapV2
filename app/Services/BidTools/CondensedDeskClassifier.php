@@ -346,7 +346,7 @@ final class CondensedDeskClassifier
             return false;
         }
 
-        if (preg_match('/^(MS|MG)\b/', $group)) {
+        if ($group === 'MS' || $group === 'MG') {
             return true;
         }
 
@@ -354,7 +354,55 @@ final class CondensedDeskClassifier
             return true;
         }
 
-        return str_contains($group, 'MID') && str_contains($group, 'MIX');
+        return preg_match('/\bMID\b/', $group) === 1 && str_contains($group, 'MIX');
+    }
+
+    /**
+     * How desk groups in an import map to preference buckets (for debugging / review).
+     *
+     * @return list<array{
+     *   desk_group: string,
+     *   desk_bucket: string,
+     *   line_count: int,
+     *   sample_line_num: string,
+     *   sample_start_time: string,
+     * }>
+     */
+    public function bucketReferenceForImport(int $bidImportId): array
+    {
+        $rows = [];
+
+        BidLine::query()
+            ->where('bid_import_id', $bidImportId)
+            ->with('days')
+            ->orderBy('line_num')
+            ->chunkById(200, function ($lines) use (&$rows) {
+                foreach ($lines as $line) {
+                    $group = trim($line->desk_group);
+                    $bucket = $this->bucketForLine($line);
+                    $key = $group."\0".$bucket;
+
+                    if (! isset($rows[$key])) {
+                        $rows[$key] = [
+                            'desk_group' => $group,
+                            'desk_bucket' => $bucket,
+                            'line_count' => 0,
+                            'sample_line_num' => $line->line_num,
+                            'sample_start_time' => $line->start_time,
+                        ];
+                    }
+
+                    $rows[$key]['line_count']++;
+                }
+            });
+
+        return collect($rows)
+            ->sortBy([
+                ['desk_group', 'asc'],
+                ['desk_bucket', 'asc'],
+            ])
+            ->values()
+            ->all();
     }
 
     private function isDsDrMixGroup(string $group): bool

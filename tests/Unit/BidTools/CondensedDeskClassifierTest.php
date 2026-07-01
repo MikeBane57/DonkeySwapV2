@@ -76,6 +76,13 @@ test('desk catalog lists every bucket type for ranking UI', function () {
     expect($keys)->toContain('RELIEF');
 });
 
+test('does not classify non-mid MG or MS prefixed mix groups as mid', function () {
+    $classifier = classifier();
+
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'MG/DS', startTime: '0600')))->not->toBe('MID');
+    expect($classifier->bucketForLine(makeClassifierLine([], deskGroup: 'MS/DR', startTime: '0700')))->not->toBe('MID');
+});
+
 test('does not classify 2200 starts as mid without MS or MG desk group', function () {
     $classifier = classifier();
 
