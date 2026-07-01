@@ -4,7 +4,6 @@ namespace App\Services\BidTools;
 
 use App\Models\BidImport;
 use App\Models\BidScenario;
-use App\Models\BidScenarioVacationRange;
 
 final class BidScenarioProfileBuilder
 {
@@ -26,7 +25,6 @@ final class BidScenarioProfileBuilder
             'holiday_rank' => $condensed['holiday_rank'],
             'desk_rank' => $condensed['desk_rank'],
             'personal_dates' => [],
-            'vacation_ranges' => [],
         ];
     }
 
@@ -50,17 +48,21 @@ final class BidScenarioProfileBuilder
 
         $condensed = $this->condensedMapper->toCondensedPayload($scenario);
 
+        $legacyRanges = $scenario->vacationRanges->map(fn ($r) => [
+            'title' => $r->title ?? '',
+            'starts_on' => $r->starts_on->format('Y-m-d'),
+            'ends_on' => $r->ends_on->format('Y-m-d'),
+        ])->all();
+
         return [
             'vacation_bank' => $scenario->vacation_bank,
             'weights' => $weights,
             'holiday_rank' => $condensed['holiday_rank'],
             'desk_rank' => $condensed['desk_rank'],
-            'personal_dates' => $this->scoreService->personalDatesForEditor($scenario->personal_dates ?? []),
-            'vacation_ranges' => $scenario->vacationRanges->map(fn ($r) => [
-                'title' => $r->title ?? '',
-                'starts_on' => $r->starts_on->format('Y-m-d'),
-                'ends_on' => $r->ends_on->format('Y-m-d'),
-            ])->all(),
+            'personal_dates' => $this->scoreService->personalDatesForEditor(
+                $scenario->personal_dates ?? [],
+                $legacyRanges,
+            ),
         ];
     }
 
@@ -75,7 +77,7 @@ final class BidScenarioProfileBuilder
     ): BidScenario {
         $merged = $this->mergeProfile($import, $profile);
 
-        $scenario = BidScenario::create([
+        return BidScenario::create([
             'user_id' => $userId,
             'bid_import_id' => $import->id,
             'name' => $scenarioName,
@@ -87,10 +89,6 @@ final class BidScenarioProfileBuilder
             'personal_dates' => $merged['personal_dates'],
             'code_overrides' => [],
         ]);
-
-        $this->syncVacationRanges($scenario, $merged['vacation_ranges']);
-
-        return $scenario;
     }
 
     /**
@@ -109,8 +107,6 @@ final class BidScenarioProfileBuilder
             'personal_dates' => $merged['personal_dates'],
         ]);
         $scenario->save();
-
-        $this->syncVacationRanges($scenario, $merged['vacation_ranges']);
     }
 
     /**
@@ -153,30 +149,6 @@ final class BidScenarioProfileBuilder
             'personal_dates' => is_array($profile['personal_dates'] ?? null)
                 ? $profile['personal_dates']
                 : $defaults['personal_dates'],
-            'vacation_ranges' => is_array($profile['vacation_ranges'] ?? null)
-                ? $profile['vacation_ranges']
-                : $defaults['vacation_ranges'],
         ];
-    }
-
-    /**
-     * @param  list<array{title?: string, starts_on: string, ends_on: string}>  $ranges
-     */
-    private function syncVacationRanges(BidScenario $scenario, array $ranges): void
-    {
-        $scenario->vacationRanges()->delete();
-
-        foreach ($ranges as $range) {
-            if (empty($range['starts_on']) || empty($range['ends_on'])) {
-                continue;
-            }
-
-            BidScenarioVacationRange::create([
-                'bid_scenario_id' => $scenario->id,
-                'title' => $range['title'] ?? null,
-                'starts_on' => $range['starts_on'],
-                'ends_on' => $range['ends_on'],
-            ]);
-        }
     }
 }

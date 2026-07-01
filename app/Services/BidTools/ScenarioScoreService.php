@@ -4,7 +4,6 @@ namespace App\Services\BidTools;
 
 use App\Models\BidLine;
 use App\Models\BidScenario;
-use App\Models\BidScenarioVacationRange;
 use Illuminate\Support\Collection;
 
 final class ScenarioScoreService
@@ -59,7 +58,9 @@ final class ScenarioScoreService
         $bidYear = (int) $scenario->import->bid_year;
         $holidayEntries = $this->normalizeHolidayRank($scenario->holiday_rank, $bidYear);
         $personalEntries = $this->normalizePersonalDates($scenario->personal_dates ?? []);
-        $deskEntries = $this->normalizeKeyedRank($scenario->desk_rank, $this->defaultDeskRank());
+        $deskEntries = $this->migrateDeskRankKeys(
+            $this->normalizeKeyedRank($scenario->desk_rank, $this->defaultDeskRank()),
+        );
 
         $lines = BidLine::query()
             ->where('bid_import_id', $scenario->bid_import_id)
@@ -105,14 +106,16 @@ final class ScenarioScoreService
                 }
                 $mul = self::PRIORITY_MUL[$p] ?? 1.0;
                 $posW = max(1, $pc - $i);
-                if (($byDate[$e['date']] ?? false) === true) {
-                    $personalPoints += $mul * $posW;
+                foreach (self::datesCoveredByPersonalEntry($e) as $date) {
+                    if (($byDate[$date] ?? false) === true) {
+                        $personalPoints += $mul * $posW;
+                    }
                 }
             }
             $personalPoints *= (float) ($weights['personal'] ?? 1);
 
             $deskInfo = $this->dominantDesk->analyze($line);
-            $bucket = $this->condensedDesk->bucketForLine($line);
+            $bucket = $this->condensedDesk->normalizeBucketKey($this->condensedDesk->bucketForLine($line));
             $deskPoints = $this->scoreKeyedPreference($deskEntries, $bucket)
                 * (float) ($weights['desk'] ?? 1);
 
@@ -450,10 +453,34 @@ final class ScenarioScoreService
             ? $importKeys
             : $this->defaultDeskRank();
 
-        return $this->mergeMissingKeyedEntries(
+        $entries = $this->mergeMissingKeyedEntries(
             $this->normalizeKeyedRank($raw, $defaults),
             $importKeys ?? []
         );
+
+        return $this->migrateDeskRankKeys($entries);
+    }
+
+    /**
+     * @param  list<array{key: string, priority: string, tier?: int}>  $entries
+     * @return list<array{key: string, priority: string, tier?: int}>
+     */
+    private function migrateDeskRankKeys(array $entries): array
+    {
+        $seen = [];
+        $out = [];
+        foreach ($entries as $entry) {
+            $key = $this->condensedDesk->normalizeBucketKey((string) $entry['key']);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $migrated = $entry;
+            $migrated['key'] = $key;
+            $out[] = $migrated;
+            $seen[$key] = true;
+        }
+
+        return RankTierHelper::normalizeTierOrder($out);
     }
 
     /**
@@ -520,11 +547,60 @@ final class ScenarioScoreService
     }
 
     /**
-     * @return list<array{date: string, label: string, priority: string}>
+     * @return list<array{date?: string, starts_on?: string, ends_on?: string, label: string, priority: string}>
      */
-    public function personalDatesForEditor(mixed $raw): array
+    public function personalDatesForEditor(mixed $raw, ?array $legacyVacationRanges = null): array
     {
-        return $this->normalizePersonalDates($raw);
+        $entries = $this->normalizePersonalDates($raw);
+
+        if ($legacyVacationRanges === null || $legacyVacationRanges === []) {
+            return $entries;
+        }
+
+        foreach ($legacyVacationRanges as $range) {
+            if (! is_array($range)) {
+                continue;
+            }
+            $startsOn = (string) ($range['starts_on'] ?? '');
+            $endsOn = (string) ($range['ends_on'] ?? '');
+            if ($startsOn === '' || $endsOn === '') {
+                continue;
+            }
+            $entries[] = [
+                'starts_on' => $startsOn,
+                'ends_on' => $endsOn,
+                'label' => (string) ($range['title'] ?? $range['label'] ?? ''),
+                'priority' => 'high',
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param  array<string, mixed>  $entry
+     * @return list<string>
+     */
+    private static function datesCoveredByPersonalEntry(array $entry): array
+    {
+        $startsOn = (string) ($entry['starts_on'] ?? '');
+        $endsOn = (string) ($entry['ends_on'] ?? '');
+        if ($startsOn !== '' && $endsOn !== '') {
+            $dates = [];
+            $start = \Carbon\CarbonImmutable::parse($startsOn)->startOfDay();
+            $end = \Carbon\CarbonImmutable::parse($endsOn)->startOfDay();
+            $d = $start;
+            while ($d->lte($end)) {
+                $dates[] = $d->format('Y-m-d');
+                $d = $d->addDay();
+            }
+
+            return $dates;
+        }
+
+        $date = (string) ($entry['date'] ?? '');
+
+        return $date !== '' ? [$date] : [];
     }
 
     private function normalizePersonalDates(mixed $raw): array
@@ -539,7 +615,26 @@ final class ScenarioScoreService
 
                 continue;
             }
-            if (! is_array($row) || empty($row['date'])) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $startsOn = (string) ($row['starts_on'] ?? '');
+            $endsOn = (string) ($row['ends_on'] ?? '');
+            if ($startsOn !== '' && $endsOn !== '') {
+                $out[] = [
+                    'starts_on' => $startsOn,
+                    'ends_on' => $endsOn,
+                    'label' => (string) ($row['label'] ?? ''),
+                    'priority' => in_array($row['priority'] ?? 'high', ['ignore', 'low', 'high'], true)
+                        ? $row['priority']
+                        : 'high',
+                ];
+
+                continue;
+            }
+
+            if (empty($row['date'])) {
                 continue;
             }
             $out[] = [
@@ -611,7 +706,7 @@ final class ScenarioScoreService
         $normalized = RankTierHelper::normalizeTierOrder($entries);
 
         foreach ($normalized as $i => $e) {
-            $key = $e['key'];
+            $key = $this->condensedDesk->normalizeBucketKey((string) $e['key']);
             $p = $e['priority'] ?? 'high';
             if ($p === 'ignore') {
                 continue;
@@ -636,7 +731,7 @@ final class ScenarioScoreService
      */
     public function scoreLinesWithDraft(BidScenario $scenario, array $draft, array $lineIds): array
     {
-        $scenario->loadMissing('import', 'vacationRanges');
+        $scenario->loadMissing('import');
 
         $fillable = [
             'vacation_bank',
@@ -650,9 +745,6 @@ final class ScenarioScoreService
         foreach ($fillable as $key) {
             $original[$key] = $scenario->getAttribute($key);
         }
-        $originalRanges = $scenario->relationLoaded('vacationRanges')
-            ? $scenario->vacationRanges
-            : null;
 
         foreach ($fillable as $key) {
             if (array_key_exists($key, $draft)) {
@@ -660,24 +752,11 @@ final class ScenarioScoreService
             }
         }
 
-        if (array_key_exists('vacation_ranges', $draft)) {
-            $ranges = Collection::make($draft['vacation_ranges'] ?? [])
-                ->map(fn (array $range) => new BidScenarioVacationRange([
-                    'title' => $range['title'] ?? null,
-                    'starts_on' => $range['starts_on'],
-                    'ends_on' => $range['ends_on'],
-                ]));
-            $scenario->setRelation('vacationRanges', $ranges);
-        }
-
         try {
             return $this->scoreLines($scenario, $lineIds);
         } finally {
             foreach ($fillable as $key) {
                 $scenario->setAttribute($key, $original[$key]);
-            }
-            if ($originalRanges !== null) {
-                $scenario->setRelation('vacationRanges', $originalRanges);
             }
         }
     }

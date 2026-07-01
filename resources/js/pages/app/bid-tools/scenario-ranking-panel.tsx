@@ -1,4 +1,4 @@
-import { GripVertical, Plus, Trash2 } from 'lucide-react';
+import { GripVertical } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,11 @@ import {
     type StartTimeTiebreakKey,
 } from '@/pages/app/bid-tools/preference-rank-shared';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
+import {
+    PersonalDatesEditor,
+    personalDatesForSave,
+    type PersonalDateEntry,
+} from '@/pages/app/bid-tools/personal-dates-editor';
 
 export type Priority = 'ignore' | 'low' | 'high';
 export type SortMode = 'weighted' | 'priority' | 'blended';
@@ -33,8 +38,6 @@ export type HolidayEntry = {
 };
 
 export type KeyedEntry = { key: string; priority: Priority; tier?: number };
-
-export type PersonalEntry = { date: string; label: string; priority: Priority };
 
 export type ScenarioRankingState = {
     vacation_bank: number;
@@ -49,7 +52,7 @@ export type ScenarioRankingState = {
     };
     holiday_rank: HolidayEntry[];
     desk_rank: KeyedEntry[];
-    personal_dates: PersonalEntry[];
+    personal_dates: PersonalDateEntry[];
 };
 
 const CRITERIA_LABELS: Record<string, string> = {
@@ -64,9 +67,6 @@ const WEIGHT_LABELS: Record<string, string> = {
     desk: 'Desk',
     vacation_penalty: 'Vac',
 };
-
-const dateInputClass =
-    'h-8 w-[9.25rem] text-xs [color-scheme:dark] sm:w-[9.5rem]';
 
 function usesTierGroupSort(mode: SortMode): boolean {
     return mode === 'priority' || mode === 'blended';
@@ -159,7 +159,7 @@ export function rankingStateToSavePayload(
         weights: value.weights,
         holiday_rank: value.holiday_rank,
         desk_rank: value.desk_rank,
-        personal_dates: value.personal_dates.filter((p) => p.date),
+        personal_dates: personalDatesForSave(value.personal_dates),
     };
 }
 
@@ -417,93 +417,12 @@ export function ScenarioRankingPanel({
             </div>
 
             <section className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                    <Label>Personal dates</Label>
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() =>
-                            onChange({
-                                ...value,
-                                personal_dates: [
-                                    ...value.personal_dates,
-                                    {
-                                        date: '',
-                                        label: '',
-                                        priority: 'high',
-                                    },
-                                ],
-                            })
-                        }
-                    >
-                        <Plus className="mr-1 h-3.5 w-3.5" />
-                        Add
-                    </Button>
-                </div>
-                <div className="space-y-2">
-                    {value.personal_dates.map((p, idx) => (
-                        <DraggableRow
-                            key={idx}
-                            index={idx}
-                            onReorder={(from, to) =>
-                                onChange({
-                                    ...value,
-                                    personal_dates: moveIndex(
-                                        value.personal_dates,
-                                        from,
-                                        to,
-                                    ),
-                                })
-                            }
-                        >
-                            <Input
-                                type="date"
-                                className={dateInputClass}
-                                value={p.date}
-                                onChange={(e) => {
-                                    const next = [...value.personal_dates];
-                                    next[idx] = {
-                                        ...next[idx],
-                                        date: e.target.value,
-                                    };
-                                    onChange({
-                                        ...value,
-                                        personal_dates: next,
-                                    });
-                                }}
-                            />
-                            <PrioritySelect
-                                value={p.priority}
-                                onChange={(priority) => {
-                                    const next = [...value.personal_dates];
-                                    next[idx] = { ...next[idx], priority };
-                                    onChange({
-                                        ...value,
-                                        personal_dates: next,
-                                    });
-                                }}
-                            />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() =>
-                                    onChange({
-                                        ...value,
-                                        personal_dates:
-                                            value.personal_dates.filter(
-                                                (_, i) => i !== idx,
-                                            ),
-                                    })
-                                }
-                            >
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        </DraggableRow>
-                    ))}
-                </div>
+                <PersonalDatesEditor
+                    entries={value.personal_dates}
+                    onChange={(personal_dates) =>
+                        onChange({ ...value, personal_dates })
+                    }
+                />
             </section>
         </div>
     );
@@ -519,7 +438,7 @@ export function scenarioToRankingState(scenario: {
     };
     holiday_rank: HolidayEntry[];
     desk_rank: KeyedEntry[];
-    personal_dates: PersonalEntry[];
+    personal_dates: PersonalDateEntry[];
 }): ScenarioRankingState {
     const sortMode = scenario.weights?.sort_mode;
     const normalizedSortMode: SortMode =

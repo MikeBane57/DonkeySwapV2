@@ -45,13 +45,11 @@ class PreviewScoreBidLinesRequest extends FormRequest
             'draft.desk_rank.*.priority' => ['required_with:draft.desk_rank', 'string', Rule::in(['ignore', 'low', 'high'])],
             'draft.desk_rank.*.tier' => ['nullable', 'integer', 'min:1'],
             'draft.personal_dates' => ['nullable', 'array'],
-            'draft.personal_dates.*.date' => ['required_with:draft.personal_dates', 'date_format:Y-m-d'],
+            'draft.personal_dates.*.date' => ['nullable', 'date_format:Y-m-d'],
+            'draft.personal_dates.*.starts_on' => ['nullable', 'date_format:Y-m-d'],
+            'draft.personal_dates.*.ends_on' => ['nullable', 'date_format:Y-m-d'],
             'draft.personal_dates.*.label' => ['nullable', 'string', 'max:120'],
             'draft.personal_dates.*.priority' => ['required_with:draft.personal_dates', 'string', Rule::in(['ignore', 'low', 'high'])],
-            'draft.vacation_ranges' => ['nullable', 'array'],
-            'draft.vacation_ranges.*.starts_on' => ['required_with:draft.vacation_ranges', 'date_format:Y-m-d'],
-            'draft.vacation_ranges.*.ends_on' => ['required_with:draft.vacation_ranges', 'date_format:Y-m-d'],
-            'draft.vacation_ranges.*.title' => ['nullable', 'string', 'max:120'],
         ];
     }
 }

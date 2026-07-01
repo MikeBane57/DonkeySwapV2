@@ -14,8 +14,8 @@ test('line picker rows sort by desk bucket order then line number', function () 
 
     $rows = [
         ['id' => 1, 'line_num' => '200', 'desk_group' => 'MG', 'start_time' => '2200', 'desk_bucket' => 'MID'],
-        ['id' => 2, 'line_num' => '100', 'desk_group' => 'AG', 'start_time' => '1500', 'desk_bucket' => 'AG15'],
-        ['id' => 3, 'line_num' => '050', 'desk_group' => 'DG', 'start_time' => '0600', 'desk_bucket' => 'DG7'],
+        ['id' => 2, 'line_num' => '100', 'desk_group' => 'AG', 'start_time' => '1500', 'desk_bucket' => 'AG'],
+        ['id' => 3, 'line_num' => '050', 'desk_group' => 'DG', 'start_time' => '0600', 'desk_bucket' => 'DG'],
         ['id' => 4, 'line_num' => '300', 'desk_group' => 'DG', 'start_time' => '0600', 'desk_bucket' => 'RELIEF'],
     ];
 

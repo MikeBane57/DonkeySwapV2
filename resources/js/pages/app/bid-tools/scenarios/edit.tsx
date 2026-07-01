@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Copy, GripVertical, Plus, Trash2 } from 'lucide-react';
+import { Copy, GripVertical } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,11 @@ import {
     type StartTimeTiebreakKey,
 } from '@/pages/app/bid-tools/preference-rank-shared';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
+import {
+    PersonalDatesEditor,
+    personalDatesForSave,
+    type PersonalDateEntry,
+} from '@/pages/app/bid-tools/personal-dates-editor';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 import type { BreadcrumbItem } from '@/types';
 
@@ -35,13 +40,6 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 type Priority = 'ignore' | 'low' | 'high';
 
-type VacationRange = {
-    id?: number;
-    title: string;
-    starts_on: string;
-    ends_on: string;
-};
-
 type HolidayEntry = {
     date: string;
     label: string;
@@ -50,8 +48,6 @@ type HolidayEntry = {
 };
 
 type KeyedEntry = { key: string; priority: Priority; tier?: number };
-
-type PersonalEntry = { date: string; label: string; priority: Priority };
 
 type SortMode = 'weighted' | 'priority' | 'blended';
 
@@ -64,9 +60,6 @@ const CRITERIA_LABELS: Record<string, string> = {
     personal: 'Personal dates',
     desk: 'Desk type',
 };
-
-const dateInputClass =
-    'h-8 w-[9.25rem] text-xs [color-scheme:dark] sm:w-[9.5rem]';
 
 function moveIndex<T>(list: T[], from: number, to: number): T[] {
     if (from === to || from < 0 || to < 0) {
@@ -125,27 +118,6 @@ function DraggableRow({
     );
 }
 
-function PrioritySelect({
-    value,
-    onChange,
-}: {
-    value: Priority;
-    onChange: (p: Priority) => void;
-}) {
-    return (
-        <Select value={value} onValueChange={(v) => onChange(v as Priority)}>
-            <SelectTrigger className="h-8 w-[7.5rem] text-xs">
-                <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="ignore">Don&apos;t care</SelectItem>
-            </SelectContent>
-        </Select>
-    );
-}
-
 function flattenErrors(errors: Record<string, string>): string[] {
     return Object.values(errors);
 }
@@ -169,13 +141,12 @@ export default function BidScenarioEdit({
         };
         holiday_rank: HolidayEntry[];
         desk_rank: KeyedEntry[];
-        personal_dates: PersonalEntry[];
+        personal_dates: PersonalDateEntry[];
         import: {
             bid_year: number;
             file_hash: string;
             is_current: boolean;
         };
-        vacation_ranges: VacationRange[];
     };
     distinctCodes: string[];
     holidaysCatalog: { date: string; id: string; label: string }[];
@@ -222,20 +193,8 @@ export default function BidScenarioEdit({
         scenario.holiday_rank,
     );
     const [deskRank, setDeskRank] = useState<KeyedEntry[]>(scenario.desk_rank);
-    const [personalDates, setPersonalDates] = useState<PersonalEntry[]>(
+    const [personalDates, setPersonalDates] = useState<PersonalDateEntry[]>(
         scenario.personal_dates.length ? scenario.personal_dates : [],
-    );
-
-    const [ranges, setRanges] = useState<VacationRange[]>(
-        scenario.vacation_ranges.length
-            ? scenario.vacation_ranges.map((r) => ({
-                  ...r,
-                  title: r.title ?? '',
-              }))
-            : [],
-    );
-    const [endFreeByIdx, setEndFreeByIdx] = useState<Record<number, boolean>>(
-        {},
     );
     const [saving, setSaving] = useState(false);
 
@@ -273,8 +232,7 @@ export default function BidScenarioEdit({
                 },
                 holiday_rank: holidays,
                 desk_rank: deskRank,
-                personal_dates: personalDates.filter((p) => p.date),
-                vacation_ranges: ranges.filter((r) => r.starts_on && r.ends_on),
+                personal_dates: personalDatesForSave(personalDates),
             },
             {
                 preserveScroll: true,
@@ -292,7 +250,6 @@ export default function BidScenarioEdit({
         holidays,
         deskRank,
         personalDates,
-        ranges,
         scenario.id,
     ]);
 
@@ -310,8 +267,7 @@ export default function BidScenarioEdit({
             },
             holiday_rank: holidays,
             desk_rank: deskRank,
-            personal_dates: personalDates.filter((p) => p.date),
-            vacation_ranges: ranges.filter((r) => r.starts_on && r.ends_on),
+            personal_dates: personalDatesForSave(personalDates),
         }),
         [
             vacationBank,
@@ -322,7 +278,6 @@ export default function BidScenarioEdit({
             holidays,
             deskRank,
             personalDates,
-            ranges,
         ],
     );
 
@@ -457,128 +412,6 @@ export default function BidScenarioEdit({
                                 />
                             </div>
                         </div>
-                    </BidToolsCollapsibleSection>
-
-                    <BidToolsCollapsibleSection
-                        title="Want-off ranges"
-                        summary={`${ranges.length} range${ranges.length === 1 ? '' : 's'}`}
-                    >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <Label>Want-off ranges</Label>
-                            <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() =>
-                                    setRanges([
-                                        ...ranges,
-                                        {
-                                            title: '',
-                                            starts_on: '',
-                                            ends_on: '',
-                                        },
-                                    ])
-                                }
-                            >
-                                <Plus className="mr-1 h-3.5 w-3.5" />
-                                Add range
-                            </Button>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                            Title is optional. End date matches start until you
-                            change it.
-                        </p>
-                        {ranges.map((r, idx) => (
-                            <div
-                                key={idx}
-                                className="flex flex-wrap items-end gap-2 rounded-lg border border-sidebar-border/60 p-3"
-                            >
-                                <div className="min-w-[8rem] flex-1 space-y-1">
-                                    <Label className="text-xs">Title</Label>
-                                    <Input
-                                        className="h-8 text-sm"
-                                        placeholder="e.g. Spring break"
-                                        value={r.title}
-                                        onChange={(e) => {
-                                            const next = [...ranges];
-                                            next[idx] = {
-                                                ...next[idx],
-                                                title: e.target.value,
-                                            };
-                                            setRanges(next);
-                                        }}
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs">Start</Label>
-                                    <Input
-                                        type="date"
-                                        className={dateInputClass}
-                                        value={r.starts_on}
-                                        onChange={(e) => {
-                                            const v = e.target.value;
-                                            const next = [...ranges];
-                                            const free = endFreeByIdx[idx];
-                                            next[idx] = {
-                                                ...next[idx],
-                                                starts_on: v,
-                                                ends_on:
-                                                    free === true
-                                                        ? next[idx].ends_on
-                                                        : v,
-                                            };
-                                            setRanges(next);
-                                        }}
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs">End</Label>
-                                    <Input
-                                        type="date"
-                                        className={dateInputClass}
-                                        value={r.ends_on}
-                                        onChange={(e) => {
-                                            setEndFreeByIdx((m) => ({
-                                                ...m,
-                                                [idx]: true,
-                                            }));
-                                            const next = [...ranges];
-                                            next[idx] = {
-                                                ...next[idx],
-                                                ends_on: e.target.value,
-                                            };
-                                            setRanges(next);
-                                        }}
-                                    />
-                                </div>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 shrink-0 text-muted-foreground"
-                                    onClick={() => {
-                                        setRanges(
-                                            ranges.filter((_, i) => i !== idx),
-                                        );
-                                        setEndFreeByIdx((m) => {
-                                            const n = { ...m };
-                                            delete n[idx];
-
-                                            return n;
-                                        });
-                                    }}
-                                    aria-label="Remove range"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        ))}
-                        {ranges.length === 0 && (
-                            <p className="text-sm text-muted-foreground">
-                                No ranges yet. Use &quot;Add range&quot; to
-                                count vacation cost against lines.
-                            </p>
-                        )}
                     </BidToolsCollapsibleSection>
 
                     <BidToolsCollapsibleSection
@@ -731,93 +564,12 @@ export default function BidScenarioEdit({
 
                     <BidToolsCollapsibleSection
                         title="Personal dates"
-                        summary={`${personalDates.length} date${personalDates.length === 1 ? '' : 's'}`}
+                        summary={`${personalDates.length} entr${personalDates.length === 1 ? 'y' : 'ies'}`}
                     >
-                        <Label>Personal important dates</Label>
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={() =>
-                                setPersonalDates([
-                                    ...personalDates,
-                                    {
-                                        date: '',
-                                        label: '',
-                                        priority: 'high',
-                                    },
-                                ])
-                            }
-                        >
-                            <Plus className="mr-1 h-3.5 w-3.5" />
-                            Add date
-                        </Button>
-                        <div className="space-y-2">
-                            {personalDates.map((p, idx) => (
-                                <DraggableRow
-                                    key={idx}
-                                    index={idx}
-                                    onReorder={(from, to) =>
-                                        setPersonalDates((list) =>
-                                            moveIndex(list, from, to),
-                                        )
-                                    }
-                                >
-                                    <Input
-                                        type="date"
-                                        className={dateInputClass}
-                                        value={p.date}
-                                        onChange={(e) => {
-                                            const next = [...personalDates];
-                                            next[idx] = {
-                                                ...next[idx],
-                                                date: e.target.value,
-                                            };
-                                            setPersonalDates(next);
-                                        }}
-                                    />
-                                    <Input
-                                        className="h-8 max-w-[12rem] text-sm"
-                                        placeholder="Label"
-                                        value={p.label}
-                                        onChange={(e) => {
-                                            const next = [...personalDates];
-                                            next[idx] = {
-                                                ...next[idx],
-                                                label: e.target.value,
-                                            };
-                                            setPersonalDates(next);
-                                        }}
-                                    />
-                                    <PrioritySelect
-                                        value={p.priority}
-                                        onChange={(pr) => {
-                                            const next = [...personalDates];
-                                            next[idx] = {
-                                                ...next[idx],
-                                                priority: pr,
-                                            };
-                                            setPersonalDates(next);
-                                        }}
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={() =>
-                                            setPersonalDates(
-                                                personalDates.filter(
-                                                    (_, i) => i !== idx,
-                                                ),
-                                            )
-                                        }
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </DraggableRow>
-                            ))}
-                        </div>
+                        <PersonalDatesEditor
+                            entries={personalDates}
+                            onChange={setPersonalDates}
+                        />
                     </BidToolsCollapsibleSection>
 
                     <BidToolsCollapsibleSection title="Category weights">

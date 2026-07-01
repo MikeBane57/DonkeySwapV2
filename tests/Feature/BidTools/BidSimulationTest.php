@@ -25,7 +25,6 @@ function sampleBidderProfile(array $overrides = []): array
             'start_time_tiebreak_order' => ['6', '7', '14', '15', '22'],
         ],
         'personal_dates' => [],
-        'vacation_ranges' => [],
     ], $overrides);
 }
 

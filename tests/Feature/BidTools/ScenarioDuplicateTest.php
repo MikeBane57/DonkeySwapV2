@@ -4,7 +4,7 @@ use App\Models\BidScenario;
 use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
 
-test('user can duplicate a scenario with preferences and vacation ranges', function () {
+test('user can duplicate a scenario with preferences and personal date ranges', function () {
     config(['features.bid_tools' => true]);
 
     $user = User::factory()->create();
@@ -56,7 +56,6 @@ test('user can duplicate a scenario with preferences and vacation ranges', funct
     $copy = BidScenario::query()
         ->where('user_id', $user->id)
         ->whereKeyNot($source->id)
-        ->with('vacationRanges')
         ->first();
 
     expect($copy)->not->toBeNull();
@@ -64,7 +63,12 @@ test('user can duplicate a scenario with preferences and vacation ranges', funct
     expect($copy->vacation_bank)->toBe(9);
     expect((float) $copy->weights['holiday'])->toBe(3.0);
     expect($copy->weights['criteria_order'])->toBe(['desk', 'holiday', 'personal']);
-    expect($copy->personal_dates)->toHaveCount(1);
-    expect($copy->vacationRanges)->toHaveCount(1);
-    expect($copy->vacationRanges->first()->title)->toBe('Summer');
+    expect($copy->personal_dates)->toHaveCount(2);
+
+    $range = collect($copy->personal_dates)->first(
+        fn (array $entry) => ($entry['starts_on'] ?? '') === '2026-07-01',
+    );
+    expect($range)->not->toBeNull();
+    expect($range['ends_on'])->toBe('2026-07-10');
+    expect($range['label'])->toBe('Summer');
 });

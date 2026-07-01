@@ -10,8 +10,8 @@ use App\Services\BidTools\ScenarioScoreService;
 test('equal desk tiers score sector and router buckets the same', function () {
     $entries = [
         ['key' => 'DS7', 'priority' => 'high', 'tier' => 1],
-        ['key' => 'DR7', 'priority' => 'high', 'tier' => 1],
-        ['key' => 'DG7', 'priority' => 'low', 'tier' => 2],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DG', 'priority' => 'low', 'tier' => 2],
     ];
 
     $dsWeight = RankTierHelper::tierWeight($entries, 0);
@@ -59,8 +59,8 @@ test('blended mode ranks higher desk tier before lower when totals match', funct
         ],
         'holiday_rank' => [],
         'desk_rank' => [
-            ['key' => 'DG7', 'priority' => 'high', 'tier' => 1],
-            ['key' => 'AG15', 'priority' => 'low', 'tier' => 2],
+            ['key' => 'DG', 'priority' => 'high', 'tier' => 1],
+            ['key' => 'AG', 'priority' => 'low', 'tier' => 2],
         ],
         'start_time_rank' => [],
         'personal_dates' => [],

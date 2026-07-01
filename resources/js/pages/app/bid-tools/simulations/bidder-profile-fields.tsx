@@ -1,7 +1,6 @@
-import { GripVertical, Plus, Trash2 } from 'lucide-react';
+import { GripVertical } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -13,6 +12,11 @@ import {
 } from '@/components/ui/select';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
+import {
+    PersonalDatesEditor,
+    personalDatesForSave,
+    type PersonalDateEntry,
+} from '@/pages/app/bid-tools/personal-dates-editor';
 import {
     PreferenceColumnHeader,
     StartTimeTiebreakPicker,
@@ -32,18 +36,6 @@ export type KeyedRankEntry = {
     tier?: number;
 };
 
-export type PersonalDate = {
-    date: string;
-    label: string;
-    priority: Priority;
-};
-
-export type VacationRange = {
-    title: string;
-    starts_on: string;
-    ends_on: string;
-};
-
 export type SortMode = 'weighted' | 'priority' | 'blended';
 
 export type BidderProfile = {
@@ -59,8 +51,7 @@ export type BidderProfile = {
         criteria_order: string[];
         start_time_tiebreak_order?: StartTimeTiebreakKey[];
     };
-    personal_dates: PersonalDate[];
-    vacation_ranges: VacationRange[];
+    personal_dates: PersonalDateEntry[];
 };
 
 const CRITERIA_LABELS: Record<string, string> = {
@@ -77,17 +68,19 @@ const HOLIDAY_LABELS: Record<string, string> = {
 };
 
 const DESK_LABELS: Record<string, string> = {
-    DG7: 'Regional 06/07',
-    AG15: 'Regional 14/15',
-    DR7: 'Router 06/07',
-    AR15: 'Router 14/15',
-    DS7: 'Sector 06/07',
-    AS7: 'Sector 14/15',
-    MID: 'Midnight',
+    DS: 'DS',
+    DG: 'DG',
+    DS7: 'DS7',
+    DR: 'DR',
+    DS_DR_MIX: 'DS/DR Mix',
+    AG: 'AG',
+    AS: 'AS',
+    AS15: 'AS15',
+    AR: 'AR',
+    AS_AR_MIX: 'AS/AR Mix',
+    MID: 'Mid',
     RELIEF: 'Relief',
 };
-
-const dateInputClass = 'h-8 text-xs [color-scheme:dark]';
 
 function moveIndex<T>(list: T[], from: number, to: number): T[] {
     if (from === to || from < 0 || to < 0) {
@@ -146,27 +139,6 @@ function DraggableRow({
     );
 }
 
-function PrioritySelect({
-    value,
-    onChange,
-}: {
-    value: Priority;
-    onChange: (p: Priority) => void;
-}) {
-    return (
-        <Select value={value} onValueChange={(v) => onChange(v as Priority)}>
-            <SelectTrigger className="h-8 w-[7.5rem] text-xs">
-                <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="ignore">Don&apos;t care</SelectItem>
-            </SelectContent>
-        </Select>
-    );
-}
-
 function WeightSlider({
     id,
     label,
@@ -216,7 +188,6 @@ export function emptyBidderProfile(defaults: BidderProfile): BidderProfile {
             ),
         },
         personal_dates: [],
-        vacation_ranges: [],
     };
 }
 
@@ -264,10 +235,7 @@ export function BidderProfileFields({
             weights: value.weights,
             holiday_rank: holidayRank,
             desk_rank: deskRank,
-            personal_dates: value.personal_dates.filter((p) => p.date),
-            vacation_ranges: value.vacation_ranges.filter(
-                (r) => r.starts_on && r.ends_on,
-            ),
+            personal_dates: personalDatesForSave(value.personal_dates),
         }),
         [value, holidayRank, deskRank],
     );
@@ -351,199 +319,15 @@ export function BidderProfileFields({
             </BidToolsCollapsibleSection>
 
             <BidToolsCollapsibleSection
-                title="Want-off ranges"
-                summary={`${value.vacation_ranges.length} range${value.vacation_ranges.length === 1 ? '' : 's'}`}
-            >
-                <div className="flex items-center justify-end">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                            onChange({
-                                ...value,
-                                vacation_ranges: [
-                                    ...value.vacation_ranges,
-                                    { title: '', starts_on: '', ends_on: '' },
-                                ],
-                            })
-                        }
-                    >
-                        <Plus className="mr-1 h-3.5 w-3.5" />
-                        Add range
-                    </Button>
-                </div>
-                {value.vacation_ranges.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">None added.</p>
-                ) : (
-                    <ul className="space-y-2">
-                        {value.vacation_ranges.map((range, idx) => (
-                            <li
-                                key={`${idPrefix}-vac-${idx}`}
-                                className="flex flex-wrap items-end gap-2"
-                            >
-                                <Input
-                                    placeholder="Label"
-                                    className="h-8 min-w-[6rem] flex-1 text-xs"
-                                    value={range.title}
-                                    onChange={(e) => {
-                                        const vacation_ranges = [
-                                            ...value.vacation_ranges,
-                                        ];
-                                        vacation_ranges[idx] = {
-                                            ...range,
-                                            title: e.target.value,
-                                        };
-                                        onChange({ ...value, vacation_ranges });
-                                    }}
-                                />
-                                <Input
-                                    type="date"
-                                    className={`${dateInputClass} w-[9.5rem]`}
-                                    value={range.starts_on}
-                                    onChange={(e) => {
-                                        const vacation_ranges = [
-                                            ...value.vacation_ranges,
-                                        ];
-                                        vacation_ranges[idx] = {
-                                            ...range,
-                                            starts_on: e.target.value,
-                                        };
-                                        onChange({ ...value, vacation_ranges });
-                                    }}
-                                />
-                                <Input
-                                    type="date"
-                                    className={`${dateInputClass} w-[9.5rem]`}
-                                    value={range.ends_on}
-                                    onChange={(e) => {
-                                        const vacation_ranges = [
-                                            ...value.vacation_ranges,
-                                        ];
-                                        vacation_ranges[idx] = {
-                                            ...range,
-                                            ends_on: e.target.value,
-                                        };
-                                        onChange({ ...value, vacation_ranges });
-                                    }}
-                                />
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() =>
-                                        onChange({
-                                            ...value,
-                                            vacation_ranges:
-                                                value.vacation_ranges.filter(
-                                                    (_, i) => i !== idx,
-                                                ),
-                                        })
-                                    }
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </BidToolsCollapsibleSection>
-
-            <BidToolsCollapsibleSection
                 title="Personal dates"
-                summary={`${value.personal_dates.length} date${value.personal_dates.length === 1 ? '' : 's'}`}
+                summary={`${value.personal_dates.length} entr${value.personal_dates.length === 1 ? 'y' : 'ies'}`}
             >
-                <div className="flex items-center justify-end">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                            onChange({
-                                ...value,
-                                personal_dates: [
-                                    ...value.personal_dates,
-                                    { date: '', label: '', priority: 'high' },
-                                ],
-                            })
-                        }
-                    >
-                        <Plus className="mr-1 h-3.5 w-3.5" />
-                        Add date
-                    </Button>
-                </div>
-                {value.personal_dates.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">None added.</p>
-                ) : (
-                    <ul className="space-y-2">
-                        {value.personal_dates.map((entry, idx) => (
-                            <li
-                                key={`${idPrefix}-per-${idx}`}
-                                className="flex flex-wrap items-center gap-2"
-                            >
-                                <Input
-                                    type="date"
-                                    className={`${dateInputClass} w-[9.5rem]`}
-                                    value={entry.date}
-                                    onChange={(e) => {
-                                        const personal_dates = [
-                                            ...value.personal_dates,
-                                        ];
-                                        personal_dates[idx] = {
-                                            ...entry,
-                                            date: e.target.value,
-                                        };
-                                        onChange({ ...value, personal_dates });
-                                    }}
-                                />
-                                <Input
-                                    placeholder="Label"
-                                    className="h-8 min-w-[6rem] flex-1 text-xs"
-                                    value={entry.label}
-                                    onChange={(e) => {
-                                        const personal_dates = [
-                                            ...value.personal_dates,
-                                        ];
-                                        personal_dates[idx] = {
-                                            ...entry,
-                                            label: e.target.value,
-                                        };
-                                        onChange({ ...value, personal_dates });
-                                    }}
-                                />
-                                <PrioritySelect
-                                    value={entry.priority}
-                                    onChange={(priority) => {
-                                        const personal_dates = [
-                                            ...value.personal_dates,
-                                        ];
-                                        personal_dates[idx] = {
-                                            ...entry,
-                                            priority,
-                                        };
-                                        onChange({ ...value, personal_dates });
-                                    }}
-                                />
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() =>
-                                        onChange({
-                                            ...value,
-                                            personal_dates:
-                                                value.personal_dates.filter(
-                                                    (_, i) => i !== idx,
-                                                ),
-                                        })
-                                    }
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </li>
-                        ))}
-                    </ul>
-                )}
+                <PersonalDatesEditor
+                    entries={value.personal_dates}
+                    onChange={(personal_dates) =>
+                        onChange({ ...value, personal_dates })
+                    }
+                />
             </BidToolsCollapsibleSection>
 
             <BidToolsCollapsibleSection

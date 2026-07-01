@@ -49,7 +49,7 @@ test('start time tiebreak ranks preferred hour when desk tiers match', function 
         ],
         'holiday_rank' => [],
         'desk_rank' => [
-            ['key' => 'DG7', 'priority' => 'high', 'tier' => 1],
+            ['key' => 'DG', 'priority' => 'high', 'tier' => 1],
         ],
         'start_time_rank' => [],
         'personal_dates' => [],
