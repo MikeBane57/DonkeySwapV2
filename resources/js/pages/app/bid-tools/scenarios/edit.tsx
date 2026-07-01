@@ -33,6 +33,11 @@ import {
 } from '@/pages/app/bid-tools/preference-rank-shared';
 import type {StartTimeTiebreakKey} from '@/pages/app/bid-tools/preference-rank-shared';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
+import {
+    LineDeskBucketEditor,
+    lineDeskBucketsFromStorage,
+    lineDeskBucketsToStorage,
+} from '@/pages/app/bid-tools/line-desk-bucket-editor';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 import type { BreadcrumbItem } from '@/types';
 
@@ -103,6 +108,7 @@ function bucketForMappedLine(
 
     return (
         referenceByKey[deskMappingKey(group, startTime)]?.auto_bucket ??
+        line.auto_desk_bucket ??
         line.desk_bucket ??
         'unknown'
     );
@@ -230,6 +236,7 @@ export default function BidScenarioEdit({
         desk_rank: KeyedEntry[];
         personal_dates: PersonalDateEntry[];
         desk_bucket_mappings: DeskBucketMapping[];
+        line_desk_buckets: { bid_line_id: number; bucket: string }[];
         import: {
             bid_year: number;
             file_hash: string;
@@ -288,6 +295,9 @@ export default function BidScenarioEdit({
     const [deskBucketMappings, setDeskBucketMappings] = useState<
         DeskBucketMapping[]
     >(scenario.desk_bucket_mappings ?? []);
+    const [lineDeskBuckets, setLineDeskBuckets] = useState<
+        Record<number, string>
+    >(() => lineDeskBucketsFromStorage(scenario.line_desk_buckets));
     const [saving, setSaving] = useState(false);
 
     const deskBucketReferenceByKey = useMemo(
@@ -301,7 +311,7 @@ export default function BidScenarioEdit({
         [deskBucketReference],
     );
 
-    const mappedLines = useMemo(
+    const groupMappedLines = useMemo(
         () =>
             lines.map((line) => ({
                 ...line,
@@ -312,6 +322,15 @@ export default function BidScenarioEdit({
                 ),
             })),
         [lines, deskBucketMappings, deskBucketReferenceByKey],
+    );
+
+    const mappedLines = useMemo(
+        () =>
+            groupMappedLines.map((line) => ({
+                ...line,
+                desk_bucket: lineDeskBuckets[line.id] ?? line.desk_bucket,
+            })),
+        [groupMappedLines, lineDeskBuckets],
     );
 
     const deskKeysInUse = useMemo(
@@ -357,6 +376,7 @@ export default function BidScenarioEdit({
                 desk_rank: deskRank,
                 personal_dates: personalDatesForSave(personalDates),
                 desk_bucket_mappings: deskBucketMappings,
+                line_desk_buckets: lineDeskBucketsToStorage(lineDeskBuckets),
             },
             {
                 preserveScroll: true,
@@ -375,6 +395,7 @@ export default function BidScenarioEdit({
         deskRank,
         personalDates,
         deskBucketMappings,
+        lineDeskBuckets,
         scenario.id,
     ]);
 
@@ -394,6 +415,7 @@ export default function BidScenarioEdit({
             desk_rank: deskRank,
             personal_dates: personalDatesForSave(personalDates),
             desk_bucket_mappings: deskBucketMappings,
+            line_desk_buckets: lineDeskBucketsToStorage(lineDeskBuckets),
         }),
         [
             vacationBank,
@@ -405,6 +427,7 @@ export default function BidScenarioEdit({
             deskRank,
             personalDates,
             deskBucketMappings,
+            lineDeskBuckets,
         ],
     );
 
@@ -732,7 +755,7 @@ export default function BidScenarioEdit({
 
                     <BidToolsCollapsibleSection
                         title="Desk bucket catalog"
-                        summary={`${deskCatalog.length} types · ${deskBucketReference.length} mappings`}
+                        summary={`${deskCatalog.length} types · ${lines.length} lines`}
                     >
                         <p className="text-xs text-muted-foreground">
                             Preference buckets used for ranking. Map each desk
@@ -885,6 +908,12 @@ export default function BidScenarioEdit({
                                 </div>
                             </div>
                         </div>
+                        <LineDeskBucketEditor
+                            lines={groupMappedLines}
+                            deskCatalog={deskCatalog}
+                            lineOverrides={lineDeskBuckets}
+                            onChange={setLineDeskBuckets}
+                        />
                     </BidToolsCollapsibleSection>
 
                     <div className="rounded-lg border border-sidebar-border/70 p-3 text-xs text-muted-foreground">

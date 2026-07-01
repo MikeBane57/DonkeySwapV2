@@ -54,6 +54,9 @@ class PreviewScoreBidLinesRequest extends FormRequest
             'draft.desk_bucket_mappings.*.desk_group' => ['required_with:draft.desk_bucket_mappings', 'string', 'max:64'],
             'draft.desk_bucket_mappings.*.start_time' => ['nullable', 'string', 'max:64'],
             'draft.desk_bucket_mappings.*.bucket' => ['required_with:draft.desk_bucket_mappings', 'string', 'max:64'],
+            'draft.line_desk_buckets' => ['nullable', 'array'],
+            'draft.line_desk_buckets.*.bid_line_id' => ['required_with:draft.line_desk_buckets', 'integer'],
+            'draft.line_desk_buckets.*.bucket' => ['required_with:draft.line_desk_buckets', 'string', 'max:64'],
         ];
     }
 }

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { BidLinePickerToolbar } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import { deskBucketLabel } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 
 export type { LinePickerRow };
 
@@ -67,6 +68,9 @@ export function BidLinePicker({
                             <span className="font-mono">{line.line_num}</span>
                             <span className="truncate text-muted-foreground">
                                 {line.desk_group}
+                            </span>
+                            <span className="truncate text-[10px] text-muted-foreground/80">
+                                {deskBucketLabel(line.desk_bucket)}
                             </span>
                         </label>
                     ))}

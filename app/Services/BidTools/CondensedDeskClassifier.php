@@ -60,8 +60,13 @@ final class CondensedDeskClassifier
         private readonly StartTimeNormalizer $startTimes,
     ) {}
 
-    public function bucketForLine(BidLine $line, array $mappings = []): string
+    public function bucketForLine(BidLine $line, array $mappings = [], array $lineBuckets = []): string
     {
+        $normalizedLineBuckets = $this->normalizeLineBuckets($lineBuckets);
+        if (isset($normalizedLineBuckets[$line->id])) {
+            return $normalizedLineBuckets[$line->id];
+        }
+
         $normalizedMappings = $this->normalizeMappings($mappings);
         $mapped = $this->resolveMappedBucket($line, $normalizedMappings);
         if ($mapped !== null) {
@@ -69,6 +74,43 @@ final class CondensedDeskClassifier
         }
 
         return $this->autoBucketForLine($line);
+    }
+
+    public function autoBucketForLine(BidLine $line): string
+    {
+        $line->loadMissing('days');
+
+        $group = strtoupper(trim($line->desk_group));
+
+        if ($this->hasReliefWork($line) || $this->isReliefDeskGroup($group)) {
+            return 'RELIEF';
+        }
+
+        $startKey = $this->startTimes->rankKey($line->start_time);
+
+        if ($this->isDsDrMixGroup($group)) {
+            return 'DS_DR_MIX';
+        }
+
+        if ($this->isAsArMixGroup($group)) {
+            return 'AS_AR_MIX';
+        }
+
+        if ($this->isMidDeskGroup($group)) {
+            return 'MID';
+        }
+
+        $fromGroup = $this->bucketFromDeskType($group, $startKey);
+        if ($fromGroup !== null) {
+            return $fromGroup;
+        }
+
+        $fromWork = $this->bucketFromDominantWorkCode($line, $startKey);
+        if ($fromWork !== null) {
+            return $fromWork;
+        }
+
+        return 'unknown';
     }
 
     /**
@@ -153,41 +195,62 @@ final class CondensedDeskClassifier
         return $out;
     }
 
-    private function autoBucketForLine(BidLine $line): string
+    /**
+     * @return array<int, string>
+     */
+    public function normalizeLineBuckets(mixed $raw): array
     {
-        $line->loadMissing('days');
-
-        $group = strtoupper(trim($line->desk_group));
-
-        if ($this->hasReliefWork($line) || $this->isReliefDeskGroup($group)) {
-            return 'RELIEF';
+        if (! is_array($raw)) {
+            return [];
         }
 
-        $startKey = $this->startTimes->rankKey($line->start_time);
+        $out = [];
+        foreach ($raw as $key => $entry) {
+            if (is_array($entry)) {
+                $lineId = (int) ($entry['bid_line_id'] ?? $entry['line_id'] ?? 0);
+                $bucket = $this->normalizeBucketKey((string) ($entry['bucket'] ?? ''));
+            } else {
+                $lineId = (int) $key;
+                $bucket = $this->normalizeBucketKey((string) $entry);
+            }
 
-        if ($this->isDsDrMixGroup($group)) {
-            return 'DS_DR_MIX';
+            if ($lineId <= 0 || $bucket === '') {
+                continue;
+            }
+
+            if ($bucket !== 'unknown' && ! in_array($bucket, self::BUCKETS, true)) {
+                continue;
+            }
+
+            $out[$lineId] = $bucket;
         }
 
-        if ($this->isAsArMixGroup($group)) {
-            return 'AS_AR_MIX';
+        return $out;
+    }
+
+    /**
+     * @param  array<int, string>  $lineBuckets
+     * @return list<array{bid_line_id: int, bucket: string}>
+     */
+    public function lineBucketsForStorage(array $lineBuckets): array
+    {
+        $out = [];
+        foreach ($lineBuckets as $lineId => $bucket) {
+            $lineId = (int) $lineId;
+            $bucket = $this->normalizeBucketKey($bucket);
+            if ($lineId <= 0 || $bucket === '') {
+                continue;
+            }
+
+            $out[] = [
+                'bid_line_id' => $lineId,
+                'bucket' => $bucket,
+            ];
         }
 
-        if ($this->isMidDeskGroup($group)) {
-            return 'MID';
-        }
+        usort($out, fn (array $a, array $b): int => $a['bid_line_id'] <=> $b['bid_line_id']);
 
-        $fromGroup = $this->bucketFromDeskType($group, $startKey);
-        if ($fromGroup !== null) {
-            return $fromGroup;
-        }
-
-        $fromWork = $this->bucketFromDominantWorkCode($line, $startKey);
-        if ($fromWork !== null) {
-            return $fromWork;
-        }
-
-        return 'unknown';
+        return $out;
     }
 
     public function normalizeBucketKey(string $bucket): string
@@ -242,17 +305,18 @@ final class CondensedDeskClassifier
     /**
      * @return list<string>
      */
-    public function bucketsPresentInImport(int $bidImportId, array $mappings = []): array
+    public function bucketsPresentInImport(int $bidImportId, array $mappings = [], array $lineBuckets = []): array
     {
         $normalizedMappings = $this->normalizeMappings($mappings);
+        $normalizedLineBuckets = $this->normalizeLineBuckets($lineBuckets);
         $seen = [];
         BidLine::query()
             ->where('bid_import_id', $bidImportId)
             ->with('days')
             ->select(['id', 'desk_group', 'start_time', 'bid_import_id'])
-            ->chunkById(200, function ($lines) use (&$seen, $normalizedMappings) {
+            ->chunkById(200, function ($lines) use (&$seen, $normalizedMappings, $normalizedLineBuckets) {
                 foreach ($lines as $line) {
-                    $bucket = $this->bucketForLine($line, $normalizedMappings);
+                    $bucket = $this->bucketForLine($line, $normalizedMappings, $normalizedLineBuckets);
                     if ($bucket !== 'unknown') {
                         $seen[$bucket] = true;
                     }
@@ -284,17 +348,23 @@ final class CondensedDeskClassifier
      *   line_num: string,
      *   desk_group: string,
      *   start_time: string,
+     *   auto_desk_bucket: string,
      *   desk_bucket: string,
+     *   is_manual_desk_bucket: bool,
      * }
      */
-    public function linePickerFields(BidLine $line, array $mappings = []): array
+    public function linePickerFields(BidLine $line, array $mappings = [], array $lineBuckets = []): array
     {
+        $normalizedLineBuckets = $this->normalizeLineBuckets($lineBuckets);
+
         return [
             'id' => $line->id,
             'line_num' => $line->line_num,
             'desk_group' => $line->desk_group,
             'start_time' => $line->start_time,
-            'desk_bucket' => $this->bucketForLine($line, $mappings),
+            'auto_desk_bucket' => $this->autoBucketForLine($line),
+            'desk_bucket' => $this->bucketForLine($line, $mappings, $lineBuckets),
+            'is_manual_desk_bucket' => isset($normalizedLineBuckets[$line->id]),
         ];
     }
 

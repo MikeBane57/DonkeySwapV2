@@ -56,6 +56,7 @@ class ScenarioController extends Controller
             'personal_dates' => [],
             'code_overrides' => [],
             'desk_bucket_mappings' => [],
+            'line_desk_buckets' => [],
         ]);
 
         return redirect()
@@ -83,6 +84,7 @@ class ScenarioController extends Controller
         $deskKeys = $this->preferenceCatalog->deskKeysForImport(
             $s->bid_import_id,
             $s->desk_bucket_mappings ?? [],
+            $s->line_desk_buckets ?? [],
         );
 
         $legacyRanges = $s->vacationRanges->map(fn ($r) => [
@@ -106,6 +108,7 @@ class ScenarioController extends Controller
                 ),
                 'code_overrides' => $s->code_overrides ?? [],
                 'desk_bucket_mappings' => $s->desk_bucket_mappings ?? [],
+                'line_desk_buckets' => $s->line_desk_buckets ?? [],
                 'import' => [
                     'bid_year' => $s->import->bid_year,
                     'file_hash' => $s->import->file_hash,
@@ -130,12 +133,13 @@ class ScenarioController extends Controller
 
         $fillKeys = [
             'name', 'vacation_bank', 'weights', 'holiday_rank', 'desk_rank',
-            'personal_dates', 'code_overrides', 'desk_bucket_mappings',
+            'personal_dates', 'code_overrides', 'desk_bucket_mappings', 'line_desk_buckets',
         ];
         $payload = Arr::only($data, $fillKeys);
         $payload['desk_rank'] = $payload['desk_rank'] ?? [];
         $payload['personal_dates'] = $payload['personal_dates'] ?? [];
         $payload['desk_bucket_mappings'] = $payload['desk_bucket_mappings'] ?? [];
+        $payload['line_desk_buckets'] = $payload['line_desk_buckets'] ?? [];
         $s->fill($payload);
         $s->save();
 
@@ -168,6 +172,7 @@ class ScenarioController extends Controller
             ),
             'code_overrides' => $source->code_overrides ?? [],
             'desk_bucket_mappings' => $source->desk_bucket_mappings ?? [],
+            'line_desk_buckets' => $source->line_desk_buckets ?? [],
         ]);
 
         return redirect()

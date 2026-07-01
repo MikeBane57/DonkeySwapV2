@@ -20,6 +20,7 @@ class BidScenario extends Model
         'personal_dates',
         'code_overrides',
         'desk_bucket_mappings',
+        'line_desk_buckets',
     ];
 
     protected function casts(): array
@@ -33,6 +34,7 @@ class BidScenario extends Model
             'personal_dates' => 'array',
             'code_overrides' => 'array',
             'desk_bucket_mappings' => 'array',
+            'line_desk_buckets' => 'array',
         ];
     }
 
