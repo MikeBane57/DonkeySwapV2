@@ -48,6 +48,7 @@ class RankedController extends Controller
         $deskKeys = $this->preferenceCatalog->deskKeysForImport(
             $s->bid_import_id,
             $s->desk_bucket_mappings ?? [],
+            $s->line_desk_buckets ?? [],
         );
 
         $lineRows = $this->linePicker->rowsForImport($s->bid_import_id, $s->id);
@@ -190,7 +191,7 @@ class RankedController extends Controller
 
         $fillKeys = [
             'vacation_bank', 'weights', 'holiday_rank', 'desk_rank',
-            'personal_dates', 'desk_bucket_mappings',
+            'personal_dates', 'desk_bucket_mappings', 'line_desk_buckets',
         ];
 
         $overrides = Arr::only($payload, $fillKeys);

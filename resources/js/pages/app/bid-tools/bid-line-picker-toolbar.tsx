@@ -5,7 +5,9 @@ export type LinePickerRow = {
     line_num: string;
     desk_group: string;
     start_time: string;
+    auto_desk_bucket?: string;
     desk_bucket: string;
+    is_manual_desk_bucket?: boolean;
 };
 
 const DESK_BUCKET_LABELS: Record<string, string> = {
@@ -128,13 +130,17 @@ export function mapLineToPickerRow(line: {
     line_num: string;
     desk_group: string;
     start_time: string;
+    auto_desk_bucket?: string;
     desk_bucket?: string;
+    is_manual_desk_bucket?: boolean;
 }): LinePickerRow {
     return {
         id: line.id,
         line_num: line.line_num,
         desk_group: line.desk_group,
         start_time: line.start_time,
+        auto_desk_bucket: line.auto_desk_bucket,
         desk_bucket: line.desk_bucket ?? 'unknown',
+        is_manual_desk_bucket: line.is_manual_desk_bucket,
     };
 }

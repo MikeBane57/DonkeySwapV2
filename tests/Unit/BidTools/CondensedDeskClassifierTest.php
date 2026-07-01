@@ -178,3 +178,35 @@ test('start-specific mapping wins over group-only mapping', function () {
 
     expect($mapped)->toBe('DS7');
 });
+
+test('per-line desk bucket override wins over group mapping and auto detection', function () {
+    $classifier = classifier();
+
+    $line = makeClassifierLine([], deskGroup: 'MG', startTime: '2200');
+    $line->id = 42;
+
+    expect($classifier->autoBucketForLine($line))->toBe('MID');
+
+    $mapped = $classifier->bucketForLine($line, [
+        ['desk_group' => 'MG', 'start_time' => '2200', 'bucket' => 'MID'],
+    ], [
+        ['bid_line_id' => 42, 'bucket' => 'DS7'],
+    ]);
+
+    expect($mapped)->toBe('DS7');
+});
+
+test('line picker fields expose auto and manual desk bucket state', function () {
+    $classifier = classifier();
+
+    $line = makeClassifierLine([], deskGroup: 'DS', startTime: '0700');
+    $line->id = 7;
+
+    $fields = $classifier->linePickerFields($line, [], [
+        ['bid_line_id' => 7, 'bucket' => 'DS'],
+    ]);
+
+    expect($fields['auto_desk_bucket'])->toBe('DS7');
+    expect($fields['desk_bucket'])->toBe('DS');
+    expect($fields['is_manual_desk_bucket'])->toBeTrue();
+});

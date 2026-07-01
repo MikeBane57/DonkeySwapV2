@@ -18,9 +18,11 @@ final class BidLinePickerService
     public function rowsForImport(int $importId, ?int $scenarioId = null): array
     {
         $mappings = [];
+        $lineBuckets = [];
         if ($scenarioId !== null) {
             $scenario = BidScenario::query()->find($scenarioId);
             $mappings = $scenario?->desk_bucket_mappings ?? [];
+            $lineBuckets = $scenario?->line_desk_buckets ?? [];
         }
 
         $lines = BidLine::query()
@@ -36,8 +38,8 @@ final class BidLinePickerService
                 ->keyBy('bid_line_id');
         }
 
-        $rows = $lines->map(function (BidLine $line) use ($notes, $mappings) {
-            $picker = $this->deskClassifier->linePickerFields($line, $mappings);
+        $rows = $lines->map(function (BidLine $line) use ($notes, $mappings, $lineBuckets) {
+            $picker = $this->deskClassifier->linePickerFields($line, $mappings, $lineBuckets);
 
             return [
                 ...$picker,

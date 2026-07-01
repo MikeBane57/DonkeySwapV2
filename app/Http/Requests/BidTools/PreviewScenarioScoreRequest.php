@@ -51,6 +51,9 @@ class PreviewScenarioScoreRequest extends FormRequest
             'desk_bucket_mappings.*.desk_group' => ['required_with:desk_bucket_mappings', 'string', 'max:64'],
             'desk_bucket_mappings.*.start_time' => ['nullable', 'string', 'max:64'],
             'desk_bucket_mappings.*.bucket' => ['required_with:desk_bucket_mappings', 'string', 'max:64'],
+            'line_desk_buckets' => ['nullable', 'array'],
+            'line_desk_buckets.*.bid_line_id' => ['required_with:line_desk_buckets', 'integer'],
+            'line_desk_buckets.*.bucket' => ['required_with:line_desk_buckets', 'string', 'max:64'],
         ];
     }
 }

@@ -64,6 +64,7 @@ final class BidScenarioProfileBuilder
                 $legacyRanges,
             ),
             'desk_bucket_mappings' => $scenario->desk_bucket_mappings ?? [],
+            'line_desk_buckets' => $scenario->line_desk_buckets ?? [],
         ];
     }
 
@@ -90,6 +91,7 @@ final class BidScenarioProfileBuilder
             'personal_dates' => $merged['personal_dates'],
             'code_overrides' => [],
             'desk_bucket_mappings' => [],
+            'line_desk_buckets' => [],
         ]);
     }
 
@@ -108,6 +110,7 @@ final class BidScenarioProfileBuilder
             'desk_rank' => $merged['desk_rank'],
             'personal_dates' => $merged['personal_dates'],
             'desk_bucket_mappings' => $merged['desk_bucket_mappings'],
+            'line_desk_buckets' => $merged['line_desk_buckets'],
         ]);
         $scenario->save();
     }
@@ -154,6 +157,9 @@ final class BidScenarioProfileBuilder
                 : $defaults['personal_dates'],
             'desk_bucket_mappings' => is_array($profile['desk_bucket_mappings'] ?? null)
                 ? $profile['desk_bucket_mappings']
+                : [],
+            'line_desk_buckets' => is_array($profile['line_desk_buckets'] ?? null)
+                ? $profile['line_desk_buckets']
                 : [],
         ];
     }

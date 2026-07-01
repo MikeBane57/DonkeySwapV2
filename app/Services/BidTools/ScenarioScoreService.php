@@ -62,6 +62,7 @@ final class ScenarioScoreService
             $this->normalizeKeyedRank($scenario->desk_rank, $this->defaultDeskRank()),
         );
         $deskMappings = $this->condensedDesk->normalizeMappings($scenario->desk_bucket_mappings ?? []);
+        $lineDeskBuckets = $this->condensedDesk->normalizeLineBuckets($scenario->line_desk_buckets ?? []);
 
         $lines = BidLine::query()
             ->where('bid_import_id', $scenario->bid_import_id)
@@ -117,7 +118,7 @@ final class ScenarioScoreService
 
             $deskInfo = $this->dominantDesk->analyze($line);
             $bucket = $this->condensedDesk->normalizeBucketKey(
-                $this->condensedDesk->bucketForLine($line, $deskMappings),
+                $this->condensedDesk->bucketForLine($line, $deskMappings, $lineDeskBuckets),
             );
             $deskPoints = $this->scoreKeyedPreference($deskEntries, $bucket)
                 * (float) ($weights['desk'] ?? 1);
@@ -810,6 +811,7 @@ final class ScenarioScoreService
             'desk_rank',
             'personal_dates',
             'desk_bucket_mappings',
+            'line_desk_buckets',
         ];
 
         $original = [];

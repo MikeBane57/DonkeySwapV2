@@ -21,9 +21,9 @@ final class BidLinePreferenceCatalog
     /**
      * @return list<string>
      */
-    public function deskKeysForImport(int $bidImportId, array $mappings = []): array
+    public function deskKeysForImport(int $bidImportId, array $mappings = [], array $lineBuckets = []): array
     {
-        return $this->deskClassifier->bucketsPresentInImport($bidImportId, $mappings);
+        return $this->deskClassifier->bucketsPresentInImport($bidImportId, $mappings, $lineBuckets);
     }
 
     /**
