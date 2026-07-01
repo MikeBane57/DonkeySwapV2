@@ -147,6 +147,8 @@ final class ScenarioScoreService
                     'desk' => round($deskPoints, 2),
                 ],
                 'tier_ranks' => [
+                    'holiday' => $this->holidayTierRank($holidayEntries, $byDate),
+                    'personal' => $this->personalTierRank($personalEntries, $byDate),
                     'desk' => RankTierHelper::tierRankForKey(
                         $deskEntries,
                         $bucket,
@@ -249,7 +251,7 @@ final class ScenarioScoreService
     {
         return is_string($raw) && in_array($raw, self::SORT_MODES, true)
             ? $raw
-            : self::SORT_MODE_WEIGHTED;
+            : self::SORT_MODE_BLENDED;
     }
 
     /**
@@ -298,17 +300,7 @@ final class ScenarioScoreService
                     continue;
                 }
 
-                if ($criterion === 'desk') {
-                    $aTier = (int) ($a['tier_ranks']['desk'] ?? PHP_INT_MAX);
-                    $bTier = (int) ($b['tier_ranks']['desk'] ?? PHP_INT_MAX);
-                    if ($aTier !== $bTier) {
-                        return $aTier <=> $bTier;
-                    }
-
-                    continue;
-                }
-
-                $cmp = self::compareCriterionParts($a, $b, $criterion);
+                $cmp = self::compareCriterionTierRanks($a, $b, $criterion);
                 if ($cmp !== 0) {
                     return $cmp;
                 }
@@ -386,6 +378,21 @@ final class ScenarioScoreService
     public static function usesTierGroupSort(string $sortMode): bool
     {
         return in_array($sortMode, [self::SORT_MODE_PRIORITY, self::SORT_MODE_BLENDED], true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @param  array<string, mixed>  $b
+     */
+    private static function compareCriterionTierRanks(array $a, array $b, string $criterion): int
+    {
+        $aTier = (int) ($a['tier_ranks'][$criterion] ?? PHP_INT_MAX);
+        $bTier = (int) ($b['tier_ranks'][$criterion] ?? PHP_INT_MAX);
+        if ($aTier === $bTier) {
+            return 0;
+        }
+
+        return $aTier <=> $bTier;
     }
 
     /**
@@ -734,6 +741,55 @@ final class ScenarioScoreService
         }
 
         return 0.0;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $holidayEntries
+     * @param  array<string, bool>  $byDate
+     */
+    private function holidayTierRank(array $holidayEntries, array $byDate): int
+    {
+        $worst = count($holidayEntries) + 1;
+
+        foreach ($holidayEntries as $i => $entry) {
+            if (($entry['priority'] ?? 'high') === 'ignore') {
+                continue;
+            }
+
+            $date = $entry['date'] ?? null;
+            if (! is_string($date) || $date === '') {
+                continue;
+            }
+
+            if (($byDate[$date] ?? false) === true) {
+                return $i + 1;
+            }
+        }
+
+        return $worst;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $personalEntries
+     * @param  array<string, bool>  $byDate
+     */
+    private function personalTierRank(array $personalEntries, array $byDate): int
+    {
+        $worst = count($personalEntries) + 1;
+
+        foreach ($personalEntries as $i => $entry) {
+            if (($entry['priority'] ?? 'high') === 'ignore') {
+                continue;
+            }
+
+            foreach (self::datesCoveredByPersonalEntry($entry) as $date) {
+                if (($byDate[$date] ?? false) === true) {
+                    return $i + 1;
+                }
+            }
+        }
+
+        return $worst;
     }
 
     /**
