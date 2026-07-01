@@ -327,6 +327,13 @@ export default function BidScenarioEdit({
             ) as Record<string, string>,
         [deskCatalog],
     );
+    const categoryOrderSummary = useMemo(
+        () =>
+            criteriaOrder
+                .map((id) => CRITERIA_LABELS[id] ?? id)
+                .join(' → '),
+        [criteriaOrder],
+    );
     const submit = useCallback(() => {
         setSaving(true);
         router.put(
@@ -569,7 +576,7 @@ export default function BidScenarioEdit({
                                 <p className="text-xs text-muted-foreground">
                                     {sortMode === 'weighted'
                                         ? 'Lines are ranked by total weighted score first. Desk tier groups (AM → PM → Mid) are not used in weighted mode — switch to Blended to enforce group order.'
-                                        : 'Uses your desk tier groups first, then category order (desk → holidays → personal). Lower tier number ranks higher (AM group before PM before Mid).'}
+                                        : `Lines are compared in your category order (${categoryOrderSummary}), using each list's ranking position — not the numeric weights below. Desk tiers still use your AM / PM / Mid groups.`}
                                 </p>
                             </div>
                             <div className="space-y-2">

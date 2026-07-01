@@ -250,7 +250,7 @@ export function ScenarioRankingPanel({
                         <p className="text-[11px] text-muted-foreground">
                             {sortMode === 'weighted'
                                 ? 'Weighted sorts by total score. Use Blended to enforce AM → PM → Mid desk groups.'
-                                : 'Blended applies desk tier groups before holidays and personal dates.'}
+                                : `Blended compares categories in your order (${value.weights.criteria_order.map((id) => CRITERIA_LABELS[id] ?? id).join(' → ')}), using list position — not the weights below.`}
                         </p>
                     </div>
                 </div>
