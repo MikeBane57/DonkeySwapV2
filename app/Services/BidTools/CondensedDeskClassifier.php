@@ -10,7 +10,7 @@ use App\Models\BidLine;
  * AM: DS, DG, DS7 (DS @ 0700), DR, DS/DR Mix
  * PM: AS, AG, AS15 (AS @ 1500), AR, AS/AR Mix
  * Mid: MS, MG, MG/MS
- * Relief: relief work on the line
+ * Relief: RELIEF desk group or relief work on the line
  */
 final class CondensedDeskClassifier
 {
@@ -64,11 +64,12 @@ final class CondensedDeskClassifier
     {
         $line->loadMissing('days');
 
-        if ($this->hasReliefWork($line)) {
+        $group = strtoupper(trim($line->desk_group));
+
+        if ($this->hasReliefWork($line) || $this->isReliefDeskGroup($group)) {
             return 'RELIEF';
         }
 
-        $group = strtoupper(trim($line->desk_group));
         $startKey = $this->startTimes->rankKey($line->start_time);
 
         if ($this->isDsDrMixGroup($group)) {
@@ -153,7 +154,8 @@ final class CondensedDeskClassifier
         $seen = [];
         BidLine::query()
             ->where('bid_import_id', $bidImportId)
-            ->select(['id', 'desk_group', 'start_time'])
+            ->with('days')
+            ->select(['id', 'desk_group', 'start_time', 'bid_import_id'])
             ->chunkById(200, function ($lines) use (&$seen) {
                 foreach ($lines as $line) {
                     $bucket = $this->bucketForLine($line);
@@ -178,7 +180,7 @@ final class CondensedDeskClassifier
     {
         return array_map(
             fn (string $key) => ['key' => $key, 'label' => $this->labelForBucket($key)],
-            $this->bucketsPresentInImport($bidImportId),
+            self::BUCKETS,
         );
     }
 
@@ -311,6 +313,15 @@ final class CondensedDeskClassifier
         }
 
         return null;
+    }
+
+    private function isReliefDeskGroup(string $group): bool
+    {
+        if ($group === '') {
+            return false;
+        }
+
+        return $this->deskTypeMatches($group, 'RELIEF') || str_contains($group, 'RELIEF');
     }
 
     private function hasReliefWork(BidLine $line): bool

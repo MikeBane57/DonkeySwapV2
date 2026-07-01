@@ -449,12 +449,8 @@ final class ScenarioScoreService
      */
     public function deskEntriesForEditor(mixed $raw, ?array $importKeys = null): array
     {
-        $defaults = ($importKeys !== null && $importKeys !== [])
-            ? $importKeys
-            : $this->defaultDeskRank();
-
         $entries = $this->mergeMissingKeyedEntries(
-            $this->normalizeKeyedRank($raw, $defaults),
+            $this->normalizeKeyedRank($raw, $this->defaultDeskRank()),
             $importKeys ?? []
         );
 
