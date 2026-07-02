@@ -218,7 +218,7 @@ function flattenErrors(errors: Record<string, string>): string[] {
 export default function BidScenarioEdit({
     scenario,
     distinctCodes,
-    holidaysCatalog,
+    defaultHolidayRank,
     deskCatalog,
     deskBucketReference,
     lines,
@@ -245,7 +245,7 @@ export default function BidScenarioEdit({
         };
     };
     distinctCodes: string[];
-    holidaysCatalog: { date: string; id: string; label: string }[];
+    defaultHolidayRank: HolidayEntry[];
     deskCatalog: { key: string; label: string }[];
     deskBucketReference: DeskBucketReferenceRow[];
     lines: LinePickerRow[];
@@ -436,11 +436,11 @@ export default function BidScenarioEdit({
 
     const resetHolidaysFromCatalog = () => {
         setHolidays(
-            holidaysCatalog.map((h) => ({
+            defaultHolidayRank.map((h) => ({
                 date: h.date,
                 label: h.label,
                 id: h.id,
-                priority: 'high' as Priority,
+                priority: h.priority as Priority,
             })),
         );
     };

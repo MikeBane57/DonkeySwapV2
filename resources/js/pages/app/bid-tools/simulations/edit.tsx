@@ -15,10 +15,11 @@ import {
 } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 import type { BidderProfile } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 import {
-    ProfileSourcePicker,
-    type ProfileSource,
-    type ProfileTemplate,
+    ProfileSourcePicker
+    
+    
 } from '@/pages/app/bid-tools/simulations/profile-source-picker';
+import type {ProfileSource, ProfileTemplate} from '@/pages/app/bid-tools/simulations/profile-source-picker';
 import type { BreadcrumbItem } from '@/types';
 
 type Participant = {

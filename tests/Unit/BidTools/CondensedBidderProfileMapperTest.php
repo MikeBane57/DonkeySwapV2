@@ -12,16 +12,52 @@ function mapper(): CondensedBidderProfileMapper
 test('condensed defaults include holiday and desk ranks', function () {
     $defaults = mapper()->condensedDefaults();
 
-    expect($defaults['holiday_rank'])->toHaveCount(4);
+    expect($defaults['holiday_rank'])->toHaveCount(5);
     expect(collect($defaults['holiday_rank'])->pluck('key')->all())->toBe([
         'christmas',
         'thanksgiving',
-        'new_years',
         'july_4',
+        'super_bowl',
+        'new_years',
+    ]);
+    expect(collect($defaults['holiday_rank'])->pluck('priority', 'key')->all())->toBe([
+        'christmas' => 'high',
+        'thanksgiving' => 'high',
+        'july_4' => 'high',
+        'super_bowl' => 'high',
+        'new_years' => 'ignore',
     ]);
 
     expect($defaults['desk_rank'])->toHaveCount(count(CondensedDeskClassifier::BUCKETS));
     expect(collect($defaults['desk_rank'])->pluck('key')->all())->toBe(CondensedDeskClassifier::BUCKETS);
+});
+
+test('expand holiday rank defaults prioritize christmas thanksgiving july 4 and super bowl', function () {
+    $mapper = mapper();
+    $expanded = $mapper->expandHolidayRank($mapper->defaultHolidayRank(), 2026);
+    $byId = collect($expanded)->keyBy('id');
+
+    expect($byId['christmas_eve']['priority'])->toBe('high');
+    expect($byId['thanksgiving']['priority'])->toBe('high');
+    expect($byId['black_friday']['priority'])->toBe('high');
+    expect($byId['july_4']['priority'])->toBe('high');
+    expect($byId['super_bowl_sunday']['priority'])->toBe('high');
+    expect($byId['new_years_day']['priority'])->toBe('ignore');
+    expect($byId['easter']['priority'])->toBe('ignore');
+
+    $rankedIds = collect($expanded)
+        ->filter(fn (array $row) => $row['priority'] === 'high')
+        ->pluck('id')
+        ->all();
+
+    expect($rankedIds)->toBe([
+        'christmas_eve',
+        'christmas_day',
+        'thanksgiving',
+        'black_friday',
+        'july_4',
+        'super_bowl_sunday',
+    ]);
 });
 
 test('expand holiday rank applies same priority to eve and day', function () {

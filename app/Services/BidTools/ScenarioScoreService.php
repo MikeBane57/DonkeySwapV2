@@ -564,16 +564,40 @@ final class ScenarioScoreService
 
     public function defaultHolidayEntries(int $bidYear): array
     {
-        return $this->holidays->holidaysInBidYear($bidYear)
-            ->map(fn (array $meta, string $date) => [
+        $catalog = $this->holidays->holidaysInBidYear($bidYear);
+        $out = [];
+        $usedDates = [];
+
+        foreach (FederalHolidayCalendar::DEFAULT_RANKED_HOLIDAY_IDS as $id) {
+            foreach ($catalog as $date => $meta) {
+                if ($meta['id'] !== $id || isset($usedDates[$date])) {
+                    continue;
+                }
+
+                $out[] = [
+                    'date' => $date,
+                    'label' => $meta['label'],
+                    'id' => $meta['id'],
+                    'priority' => 'high',
+                ];
+                $usedDates[$date] = true;
+            }
+        }
+
+        foreach ($catalog->sortKeys() as $date => $meta) {
+            if (isset($usedDates[$date])) {
+                continue;
+            }
+
+            $out[] = [
                 'date' => $date,
                 'label' => $meta['label'],
                 'id' => $meta['id'],
-                'priority' => 'high',
-            ])
-            ->sortKeys()
-            ->values()
-            ->all();
+                'priority' => 'ignore',
+            ];
+        }
+
+        return $out;
     }
 
     /**

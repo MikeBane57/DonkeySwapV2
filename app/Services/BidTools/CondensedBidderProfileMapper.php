@@ -14,8 +14,18 @@ final class CondensedBidderProfileMapper
     public const HOLIDAY_GROUPS = [
         'christmas' => ['christmas_eve', 'christmas_day'],
         'thanksgiving' => ['thanksgiving', 'black_friday'],
-        'new_years' => ['new_years_eve', 'new_years_day'],
         'july_4' => ['july_4'],
+        'super_bowl' => ['super_bowl_sunday'],
+        'new_years' => ['new_years_eve', 'new_years_day'],
+    ];
+
+    /** @var list<array{key: string, priority: string, tier: int}> */
+    private const DEFAULT_CONDENSED_HOLIDAY_RANK = [
+        ['key' => 'christmas', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'thanksgiving', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'july_4', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'super_bowl', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'new_years', 'priority' => 'ignore', 'tier' => 5],
     ];
 
     /** @var list<string> */
@@ -34,7 +44,7 @@ final class CondensedBidderProfileMapper
     public function condensedDefaults(): array
     {
         return [
-            'holiday_rank' => $this->defaultKeyedRank(array_keys(self::HOLIDAY_GROUPS)),
+            'holiday_rank' => $this->defaultHolidayRank(),
             'desk_rank' => $this->defaultKeyedRank(self::DESK_KEYS),
         ];
     }
@@ -187,7 +197,15 @@ final class CondensedBidderProfileMapper
             ];
         }
 
-        return $out === [] ? $this->defaultKeyedRank(array_keys(self::HOLIDAY_GROUPS)) : $out;
+        return $out === [] ? $this->defaultHolidayRank() : $out;
+    }
+
+    /**
+     * @return list<array{key: string, priority: string, tier: int}>
+     */
+    public function defaultHolidayRank(): array
+    {
+        return self::DEFAULT_CONDENSED_HOLIDAY_RANK;
     }
 
     /**
@@ -253,7 +271,9 @@ final class CondensedBidderProfileMapper
     private function normalizeKeyedRank(mixed $raw, array $defaultKeys): array
     {
         if (! is_array($raw) || $raw === []) {
-            return $this->defaultKeyedRank($defaultKeys);
+            return $defaultKeys === array_keys(self::HOLIDAY_GROUPS)
+                ? $this->defaultHolidayRank()
+                : $this->defaultKeyedRank($defaultKeys);
         }
 
         $out = [];
