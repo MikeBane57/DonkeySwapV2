@@ -154,6 +154,7 @@ export function TieredRankList({
     onRemoveKey,
     compact = false,
     hideLabel = false,
+    hidePriority = false,
 }: {
     idPrefix: string;
     label: string;
@@ -164,6 +165,7 @@ export function TieredRankList({
     onRemoveKey?: (key: string) => void;
     compact?: boolean;
     hideLabel?: boolean;
+    hidePriority?: boolean;
 }) {
     const flatIndexByKey = useMemo(() => {
         const map = new Map<string, number>();
@@ -262,13 +264,17 @@ export function TieredRankList({
                                     <span className={compact ? preferencePuckLabelClass : 'min-w-0 flex-1 text-sm'}>
                                         {labels[entry.key] ?? entry.key}
                                     </span>
-                                    <PrioritySelect
-                                        value={entry.priority}
-                                        compact={compact}
-                                        onChange={(priority) =>
-                                            updateEntry(flatIndex, { priority })
-                                        }
-                                    />
+                                    {!hidePriority && (
+                                        <PrioritySelect
+                                            value={entry.priority}
+                                            compact={compact}
+                                            onChange={(priority) =>
+                                                updateEntry(flatIndex, {
+                                                    priority,
+                                                })
+                                            }
+                                        />
+                                    )}
                                     <CompactGroupSelect
                                         value={currentGroupNumber}
                                         groupCount={groups.length}

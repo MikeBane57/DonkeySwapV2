@@ -410,6 +410,7 @@ export function ScenarioRankingPanel({
                         }
                         compact
                         hideLabel
+                        hidePriority
                     />
                 </div>
             </div>
