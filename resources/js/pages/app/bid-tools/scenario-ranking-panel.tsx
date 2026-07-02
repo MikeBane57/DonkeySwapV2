@@ -26,8 +26,8 @@ import {
     preferenceColumnClass,
 } from '@/pages/app/bid-tools/preference-rank-shared';
 import type { StartTimeTiebreakKey } from '@/pages/app/bid-tools/preference-rank-shared';
-import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 import { syncTiersFromVisualGroups } from '@/pages/app/bid-tools/rank-tier-utils';
+import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
 export type Priority = 'ignore' | 'low' | 'high';
 export type SortMode = 'weighted' | 'priority' | 'blended' | 'group_ranked';

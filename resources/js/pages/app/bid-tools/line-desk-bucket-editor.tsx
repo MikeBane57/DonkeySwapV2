@@ -7,9 +7,10 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
-    deskBucketLabel,
-    type LinePickerRow,
+    deskBucketLabel
+    
 } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import type {LinePickerRow} from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 
 export type LineDeskBucketOverride = {
     bid_line_id: number;
