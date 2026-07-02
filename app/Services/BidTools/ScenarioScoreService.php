@@ -613,9 +613,7 @@ final class ScenarioScoreService
             $seen[$key] = true;
         }
 
-        return RankTierHelper::syncTiersFromVisualGroups(
-            RankTierHelper::normalizeTierOrder($out),
-        );
+        return RankTierHelper::prepareDeskRankEntries($out);
     }
 
     /**
@@ -637,19 +635,56 @@ final class ScenarioScoreService
             if ($normalizedKey === '' || isset($seen[$normalizedKey])) {
                 continue;
             }
-            $maxTier = 0;
-            foreach ($entries as $entry) {
-                $maxTier = max($maxTier, (int) ($entry['tier'] ?? 0));
-            }
             $entries[] = [
                 'key' => $normalizedKey,
                 'priority' => 'high',
-                'tier' => $maxTier + 1,
+                'tier' => $this->defaultTierForMissingDeskBucket($normalizedKey, $entries),
             ];
             $seen[$normalizedKey] = true;
         }
 
         return $entries;
+    }
+
+    /**
+     * @param  list<array{key: string, priority: string, tier?: int}>  $entries
+     */
+    private function defaultTierForMissingDeskBucket(string $missingKey, array $entries): int
+    {
+        $catalog = $this->defaultDeskRank();
+        $catalogIndex = array_search($missingKey, $catalog, true);
+        if ($catalogIndex === false) {
+            $maxTier = 0;
+            foreach ($entries as $entry) {
+                $maxTier = max($maxTier, (int) ($entry['tier'] ?? 0));
+            }
+
+            return $maxTier + 1;
+        }
+
+        $tierByKey = [];
+        foreach ($entries as $entry) {
+            $tierByKey[$this->condensedDesk->normalizeBucketKey((string) $entry['key'])] = (int) ($entry['tier'] ?? 1);
+        }
+
+        for ($offset = 1; $offset < count($catalog); $offset++) {
+            foreach ([$catalogIndex - $offset, $catalogIndex + $offset] as $neighborIndex) {
+                if ($neighborIndex < 0 || $neighborIndex >= count($catalog)) {
+                    continue;
+                }
+                $neighborKey = $catalog[$neighborIndex];
+                if (isset($tierByKey[$neighborKey])) {
+                    return $tierByKey[$neighborKey];
+                }
+            }
+        }
+
+        $maxTier = 0;
+        foreach ($entries as $entry) {
+            $maxTier = max($maxTier, (int) ($entry['tier'] ?? 0));
+        }
+
+        return $maxTier + 1;
     }
 
     private function normalizeHolidayRank(mixed $raw, int $bidYear): array

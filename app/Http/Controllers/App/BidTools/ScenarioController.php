@@ -129,6 +129,7 @@ class ScenarioController extends Controller
     public function update(UpdateBidScenarioRequest $request, int $scenario): RedirectResponse
     {
         $s = $this->findScenario($request, $scenario);
+        $s->loadMissing('import');
         $data = $request->validated();
 
         $fillKeys = [
@@ -136,7 +137,15 @@ class ScenarioController extends Controller
             'personal_dates', 'code_overrides', 'desk_bucket_mappings', 'line_desk_buckets',
         ];
         $payload = Arr::only($data, $fillKeys);
-        $payload['desk_rank'] = $payload['desk_rank'] ?? [];
+        $deskKeys = $this->preferenceCatalog->deskKeysForImport(
+            $s->bid_import_id,
+            $payload['desk_bucket_mappings'] ?? $s->desk_bucket_mappings ?? [],
+            $payload['line_desk_buckets'] ?? $s->line_desk_buckets ?? [],
+        );
+        $payload['desk_rank'] = $this->scoreService->deskEntriesForEditor(
+            $payload['desk_rank'] ?? [],
+            $deskKeys,
+        );
         $payload['personal_dates'] = $payload['personal_dates'] ?? [];
         $payload['desk_bucket_mappings'] = $payload['desk_bucket_mappings'] ?? [];
         $payload['line_desk_buckets'] = $payload['line_desk_buckets'] ?? [];

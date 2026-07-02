@@ -37,6 +37,7 @@ import {
     
 } from '@/pages/app/bid-tools/preference-rank-shared';
 import type {StartTimeTiebreakKey} from '@/pages/app/bid-tools/preference-rank-shared';
+import { prepareDeskRankEntries } from '@/pages/app/bid-tools/rank-tier-utils';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 import type { BreadcrumbItem } from '@/types';
@@ -288,7 +289,9 @@ export default function BidScenarioEdit({
     const [holidays, setHolidays] = useState<HolidayEntry[]>(
         scenario.holiday_rank,
     );
-    const [deskRank, setDeskRank] = useState<KeyedEntry[]>(scenario.desk_rank);
+    const [deskRank, setDeskRank] = useState<KeyedEntry[]>(() =>
+        prepareDeskRankEntries(scenario.desk_rank),
+    );
     const [personalDates, setPersonalDates] = useState<PersonalDateEntry[]>(
         scenario.personal_dates.length ? scenario.personal_dates : [],
     );
@@ -373,7 +376,7 @@ export default function BidScenarioEdit({
                     start_time_tiebreak_order: startTimeTiebreakOrder,
                 },
                 holiday_rank: holidays,
-                desk_rank: deskRank,
+                desk_rank: prepareDeskRankEntries(deskRank),
                 personal_dates: personalDatesForSave(personalDates),
                 desk_bucket_mappings: deskBucketMappings,
                 line_desk_buckets: lineDeskBucketsToStorage(lineDeskBuckets),
@@ -412,7 +415,7 @@ export default function BidScenarioEdit({
                 start_time_tiebreak_order: startTimeTiebreakOrder,
             },
             holiday_rank: holidays,
-            desk_rank: deskRank,
+            desk_rank: prepareDeskRankEntries(deskRank),
             personal_dates: personalDatesForSave(personalDates),
             desk_bucket_mappings: deskBucketMappings,
             line_desk_buckets: lineDeskBucketsToStorage(lineDeskBuckets),

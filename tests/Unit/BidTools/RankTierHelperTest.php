@@ -179,6 +179,30 @@ test('entries to tier groups combine tied tiers in list order', function () {
     expect($groups[1][0]['key'])->toBe('DG');
 });
 
+test('merge non contiguous tier blocks moves orphaned ds7 into first tier block', function () {
+    $entries = [
+        ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DS_DR_MIX', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'AG', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'AS', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'AS15', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'AR', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'AS_AR_MIX', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'RELIEF', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'MID', 'priority' => 'high', 'tier' => 6],
+        ['key' => 'DS7', 'priority' => 'high', 'tier' => 2],
+    ];
+
+    $prepared = RankTierHelper::prepareDeskRankEntries($entries);
+
+    expect(collect($prepared)->pluck('key')->all())->toBe([
+        'DS', 'DG', 'DR', 'DS_DR_MIX', 'DS7', 'AG', 'AS', 'AS15', 'AR', 'AS_AR_MIX', 'RELIEF', 'MID',
+    ]);
+    expect(RankTierHelper::tierGroupIndexForKey($prepared, 'DS7'))->toBe(2);
+});
+
 test('sync tiers from visual groups renumbers stale tier values in list order', function () {
     $entries = [
         ['key' => 'DS', 'priority' => 'high', 'tier' => 1],

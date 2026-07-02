@@ -156,9 +156,7 @@ final class CondensedBidderProfileMapper
             $out[] = ['key' => $key, 'priority' => 'ignore'];
         }
 
-        return RankTierHelper::sortEntriesByTierListOrder(
-            RankTierHelper::normalizeTierOrder($out),
-        );
+        return RankTierHelper::prepareDeskRankEntries($out);
     }
 
     /**
@@ -232,9 +230,7 @@ final class CondensedBidderProfileMapper
             $out[] = ['key' => $deskKey, 'priority' => 'high'];
         }
 
-        return RankTierHelper::sortEntriesByTierListOrder(
-            RankTierHelper::normalizeTierOrder($out),
-        );
+        return RankTierHelper::prepareDeskRankEntries($out);
     }
 
     /**

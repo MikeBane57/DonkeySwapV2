@@ -195,6 +195,38 @@ test('sort explanation isolates scrambled ds7 when it is not in the visual group
     expect($explanation['desk_tier_groups'][3]['buckets'])->toBe(['DG']);
 });
 
+test('desk entries for editor coalesce ds7 into g2 when tier matches dr block', function () {
+    $scoreService = app(ScenarioScoreService::class);
+
+    $staleDeskRank = [
+        ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DS_DR_MIX', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'AG', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'AS', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'AS15', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'AR', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'AS_AR_MIX', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'RELIEF', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'MID', 'priority' => 'high', 'tier' => 6],
+        ['key' => 'DS7', 'priority' => 'high', 'tier' => 2],
+    ];
+
+    $synced = $scoreService->deskEntriesForEditor($staleDeskRank, array_column($staleDeskRank, 'key'));
+
+    expect(collect($synced)->pluck('tier', 'key')->all())->toMatchArray([
+        'DS' => 1,
+        'DG' => 1,
+        'DR' => 2,
+        'DS_DR_MIX' => 2,
+        'DS7' => 2,
+    ]);
+    expect(collect($synced)->pluck('key')->all())->toBe([
+        'DS', 'DG', 'DR', 'DS_DR_MIX', 'DS7', 'AG', 'AS', 'AS15', 'AR', 'AS_AR_MIX', 'RELIEF', 'MID',
+    ]);
+});
+
 test('desk entries for editor sync visual group tiers from list order', function () {
     $scoreService = app(ScenarioScoreService::class);
 
