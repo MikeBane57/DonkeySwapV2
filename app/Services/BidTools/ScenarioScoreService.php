@@ -144,6 +144,11 @@ final class ScenarioScoreService
                         $bucket,
                         fn (string $key): string => $this->condensedDesk->normalizeBucketKey($key),
                     ),
+                    'desk_group' => RankTierHelper::tierGroupIndexForKey(
+                        $deskEntries,
+                        $bucket,
+                        fn (string $key): string => $this->condensedDesk->normalizeBucketKey($key),
+                    ),
                 ],
                 'breakdown' => [
                     'holiday' => round($holidayPoints, 2),
@@ -629,7 +634,15 @@ final class ScenarioScoreService
             if ($k === '' || isset($seen[$k])) {
                 continue;
             }
-            $entries[] = ['key' => $k, 'priority' => 'high'];
+            $maxTier = 0;
+            foreach ($entries as $entry) {
+                $maxTier = max($maxTier, (int) ($entry['tier'] ?? 0));
+            }
+            $entries[] = [
+                'key' => $k,
+                'priority' => 'high',
+                'tier' => $maxTier + 1,
+            ];
             $seen[$k] = true;
         }
 
@@ -987,20 +1000,26 @@ final class ScenarioScoreService
         $steps = $this->sortStepsForMode($sortMode, $criteriaLabels, $startTimeTiebreak);
 
         $lineDetails = [];
-        $previousDeskTier = null;
+        $previousDeskGroup = null;
         $rank = 1;
+        $normalizeBucket = fn (string $key): string => $this->condensedDesk->normalizeBucketKey($key);
         foreach ($scoredLines as $row) {
-            $deskTier = (int) ($row['tier_ranks']['desk'] ?? PHP_INT_MAX);
+            $bucket = (string) ($row['breakdown']['group_bucket'] ?? '');
+            $deskGroup = (int) ($row['tier_ranks']['desk_group'] ?? RankTierHelper::tierGroupIndexForKey(
+                $deskEntries,
+                $bucket,
+                $normalizeBucket,
+            ));
             $lineDetails[] = [
                 'rank' => $rank++,
                 'bid_line_id' => (int) $row['bid_line_id'],
                 'line_num' => (string) $row['line_num'],
-                'desk_bucket' => (string) ($row['breakdown']['group_bucket'] ?? ''),
-                'desk_tier' => $deskTier,
-                'desk_tier_label' => ScoredLineResponseFormatter::deskTierLabel($deskTier),
+                'desk_bucket' => $bucket,
+                'desk_tier' => (int) ($row['tier_ranks']['desk'] ?? PHP_INT_MAX),
+                'desk_tier_label' => 'G'.$deskGroup,
                 'group_boundary' => $sortMode === self::SORT_MODE_GROUP_RANKED
-                    && $previousDeskTier !== null
-                    && $deskTier !== $previousDeskTier,
+                    && $previousDeskGroup !== null
+                    && $deskGroup !== $previousDeskGroup,
                 'sort_scores' => $row['sort_scores'] ?? [],
                 'tier_ranks' => $row['tier_ranks'] ?? [],
                 'start_time_tiebreak_key' => (string) ($row['start_time_tiebreak_key'] ?? 'other'),
@@ -1009,7 +1028,7 @@ final class ScenarioScoreService
                 ),
                 'total' => $row['total'] ?? 0,
             ];
-            $previousDeskTier = $deskTier;
+            $previousDeskGroup = $deskGroup;
         }
 
         return [
@@ -1085,31 +1104,32 @@ final class ScenarioScoreService
      */
     private function deskTierGroupsSummary(array $deskEntries): array
     {
-        $normalized = RankTierHelper::normalizeTierOrder($deskEntries);
-        $groups = [];
-        foreach ($normalized as $entry) {
-            if (($entry['priority'] ?? 'high') === 'ignore') {
-                continue;
-            }
-            $tier = (int) ($entry['tier'] ?? 1);
-            $key = $this->condensedDesk->normalizeBucketKey((string) ($entry['key'] ?? ''));
-            if ($key === '') {
-                continue;
-            }
-            $groups[$tier] ??= [];
-            if (! in_array($key, $groups[$tier], true)) {
-                $groups[$tier][] = $key;
-            }
-        }
-
-        ksort($groups);
-
+        $groups = RankTierHelper::entriesToTierGroups($deskEntries);
         $out = [];
-        foreach ($groups as $tier => $buckets) {
+
+        foreach ($groups as $index => $group) {
+            $buckets = [];
+            foreach ($group as $entry) {
+                if (($entry['priority'] ?? 'high') === 'ignore') {
+                    continue;
+                }
+                $key = $this->condensedDesk->normalizeBucketKey((string) ($entry['key'] ?? ''));
+                if ($key === '') {
+                    continue;
+                }
+                $buckets[] = $key;
+            }
+
+            if ($buckets === []) {
+                continue;
+            }
+
+            $groupNumber = $index + 1;
             $out[] = [
-                'tier' => (int) $tier,
-                'label' => ScoredLineResponseFormatter::deskTierLabel((int) $tier),
+                'tier' => $groupNumber,
+                'label' => 'G'.$groupNumber,
                 'buckets' => $buckets,
+                'sort_tier' => (int) ($group[0]['tier'] ?? $groupNumber),
             ];
         }
 

@@ -192,29 +192,42 @@ final class CondensedBidderProfileMapper
 
     /**
      * @param  list<array<string, mixed>>  $full
-     * @return list<array{key: string, priority: string}>
+     * @return list<array{key: string, priority: string, tier?: int}>
      */
     public function toCondensedDeskRank(array $full): array
     {
-        $byKey = [];
+        if ($full === []) {
+            return $this->defaultKeyedRank(self::DESK_KEYS);
+        }
+
+        $seen = [];
+        $out = [];
         foreach ($full as $row) {
             if (! is_array($row) || empty($row['key'])) {
                 continue;
             }
-            $byKey[strtoupper($row['key'])] = $row;
-        }
-
-        $out = [];
-        foreach (self::DESK_KEYS as $deskKey) {
-            $source = $byKey[$deskKey] ?? null;
+            $key = strtoupper((string) $row['key']);
+            if (isset($seen[$key])) {
+                continue;
+            }
             $entry = [
-                'key' => $deskKey,
-                'priority' => is_array($source) ? ($source['priority'] ?? 'high') : 'high',
+                'key' => $key,
+                'priority' => in_array($row['priority'] ?? 'high', ['ignore', 'low', 'high'], true)
+                    ? $row['priority']
+                    : 'high',
             ];
-            if (is_array($source) && isset($source['tier'])) {
-                $entry['tier'] = (int) $source['tier'];
+            if (isset($row['tier']) && is_numeric($row['tier'])) {
+                $entry['tier'] = max(1, (int) $row['tier']);
             }
             $out[] = $entry;
+            $seen[$key] = true;
+        }
+
+        foreach (self::DESK_KEYS as $deskKey) {
+            if (isset($seen[$deskKey])) {
+                continue;
+            }
+            $out[] = ['key' => $deskKey, 'priority' => 'high'];
         }
 
         return RankTierHelper::normalizeTierOrder($out);
@@ -234,7 +247,6 @@ final class CondensedBidderProfileMapper
     }
 
     /**
-     * @param  mixed  $raw
      * @param  list<string>  $defaultKeys
      * @return list<array{key: string, priority: string}>
      */

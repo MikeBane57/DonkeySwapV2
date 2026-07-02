@@ -73,3 +73,23 @@ test('to condensed desk rank preserves stored bucket priorities', function () {
     expect($byKey['DR']['priority'])->toBe('low');
     expect($byKey['DS7']['priority'])->toBe('ignore');
 });
+
+test('to condensed desk rank preserves stored list order', function () {
+    $mapper = mapper();
+
+    $condensed = $mapper->toCondensedDeskRank([
+        ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DS7', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'DS_DR_MIX', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 5],
+    ]);
+
+    expect(collect($condensed)->take(5)->pluck('key')->all())->toBe([
+        'DS',
+        'DR',
+        'DS7',
+        'DS_DR_MIX',
+        'DG',
+    ]);
+});

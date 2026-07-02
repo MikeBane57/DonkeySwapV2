@@ -32,6 +32,7 @@ final class ScoredLineResponseFormatter
             $id = (int) $row['bid_line_id'];
             $lm = $lineModels->get($id);
             $deskTier = (int) ($row['tier_ranks']['desk'] ?? PHP_INT_MAX);
+            $deskGroup = (int) ($row['tier_ranks']['desk_group'] ?? PHP_INT_MAX);
             $rows[] = [
                 'rank' => $rank++,
                 'bid_line_id' => $id,
@@ -43,7 +44,7 @@ final class ScoredLineResponseFormatter
                 'sort_debug' => [
                     'desk_bucket' => (string) ($row['breakdown']['group_bucket'] ?? ''),
                     'desk_tier' => $deskTier,
-                    'desk_tier_label' => self::deskTierLabel($deskTier),
+                    'desk_tier_label' => self::deskTierLabel($deskGroup),
                     'sort_scores' => $row['sort_scores'] ?? [],
                     'tier_ranks' => $row['tier_ranks'] ?? [],
                     'start_time_tiebreak_key' => (string) ($row['start_time_tiebreak_key'] ?? 'other'),
