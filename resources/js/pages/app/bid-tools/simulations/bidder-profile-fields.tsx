@@ -305,6 +305,7 @@ export function BidderProfileFields({
                             }
                             compact
                             hideLabel
+                            hidePriority
                         />
                     </div>
                 </div>

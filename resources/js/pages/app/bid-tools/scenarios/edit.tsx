@@ -706,6 +706,7 @@ export default function BidScenarioEdit({
                                     }
                                     compact
                                     hideLabel
+                                    hidePriority
                                 />
                             </div>
                         </div>
