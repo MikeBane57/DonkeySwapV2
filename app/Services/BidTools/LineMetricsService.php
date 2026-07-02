@@ -3,7 +3,9 @@
 namespace App\Services\BidTools;
 
 use App\Models\BidLine;
+use App\Models\BidLineDay;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 
 final class LineMetricsService
 {
@@ -29,7 +31,7 @@ final class LineMetricsService
         $holidayCatalog = $this->holidays->holidaysInBidYear($bidYear);
         $holidayDates = $holidayCatalog->keys()->all();
 
-        $days = $line->days()->orderBy('assignment_date')->get();
+        $days = $this->orderedDays($line);
         $byDate = [];
         foreach ($days as $d) {
             $ymd = $d->assignment_date->format('Y-m-d');
@@ -112,5 +114,17 @@ final class LineMetricsService
             'fri_sat_sun_all_off' => $friSatSunBlocks,
             'sat_sun_both_off' => $satSunPairs,
         ];
+    }
+
+    /**
+     * @return Collection<int, BidLineDay>
+     */
+    private function orderedDays(BidLine $line): Collection
+    {
+        if ($line->relationLoaded('days')) {
+            return $line->days->sortBy('assignment_date')->values();
+        }
+
+        return $line->days()->orderBy('assignment_date')->get();
     }
 }

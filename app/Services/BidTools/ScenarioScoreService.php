@@ -45,7 +45,7 @@ final class ScenarioScoreService
      * @param  list<int>  $lineIds
      * @return list<array<string, mixed>>
      */
-    public function scoreLines(BidScenario $scenario, array $lineIds): array
+    public function scoreLines(BidScenario $scenario, array $lineIds, bool $withMetrics = true): array
     {
         $scenario->loadMissing('import');
 
@@ -63,17 +63,14 @@ final class ScenarioScoreService
         $personalEntries = $this->normalizePersonalDates($scenario->personal_dates ?? []);
         $deskMappings = $this->condensedDesk->normalizeMappings($scenario->desk_bucket_mappings ?? []);
         $lineDeskBuckets = $this->condensedDesk->normalizeLineBuckets($scenario->line_desk_buckets ?? []);
-        $deskKeys = $this->condensedDesk->bucketsPresentInImport(
-            $scenario->bid_import_id,
-            $deskMappings,
-            $lineDeskBuckets,
-        );
+        $deskKeys = $this->deskKeysForScoring($scenario, $deskMappings, $lineDeskBuckets);
         $deskEntries = $this->deskEntriesForEditor($scenario->desk_rank, $deskKeys);
 
+        $import = $scenario->import;
         $lines = BidLine::query()
             ->where('bid_import_id', $scenario->bid_import_id)
             ->whereIn('id', $lineIds)
-            ->with('days')
+            ->with(['days' => fn ($query) => $query->orderBy('assignment_date')])
             ->get()
             ->keyBy('id');
 
@@ -83,7 +80,9 @@ final class ScenarioScoreService
             if (! $line) {
                 continue;
             }
-            $line->loadMissing('import');
+            if ($import !== null) {
+                $line->setRelation('import', $import);
+            }
             $byDate = [];
             foreach ($line->days as $d) {
                 $byDate[$d->assignment_date->format('Y-m-d')] = $d->is_off;
@@ -106,7 +105,21 @@ final class ScenarioScoreService
             $bank = max(1, (int) $scenario->vacation_bank);
             $vacPenalty = min($vacCost, $bank * 2) * (float) ($weights['vacation_penalty'] ?? 1);
 
-            $metrics = $this->lineMetrics->analyze($line);
+            $metrics = $withMetrics
+                ? $this->lineMetrics->analyze($line)
+                : [
+                    'holidays_off' => 0,
+                    'key_holidays' => [
+                        'christmas' => ['off' => 0, 'total' => 0],
+                        'thanksgiving' => ['off' => 0, 'total' => 0],
+                        'july_4' => ['off' => 0, 'total' => 0],
+                    ],
+                    'fri_off' => 0,
+                    'sat_off' => 0,
+                    'sun_off' => 0,
+                    'fri_sat_sun_all_off' => 0,
+                    'sat_sun_both_off' => 0,
+                ];
 
             $parts = [
                 'holiday' => $holidayPoints,
@@ -635,6 +648,46 @@ final class ScenarioScoreService
         );
 
         return $this->migrateDeskRankKeys($entries);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $deskMappings
+     * @param  array<int, string>  $lineDeskBuckets
+     * @return list<string>
+     */
+    private function deskKeysForScoring(BidScenario $scenario, array $deskMappings, array $lineDeskBuckets): array
+    {
+        if ($deskMappings !== [] || $lineDeskBuckets !== []) {
+            return $this->condensedDesk->bucketsPresentInImport(
+                $scenario->bid_import_id,
+                $deskMappings,
+                $lineDeskBuckets,
+            );
+        }
+
+        $fromRank = [];
+        foreach ($scenario->desk_rank ?? [] as $entry) {
+            if (! is_array($entry) || empty($entry['key'])) {
+                continue;
+            }
+            $key = $this->condensedDesk->normalizeBucketKey((string) $entry['key']);
+            if ($key !== '') {
+                $fromRank[$key] = true;
+            }
+        }
+
+        if ($fromRank !== []) {
+            return array_values(array_filter(
+                CondensedDeskClassifier::BUCKETS,
+                fn (string $bucket) => isset($fromRank[$bucket]),
+            ));
+        }
+
+        return $this->condensedDesk->bucketsPresentInImport(
+            $scenario->bid_import_id,
+            $deskMappings,
+            $lineDeskBuckets,
+        );
     }
 
     /**
