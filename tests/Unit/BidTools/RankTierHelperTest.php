@@ -77,3 +77,37 @@ test('list rank for key follows editor list order', function () {
     expect(RankTierHelper::listRankForKey($entries, 'AG'))->toBe(3);
     expect(RankTierHelper::listRankForKey($entries, 'MID'))->toBe(4);
 });
+
+test('entries to tier groups follow editor list order with sequential groups', function () {
+    $entries = [
+        ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DS7', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'DS_DR_MIX', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'AS', 'priority' => 'high', 'tier' => 6],
+    ];
+
+    $groups = RankTierHelper::entriesToTierGroups($entries);
+
+    expect($groups)->toHaveCount(6);
+    expect($groups[0][0]['key'])->toBe('DS');
+    expect($groups[1][0]['key'])->toBe('DR');
+    expect($groups[4][0]['key'])->toBe('DG');
+    expect(RankTierHelper::tierGroupIndexForKey($entries, 'DR'))->toBe(2);
+    expect(RankTierHelper::tierGroupIndexForKey($entries, 'DG'))->toBe(5);
+});
+
+test('entries to tier groups combine tied tiers in list order', function () {
+    $entries = [
+        ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 2],
+    ];
+
+    $groups = RankTierHelper::entriesToTierGroups($entries);
+
+    expect($groups)->toHaveCount(2);
+    expect(collect($groups[0])->pluck('key')->all())->toBe(['DS', 'DR']);
+    expect($groups[1][0]['key'])->toBe('DG');
+});

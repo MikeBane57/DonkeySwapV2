@@ -39,6 +39,53 @@ final class RankTierHelper
     }
 
     /**
+     * Group consecutive entries with the same normalized tier (matches editor G1/G2…).
+     *
+     * @param  list<array<string, mixed>>  $entries
+     * @return list<list<array<string, mixed>>>
+     */
+    public static function entriesToTierGroups(array $entries): array
+    {
+        $normalized = self::normalizeTierOrder($entries);
+        $groups = [];
+
+        foreach ($normalized as $entry) {
+            $tier = (int) ($entry['tier'] ?? 1);
+            $last = $groups === [] ? null : $groups[array_key_last($groups)];
+            if ($last !== null && (int) ($last[0]['tier'] ?? 0) === $tier) {
+                $groups[array_key_last($groups)][] = $entry;
+            } else {
+                $groups[] = [$entry];
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * 1-based editor group index (G1, G2…) for a key in list order.
+     *
+     * @param  list<array<string, mixed>>  $entries
+     */
+    public static function tierGroupIndexForKey(array $entries, string $lineKey, ?callable $normalizeKey = null): int
+    {
+        $normalize = $normalizeKey ?? static fn (string $key): string => strtoupper(trim($key));
+        $needle = $normalize($lineKey);
+        $groups = self::entriesToTierGroups($entries);
+
+        foreach ($groups as $index => $group) {
+            foreach ($group as $entry) {
+                $key = $normalize((string) ($entry['key'] ?? ''));
+                if ($key === $needle) {
+                    return $index + 1;
+                }
+            }
+        }
+
+        return count($groups) + 1;
+    }
+
+    /**
      * @param  list<array<string, mixed>>  $entries
      * @return list<int>
      */
