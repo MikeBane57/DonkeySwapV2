@@ -613,7 +613,9 @@ final class ScenarioScoreService
             $seen[$key] = true;
         }
 
-        return RankTierHelper::normalizeTierOrder($out);
+        return RankTierHelper::sortEntriesByTierListOrder(
+            RankTierHelper::normalizeTierOrder($out),
+        );
     }
 
     /**
@@ -628,10 +630,11 @@ final class ScenarioScoreService
         }
         $seen = [];
         foreach ($entries as $e) {
-            $seen[$e['key']] = true;
+            $seen[$this->condensedDesk->normalizeBucketKey((string) $e['key'])] = true;
         }
         foreach ($importKeys as $k) {
-            if ($k === '' || isset($seen[$k])) {
+            $normalizedKey = $this->condensedDesk->normalizeBucketKey($k);
+            if ($normalizedKey === '' || isset($seen[$normalizedKey])) {
                 continue;
             }
             $maxTier = 0;
@@ -639,11 +642,11 @@ final class ScenarioScoreService
                 $maxTier = max($maxTier, (int) ($entry['tier'] ?? 0));
             }
             $entries[] = [
-                'key' => $k,
+                'key' => $normalizedKey,
                 'priority' => 'high',
                 'tier' => $maxTier + 1,
             ];
-            $seen[$k] = true;
+            $seen[$normalizedKey] = true;
         }
 
         return $entries;
@@ -1104,7 +1107,7 @@ final class ScenarioScoreService
      */
     private function deskTierGroupsSummary(array $deskEntries): array
     {
-        $groups = RankTierHelper::entriesToTierGroups($deskEntries);
+        $groups = RankTierHelper::entriesToAssignedTierGroups($deskEntries);
         $out = [];
 
         foreach ($groups as $index => $group) {
