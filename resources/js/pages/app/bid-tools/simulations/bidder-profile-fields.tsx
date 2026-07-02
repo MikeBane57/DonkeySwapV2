@@ -64,9 +64,10 @@ const CRITERIA_LABELS: Record<string, string> = {
 
 const HOLIDAY_LABELS: Record<string, string> = {
     christmas: 'Christmas (eve & day)',
-    thanksgiving: 'Thanksgiving (eve & day)',
-    new_years: "New Year's (eve & day)",
+    thanksgiving: 'Thanksgiving & Black Friday',
     july_4: 'Fourth of July',
+    super_bowl: 'Super Bowl Sunday',
+    new_years: "New Year's (eve & day)",
 };
 
 const DESK_LABELS: Record<string, string> = {

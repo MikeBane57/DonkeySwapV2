@@ -55,7 +55,7 @@ function allLineIds(lines: LinePickerRow[]): Record<number, boolean> {
 export default function BidScenarioRanked({
     scenario,
     lines: rawLines,
-    holidaysCatalog,
+    defaultHolidayRank,
     deskCatalog,
 }: {
     scenario: {
@@ -70,7 +70,7 @@ export default function BidScenarioRanked({
         personal_dates: ScenarioRankingState['personal_dates'];
     };
     lines: (LinePickerRow & { submitted_externally?: boolean })[];
-    holidaysCatalog: { date: string; id: string; label: string }[];
+    defaultHolidayRank: ScenarioRankingState['holiday_rank'];
     deskCatalog: { key: string; label: string }[];
 }) {
     const lines = useMemo(
@@ -299,7 +299,7 @@ export default function BidScenarioRanked({
                         <ScenarioRankingPanel
                             value={ranking}
                             onChange={setRanking}
-                            holidaysCatalog={holidaysCatalog}
+                            defaultHolidayRank={defaultHolidayRank}
                             deskCatalog={deskCatalog}
                         />
                         {saveMessage && (

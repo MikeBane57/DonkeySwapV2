@@ -62,7 +62,7 @@ test('comparing many bid lines stores slim scores in session', function () {
             ->component('app/bid-tools/scenarios/ranked')
             ->has('lines', 60)
             ->has('scenario')
-            ->has('holidaysCatalog')
+            ->has('defaultHolidayRank')
             ->missing('scored_rows'));
 
     $this->actingAs($user)

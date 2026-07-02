@@ -11,6 +11,26 @@ use Illuminate\Support\Collection;
 final class FederalHolidayCalendar
 {
     /**
+     * Default holiday preference order for new scenarios.
+     * Earlier IDs rank higher; all listed IDs use high priority.
+     *
+     * @var list<string>
+     */
+    public const DEFAULT_RANKED_HOLIDAY_IDS = [
+        'christmas_eve',
+        'christmas_day',
+        'thanksgiving',
+        'black_friday',
+        'july_4',
+        'super_bowl_sunday',
+    ];
+
+    public static function defaultHolidayPriority(string $id): string
+    {
+        return in_array($id, self::DEFAULT_RANKED_HOLIDAY_IDS, true) ? 'high' : 'ignore';
+    }
+
+    /**
      * @return Collection<string, array{id: string, label: string}> keyed by Y-m-d
      */
     public function holidaysInBidYear(int $bidYear): Collection

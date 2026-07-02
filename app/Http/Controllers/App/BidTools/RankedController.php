@@ -76,7 +76,7 @@ class RankedController extends Controller
                     $legacyRanges,
                 ),
             ],
-            'holidaysCatalog' => $this->scoreService->holidaysCatalog($bidYear),
+            'defaultHolidayRank' => $this->scoreService->defaultHolidayEntries($bidYear),
             'deskCatalog' => $this->preferenceCatalog->deskCatalogForImport($s->bid_import_id),
             'lines' => $lineRows,
         ]);

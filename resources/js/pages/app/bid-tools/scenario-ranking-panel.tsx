@@ -154,12 +154,12 @@ export function rankingStateToSavePayload(
 export function ScenarioRankingPanel({
     value,
     onChange,
-    holidaysCatalog,
+    defaultHolidayRank,
     deskCatalog,
 }: {
     value: ScenarioRankingState;
     onChange: (next: ScenarioRankingState) => void;
-    holidaysCatalog: { date: string; id: string; label: string }[];
+    defaultHolidayRank: HolidayEntry[];
     deskCatalog: { key: string; label: string }[];
 }) {
     const sortMode = value.weights.sort_mode;
@@ -188,11 +188,11 @@ export function ScenarioRankingPanel({
     const resetHolidaysFromCatalog = () => {
         onChange({
             ...value,
-            holiday_rank: holidaysCatalog.map((h) => ({
+            holiday_rank: defaultHolidayRank.map((h) => ({
                 date: h.date,
                 label: h.label,
                 id: h.id,
-                priority: 'high',
+                priority: h.priority,
             })),
         });
     };
