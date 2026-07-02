@@ -193,6 +193,25 @@ export function emptyBidderProfile(defaults: BidderProfile): BidderProfile {
     };
 }
 
+export function profileFromTemplate(
+    template: BidderProfile,
+    overrides?: { vacation_bank?: number },
+): BidderProfile {
+    return {
+        vacation_bank: overrides?.vacation_bank ?? template.vacation_bank,
+        holiday_rank: template.holiday_rank.map((entry) => ({ ...entry })),
+        desk_rank: template.desk_rank.map((entry) => ({ ...entry })),
+        personal_dates: template.personal_dates.map((entry) => ({ ...entry })),
+        weights: {
+            ...template.weights,
+            criteria_order: [...template.weights.criteria_order],
+            start_time_tiebreak_order: template.weights.start_time_tiebreak_order
+                ? [...template.weights.start_time_tiebreak_order]
+                : undefined,
+        },
+    };
+}
+
 function normalizeRankEntries(
     entries: KeyedRankEntry[] | undefined,
     fallback: KeyedRankEntry[],
@@ -211,6 +230,7 @@ export function BidderProfileFields({
     rankDefaults,
     scenarioId,
     lines,
+    hideVacationBank = false,
 }: {
     value: BidderProfile;
     onChange: (profile: BidderProfile) => void;
@@ -218,6 +238,7 @@ export function BidderProfileFields({
     rankDefaults?: Pick<BidderProfile, 'holiday_rank' | 'desk_rank'>;
     scenarioId?: number;
     lines?: LinePickerRow[];
+    hideVacationBank?: boolean;
 }) {
     const holidayRank = normalizeRankEntries(
         value.holiday_rank,
@@ -244,34 +265,36 @@ export function BidderProfileFields({
 
     return (
         <div className="space-y-3">
-            <BidToolsCollapsibleSection
-                title="Basics"
-                summary={`Bank ${value.vacation_bank}`}
-                defaultOpen
-            >
-                <div className="space-y-1.5">
-                    <Label htmlFor={`${idPrefix}-vacation-bank`}>
-                        Vacation bank
-                    </Label>
-                    <Input
-                        id={`${idPrefix}-vacation-bank`}
-                        type="number"
-                        min={0}
-                        max={255}
-                        className="h-8 max-w-[8rem] text-sm"
-                        value={value.vacation_bank}
-                        onChange={(e) =>
-                            onChange({
-                                ...value,
-                                vacation_bank: Math.max(
-                                    0,
-                                    Number(e.target.value) || 0,
-                                ),
-                            })
-                        }
-                    />
-                </div>
-            </BidToolsCollapsibleSection>
+            {!hideVacationBank && (
+                <BidToolsCollapsibleSection
+                    title="Basics"
+                    summary={`Bank ${value.vacation_bank}`}
+                    defaultOpen
+                >
+                    <div className="space-y-1.5">
+                        <Label htmlFor={`${idPrefix}-vacation-bank`}>
+                            Vacation bank
+                        </Label>
+                        <Input
+                            id={`${idPrefix}-vacation-bank`}
+                            type="number"
+                            min={0}
+                            max={255}
+                            className="h-8 max-w-[8rem] text-sm"
+                            value={value.vacation_bank}
+                            onChange={(e) =>
+                                onChange({
+                                    ...value,
+                                    vacation_bank: Math.max(
+                                        0,
+                                        Number(e.target.value) || 0,
+                                    ),
+                                })
+                            }
+                        />
+                    </div>
+                </BidToolsCollapsibleSection>
+            )}
 
             <BidToolsCollapsibleSection
                 title="Holidays & desk"
