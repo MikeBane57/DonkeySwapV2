@@ -95,6 +95,7 @@ class SimulationController extends Controller
         return Inertia::render('app/bid-tools/simulations/edit', [
             'simulation' => $this->simulationPayload($sim),
             'profile_defaults' => $this->profileBuilder->defaultsForImport($sim->import),
+            'profile_templates' => $this->profileTemplatesForSimulation($request, $sim),
             'participants' => $sim->participants->map(fn (BidSimulationParticipant $p) => [
                 ...$this->participantPayload($p),
                 'profile' => $p->scenario
@@ -317,5 +318,25 @@ class SimulationController extends Controller
             'bid_scenario_id' => $p->bid_scenario_id,
             'scenario_name' => $p->scenario?->name,
         ];
+    }
+
+    /**
+     * @return list<array{id: int, name: string, profile: array<string, mixed>}>
+     */
+    private function profileTemplatesForSimulation(Request $request, BidSimulation $sim): array
+    {
+        return BidScenario::query()
+            ->where('user_id', $request->user()->id)
+            ->where('bid_import_id', $sim->bid_import_id)
+            ->orderByDesc('updated_at')
+            ->limit(50)
+            ->get()
+            ->map(fn (BidScenario $scenario) => [
+                'id' => $scenario->id,
+                'name' => $scenario->name,
+                'profile' => $this->profileBuilder->toEditorPayload($scenario),
+            ])
+            ->values()
+            ->all();
     }
 }

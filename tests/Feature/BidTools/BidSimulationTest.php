@@ -90,7 +90,7 @@ test('user can add bidder with inline profile and run simulation', function () {
             ->component('app/bid-tools/simulations/edit')
             ->has('participants', 2)
             ->has('participants.0.profile')
-            ->missing('scenarios'));
+            ->has('profile_templates', 2));
 
     $this->actingAs($user)
         ->post(route('bid-tools.simulations.run', $simulation->id))
@@ -104,6 +104,84 @@ test('user can add bidder with inline profile and run simulation', function () {
     $seniorLineId = $simulation->last_run_results[0]['bid_line_id'];
     $juniorLineId = $simulation->last_run_results[1]['bid_line_id'];
     expect($seniorLineId)->not->toBe($juniorLineId);
+});
+
+test('user can add bidder from saved profile template with custom identity fields', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 3);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Template import',
+    )['import'];
+
+    @unlink($path);
+
+    $templateProfile = sampleBidderProfile([
+        'vacation_bank' => 15,
+        'weights' => [
+            'holiday' => 5,
+            'personal' => 2,
+            'desk' => 1,
+            'vacation_penalty' => 1,
+            'criteria_order' => ['holiday', 'desk', 'personal'],
+        ],
+    ]);
+
+    $templateScenario = BidScenario::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Saved prefs',
+        'vacation_bank' => $templateProfile['vacation_bank'],
+        'weights' => $templateProfile['weights'],
+        'holiday_rank' => $templateProfile['holiday_rank'],
+        'desk_rank' => $templateProfile['desk_rank'],
+        'personal_dates' => $templateProfile['personal_dates'],
+    ]);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Template test',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('bid-tools.simulations.edit', $simulation->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('app/bid-tools/simulations/edit')
+            ->has('profile_templates', 1)
+            ->where('profile_templates.0.id', $templateScenario->id)
+            ->where('profile_templates.0.name', 'Saved prefs'));
+
+    $copiedProfile = array_merge($templateProfile, [
+        'vacation_bank' => 7,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+            'display_name' => 'From template',
+            'seniority_rank' => 4,
+            'profile' => $copiedProfile,
+        ])
+        ->assertRedirect(route('bid-tools.simulations.edit', $simulation->id));
+
+    $participant = BidSimulationParticipant::first();
+    $scenario = BidScenario::whereKey($participant->bid_scenario_id)->first();
+
+    expect($participant->display_name)->toBe('From template');
+    expect($participant->seniority_rank)->toBe(4);
+    expect($scenario->vacation_bank)->toBe(7);
+    expect($scenario->weights['holiday'])->toBe(5);
+    expect($scenario->weights['criteria_order'])->toBe(['holiday', 'desk', 'personal']);
+    expect($scenario->id)->not->toBe($templateScenario->id);
 });
 
 test('user can update bidder profile inline', function () {

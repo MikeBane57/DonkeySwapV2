@@ -7,11 +7,18 @@ import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { personalDatesForSave } from '@/pages/app/bid-tools/personal-dates-editor';
+import { BidderIdentityFields } from '@/pages/app/bid-tools/simulations/bidder-identity-fields';
 import {
     BidderProfileFields,
     emptyBidderProfile,
+    profileFromTemplate,
 } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 import type { BidderProfile } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
+import {
+    ProfileSourcePicker,
+    type ProfileSource,
+    type ProfileTemplate,
+} from '@/pages/app/bid-tools/simulations/profile-source-picker';
 import type { BreadcrumbItem } from '@/types';
 
 type Participant = {
@@ -30,15 +37,27 @@ function sanitizeProfile(profile: BidderProfile): BidderProfile {
     };
 }
 
+function syncProfileVacationBank(
+    profile: BidderProfile,
+    vacationBank: number,
+): BidderProfile {
+    return {
+        ...profile,
+        vacation_bank: vacationBank,
+    };
+}
+
 function ParticipantEditor({
     simulationId,
     participant,
     profileDefaults,
+    profileTemplates,
     lines,
 }: {
     simulationId: number;
     participant: Participant;
     profileDefaults: BidderProfile;
+    profileTemplates: ProfileTemplate[];
     lines: LinePickerRow[];
 }) {
     const [open, setOpen] = useState(false);
@@ -48,11 +67,30 @@ function ParticipantEditor({
         profile: participant.profile,
     });
 
+    const applyTemplate = (templateId: number) => {
+        const template = profileTemplates.find((row) => row.id === templateId);
+        if (!template) {
+            return;
+        }
+
+        form.setData(
+            'profile',
+            profileFromTemplate(template.profile, {
+                vacation_bank: form.data.profile.vacation_bank,
+            }),
+        );
+    };
+
     const save = (e: React.FormEvent) => {
         e.preventDefault();
         form.transform((data) => ({
             ...data,
-            profile: sanitizeProfile(data.profile),
+            profile: sanitizeProfile(
+                syncProfileVacationBank(
+                    data.profile,
+                    data.profile.vacation_bank,
+                ),
+            ),
         }));
         form.put(
             `/app/bid-tools/simulations/${simulationId}/participants/${participant.id}`,
@@ -97,41 +135,62 @@ function ParticipantEditor({
                     className="space-y-4 border-t border-sidebar-border/50 p-3"
                     onSubmit={save}
                 >
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <BidderIdentityFields
+                        idPrefix={`p-${participant.id}`}
+                        displayName={form.data.display_name}
+                        seniorityRank={form.data.seniority_rank}
+                        vacationBank={form.data.profile.vacation_bank}
+                        onDisplayNameChange={(display_name) =>
+                            form.setData('display_name', display_name)
+                        }
+                        onSeniorityRankChange={(seniority_rank) =>
+                            form.setData('seniority_rank', seniority_rank)
+                        }
+                        onVacationBankChange={(vacation_bank) =>
+                            form.setData(
+                                'profile',
+                                syncProfileVacationBank(
+                                    form.data.profile,
+                                    vacation_bank,
+                                ),
+                            )
+                        }
+                        displayNameError={form.errors.display_name}
+                        seniorityRankError={form.errors.seniority_rank}
+                    />
+
+                    {profileTemplates.length > 0 && (
                         <div className="space-y-2">
-                            <Label>Name</Label>
-                            <Input
-                                value={form.data.display_name}
-                                onChange={(e) =>
-                                    form.setData('display_name', e.target.value)
-                                }
-                            />
-                            {form.errors.display_name && (
-                                <p className="text-sm text-destructive">
-                                    {form.errors.display_name}
-                                </p>
-                            )}
+                            <Label htmlFor={`p-${participant.id}-replace-profile`}>
+                                Replace preferences from saved profile
+                            </Label>
+                            <select
+                                id={`p-${participant.id}-replace-profile`}
+                                className="flex h-9 w-full max-w-md rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
+                                defaultValue=""
+                                onChange={(e) => {
+                                    const templateId = Number(e.target.value);
+                                    if (templateId > 0) {
+                                        applyTemplate(templateId);
+                                    }
+                                    e.currentTarget.value = '';
+                                }}
+                            >
+                                <option value="" disabled>
+                                    Choose a saved profile…
+                                </option>
+                                {profileTemplates.map((template) => (
+                                    <option key={template.id} value={template.id}>
+                                        {template.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-xs text-muted-foreground">
+                                Keeps this bidder&apos;s vacation bank and
+                                seniority; copies holidays, desk, and ranking.
+                            </p>
                         </div>
-                        <div className="space-y-2">
-                            <Label>Seniority rank</Label>
-                            <Input
-                                type="number"
-                                min={1}
-                                value={form.data.seniority_rank}
-                                onChange={(e) =>
-                                    form.setData(
-                                        'seniority_rank',
-                                        Number(e.target.value),
-                                    )
-                                }
-                            />
-                            {form.errors.seniority_rank && (
-                                <p className="text-sm text-destructive">
-                                    {form.errors.seniority_rank}
-                                </p>
-                            )}
-                        </div>
-                    </div>
+                    )}
 
                     <BidderProfileFields
                         idPrefix={`p-${participant.id}`}
@@ -140,6 +199,7 @@ function ParticipantEditor({
                         onChange={(profile) => form.setData('profile', profile)}
                         scenarioId={participant.bid_scenario_id}
                         lines={lines}
+                        hideVacationBank
                     />
 
                     <div className="flex flex-wrap gap-2">
@@ -176,6 +236,7 @@ function ParticipantEditor({
 export default function BidSimulationEdit({
     simulation,
     profile_defaults: profileDefaults,
+    profile_templates: profileTemplates,
     participants,
     lines,
 }: {
@@ -186,10 +247,15 @@ export default function BidSimulationEdit({
         import_title: string | null;
     };
     profile_defaults: BidderProfile;
+    profile_templates: ProfileTemplate[];
     participants: Participant[];
     lines: LinePickerRow[];
 }) {
     const page = usePage<{ flash?: { success?: string; error?: string } }>();
+    const [profileSource, setProfileSource] = useState<ProfileSource>('new');
+    const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(
+        null,
+    );
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Bid tools', href: '/app/bid-tools' },
@@ -208,11 +274,68 @@ export default function BidSimulationEdit({
         profile: emptyBidderProfile(profileDefaults),
     });
 
+    const resetAddProfile = (source: ProfileSource) => {
+        const vacationBank = addForm.data.profile.vacation_bank;
+        if (source === 'new') {
+            addForm.setData(
+                'profile',
+                syncProfileVacationBank(
+                    emptyBidderProfile(profileDefaults),
+                    vacationBank,
+                ),
+            );
+            setSelectedTemplateId(null);
+
+            return;
+        }
+
+        const template =
+            profileTemplates.find((row) => row.id === selectedTemplateId) ??
+            profileTemplates[0];
+
+        if (!template) {
+            return;
+        }
+
+        setSelectedTemplateId(template.id);
+        addForm.setData(
+            'profile',
+            profileFromTemplate(template.profile, {
+                vacation_bank: vacationBank,
+            }),
+        );
+    };
+
+    const handleProfileSourceChange = (source: ProfileSource) => {
+        setProfileSource(source);
+        resetAddProfile(source);
+    };
+
+    const handleTemplateSelect = (templateId: number) => {
+        setSelectedTemplateId(templateId);
+        const template = profileTemplates.find((row) => row.id === templateId);
+        if (!template) {
+            return;
+        }
+
+        addForm.setData(
+            'profile',
+            profileFromTemplate(template.profile, {
+                vacation_bank: addForm.data.profile.vacation_bank,
+            }),
+        );
+    };
+
     const addParticipant = (e: React.FormEvent) => {
         e.preventDefault();
         addForm.transform((data) => ({
             ...data,
-            profile: sanitizeProfile(data.profile),
+            profile: sanitizeProfile(
+                syncProfileVacationBank(
+                    data.profile,
+                    data.profile.vacation_bank,
+                ),
+            ),
         }));
         addForm.post(
             `/app/bid-tools/simulations/${simulation.id}/participants`,
@@ -220,6 +343,8 @@ export default function BidSimulationEdit({
                 preserveScroll: true,
                 onSuccess: () => {
                     addForm.reset();
+                    setProfileSource('new');
+                    setSelectedTemplateId(null);
                     addForm.setData({
                         display_name: '',
                         seniority_rank: participants.length + 2,
@@ -329,6 +454,7 @@ export default function BidSimulationEdit({
                                     simulationId={simulation.id}
                                     participant={p}
                                     profileDefaults={profileDefaults}
+                                    profileTemplates={profileTemplates}
                                     lines={lines}
                                 />
                             ))}
@@ -339,52 +465,38 @@ export default function BidSimulationEdit({
                 <section className="space-y-4 rounded-lg border border-sidebar-border/70 p-4">
                     <h2 className="text-sm font-medium">Add bidder</h2>
                     <form className="space-y-4" onSubmit={addParticipant}>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label htmlFor="display_name">Name</Label>
-                                <Input
-                                    id="display_name"
-                                    value={addForm.data.display_name}
-                                    onChange={(e) =>
-                                        addForm.setData(
-                                            'display_name',
-                                            e.target.value,
-                                        )
-                                    }
-                                    placeholder="e.g. Jane Smith"
-                                />
-                                {addForm.errors.display_name && (
-                                    <p className="text-sm text-destructive">
-                                        {addForm.errors.display_name}
-                                    </p>
-                                )}
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="seniority_rank">
-                                    Seniority rank
-                                </Label>
-                                <Input
-                                    id="seniority_rank"
-                                    type="number"
-                                    min={1}
-                                    value={addForm.data.seniority_rank}
-                                    onChange={(e) =>
-                                        addForm.setData(
-                                            'seniority_rank',
-                                            Number(e.target.value),
-                                        )
-                                    }
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Also minimum lines to rank on bid sheet
-                                </p>
-                                {addForm.errors.seniority_rank && (
-                                    <p className="text-sm text-destructive">
-                                        {addForm.errors.seniority_rank}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
+                        <BidderIdentityFields
+                            idPrefix="new-bidder"
+                            displayName={addForm.data.display_name}
+                            seniorityRank={addForm.data.seniority_rank}
+                            vacationBank={addForm.data.profile.vacation_bank}
+                            onDisplayNameChange={(display_name) =>
+                                addForm.setData('display_name', display_name)
+                            }
+                            onSeniorityRankChange={(seniority_rank) =>
+                                addForm.setData('seniority_rank', seniority_rank)
+                            }
+                            onVacationBankChange={(vacation_bank) =>
+                                addForm.setData(
+                                    'profile',
+                                    syncProfileVacationBank(
+                                        addForm.data.profile,
+                                        vacation_bank,
+                                    ),
+                                )
+                            }
+                            displayNameError={addForm.errors.display_name}
+                            seniorityRankError={addForm.errors.seniority_rank}
+                        />
+
+                        <ProfileSourcePicker
+                            idPrefix="new-bidder"
+                            source={profileSource}
+                            onSourceChange={handleProfileSourceChange}
+                            templates={profileTemplates}
+                            selectedTemplateId={selectedTemplateId}
+                            onTemplateSelect={handleTemplateSelect}
+                        />
 
                         <BidderProfileFields
                             idPrefix="new-bidder"
@@ -393,6 +505,7 @@ export default function BidSimulationEdit({
                             onChange={(profile) =>
                                 addForm.setData('profile', profile)
                             }
+                            hideVacationBank
                         />
                         <p className="text-xs text-muted-foreground">
                             Save the bidder first to preview line rankings below
