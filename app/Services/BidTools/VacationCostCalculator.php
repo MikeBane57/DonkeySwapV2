@@ -38,7 +38,6 @@ final class VacationCostCalculator
     }
 
     /**
-     * @param  mixed  $raw
      * @return list<array{starts_on: string, ends_on: string}>
      */
     private function rangeEntries(mixed $raw): array

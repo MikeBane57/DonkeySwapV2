@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import { BidLinePicker } from '@/pages/app/bid-tools/bid-line-picker';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
+import { RankingRulesExplanation } from '@/pages/app/bid-tools/ranking-rules-explanation';
 import { ScoredLinesTable } from '@/pages/app/bid-tools/scored-lines-table';
 import type { ScoredLineRow } from '@/pages/app/bid-tools/scored-lines-table';
-import { RankingRulesExplanation } from '@/pages/app/bid-tools/ranking-rules-explanation';
 import { usePreviewScore } from '@/pages/app/bid-tools/use-preview-score';
 
 export function ScenarioWorkspace({

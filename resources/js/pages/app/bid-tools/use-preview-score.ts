@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { logClientError } from '@/lib/client-logger';
 import { getCsrfToken } from '@/lib/csrf';
-import type { ScoredLineRow } from '@/pages/app/bid-tools/scored-lines-table';
 import type { SortExplanation } from '@/pages/app/bid-tools/ranking-rules-explanation';
+import type { ScoredLineRow } from '@/pages/app/bid-tools/scored-lines-table';
 
 type PreviewDraft = Record<string, unknown>;
 

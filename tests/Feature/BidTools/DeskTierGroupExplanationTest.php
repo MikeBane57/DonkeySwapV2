@@ -70,7 +70,70 @@ test('sort explanation desk tier groups follow editor list order not catalog ord
     expect($explanation['desk_tier_groups'][4]['buckets'])->toBe(['DG']);
 });
 
-test('sort explanation uses assigned tier for desk group when list order is scrambled', function () {
+test('sort explanation groups ds7 with g2 when editor list keeps it in the visual group', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 2);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'desk-tier-g2-ds7.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Desk tier G2 DS7 import',
+    )['import'];
+
+    @unlink($path);
+
+    $line = BidLine::query()->where('bid_import_id', $import->id)->firstOrFail();
+
+    $deskRank = [
+        ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DS_DR_MIX', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DS7', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'AG', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'AS', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'AS15', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'AR', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'AS_AR_MIX', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'RELIEF', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'MID', 'priority' => 'high', 'tier' => 6],
+    ];
+
+    $scenario = BidScenario::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'G2 includes DS7',
+        'vacation_bank' => 10,
+        'weights' => [
+            'holiday' => 0,
+            'personal' => 0,
+            'desk' => 0,
+            'vacation_penalty' => 0,
+            'sort_mode' => 'group_ranked',
+            'criteria_order' => ['desk', 'holiday', 'personal'],
+        ],
+        'holiday_rank' => [],
+        'desk_rank' => $deskRank,
+        'personal_dates' => [],
+    ]);
+
+    $scoreService = app(ScenarioScoreService::class);
+    $scores = $scoreService->scoreLines($scenario, [$line->id]);
+    $explanation = $scoreService->buildSortExplanation($scenario, $scores);
+
+    expect(collect($explanation['desk_tier_groups'])->pluck('label')->all())->toBe([
+        'G1', 'G2', 'G3', 'G4', 'G5', 'G6',
+    ]);
+    expect($explanation['desk_tier_groups'][1]['buckets'])->toBe(['DR', 'DS_DR_MIX', 'DS7']);
+});
+
+test('sort explanation isolates scrambled ds7 when it is not in the visual group block', function () {
     config(['features.bid_tools' => true]);
 
     $user = User::factory()->create();

@@ -613,10 +613,8 @@ final class ScenarioScoreService
             $seen[$key] = true;
         }
 
-        return RankTierHelper::sortEntriesByTierListOrder(
-            RankTierHelper::syncTiersFromVisualGroups(
-                RankTierHelper::normalizeTierOrder($out),
-            ),
+        return RankTierHelper::syncTiersFromVisualGroups(
+            RankTierHelper::normalizeTierOrder($out),
         );
     }
 
@@ -1109,7 +1107,7 @@ final class ScenarioScoreService
      */
     private function deskTierGroupsSummary(array $deskEntries): array
     {
-        $groups = RankTierHelper::entriesToAssignedTierGroups($deskEntries);
+        $groups = RankTierHelper::entriesToTierGroups($deskEntries);
         $out = [];
 
         foreach ($groups as $index => $group) {
@@ -1129,7 +1127,7 @@ final class ScenarioScoreService
                 continue;
             }
 
-            $groupNumber = (int) ($group[0]['tier'] ?? ($index + 1));
+            $groupNumber = $index + 1;
             $out[] = [
                 'tier' => $groupNumber,
                 'label' => 'G'.$groupNumber,

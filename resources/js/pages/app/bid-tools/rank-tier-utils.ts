@@ -87,32 +87,6 @@ export function groupWithAbove(
     return normalizeTierOrder(next);
 }
 
-export function assignEntryToGroup(
-    entries: TieredRankEntry[],
-    index: number,
-    groupNumber: number,
-): TieredRankEntry[] {
-    if (index < 0 || index >= entries.length || groupNumber < 1) {
-        return entries;
-    }
-
-    const next = [...entries];
-    next[index] = { ...next[index], tier: groupNumber };
-
-    return normalizeTierOrder(next);
-}
-
-export function createNewGroupForEntry(
-    entries: TieredRankEntry[],
-    index: number,
-): TieredRankEntry[] {
-    const maxTier = Math.max(
-        ...entries.map((entry, entryIndex) => entry.tier ?? entryIndex + 1),
-    );
-
-    return assignEntryToGroup(entries, index, maxTier + 1);
-}
-
 export function joinEntryWithTarget(
     entries: TieredRankEntry[],
     fromIndex: number,
@@ -137,6 +111,47 @@ export function joinEntryWithTarget(
     merged.splice(adjustedTarget + 1, 0, { ...item, tier: targetTier });
 
     return normalizeTierOrder(merged);
+}
+
+export function createNewGroupForEntry(
+    entries: TieredRankEntry[],
+    index: number,
+): TieredRankEntry[] {
+    const maxTier = Math.max(
+        ...entries.map((entry, entryIndex) => entry.tier ?? entryIndex + 1),
+    );
+    const item = { ...entries[index], tier: maxTier + 1 };
+    const without = entries.filter((_, entryIndex) => entryIndex !== index);
+
+    return normalizeTierOrder([...without, item]);
+}
+
+export function assignEntryToGroup(
+    entries: TieredRankEntry[],
+    index: number,
+    groupNumber: number,
+): TieredRankEntry[] {
+    if (index < 0 || index >= entries.length || groupNumber < 1) {
+        return entries;
+    }
+
+    const groups = entriesToTierGroups(entries);
+    const targetGroup = groups[groupNumber - 1];
+    if (!targetGroup) {
+        return createNewGroupForEntry(entries, index);
+    }
+
+    const lastMemberKey = targetGroup[targetGroup.length - 1]?.key;
+    const anchorIndex = entries.findIndex((entry) => entry.key === lastMemberKey);
+    if (anchorIndex < 0) {
+        return entries;
+    }
+
+    if (anchorIndex === index) {
+        return entries;
+    }
+
+    return joinEntryWithTarget(entries, index, anchorIndex);
 }
 
 export function splitAfter(
