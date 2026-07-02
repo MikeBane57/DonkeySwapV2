@@ -2,12 +2,16 @@
 
 namespace App\Http\Requests\BidTools;
 
+use App\Http\Requests\BidTools\Concerns\BidderProfileRules;
 use App\Services\BidTools\ScenarioScoreService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class PreviewScoreBidLinesRequest extends FormRequest
 {
+    use BidderProfileRules;
+
     public function authorize(): bool
     {
         return $this->user() !== null;
@@ -18,7 +22,7 @@ class PreviewScoreBidLinesRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
+        return array_merge([
             'line_ids' => ['required', 'array', 'min:1', 'max:200'],
             'line_ids.*' => ['integer', 'exists:bid_lines,id'],
             'draft' => ['nullable', 'array'],
@@ -33,13 +37,7 @@ class PreviewScoreBidLinesRequest extends FormRequest
             'draft.weights.criteria_order.*' => ['string', Rule::in(['holiday', 'personal', 'desk'])],
             'draft.weights.start_time_tiebreak_order' => ['nullable', 'array'],
             'draft.weights.start_time_tiebreak_order.*' => ['string', Rule::in(ScenarioScoreService::START_TIME_TIEBREAK_KEYS)],
-            'draft.holiday_rank' => ['nullable', 'array'],
-            'draft.holiday_rank.*.date' => ['required_with:draft.holiday_rank', 'date_format:Y-m-d'],
-            'draft.holiday_rank.*.label' => ['nullable', 'string', 'max:120'],
-            'draft.holiday_rank.*.id' => ['nullable', 'string', 'max:64'],
-            'draft.holiday_rank.*.key' => ['nullable', 'string', 'max:64'],
-            'draft.holiday_rank.*.priority' => ['required_with:draft.holiday_rank', 'string', Rule::in(['ignore', 'low', 'high'])],
-            'draft.holiday_rank.*.tier' => ['nullable', 'integer', 'min:1'],
+        ], $this->flexibleHolidayRankRules('draft.holiday_rank'), [
             'draft.desk_rank' => ['nullable', 'array'],
             'draft.desk_rank.*.key' => ['required_with:draft.desk_rank', 'string', 'max:64'],
             'draft.desk_rank.*.priority' => ['required_with:draft.desk_rank', 'string', Rule::in(['ignore', 'low', 'high'])],
@@ -57,6 +55,11 @@ class PreviewScoreBidLinesRequest extends FormRequest
             'draft.line_desk_buckets' => ['nullable', 'array'],
             'draft.line_desk_buckets.*.bid_line_id' => ['required_with:draft.line_desk_buckets', 'integer'],
             'draft.line_desk_buckets.*.bucket' => ['required_with:draft.line_desk_buckets', 'string', 'max:64'],
-        ];
+        ]);
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $this->validateFlexibleHolidayRank($validator, 'draft.holiday_rank');
     }
 }

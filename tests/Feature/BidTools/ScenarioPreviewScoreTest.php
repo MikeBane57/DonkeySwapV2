@@ -128,3 +128,59 @@ test('preview score accepts draft profile changes', function () {
     expect($weighted)->toHaveCount(3);
     expect($weighted[0]['total'])->not->toBe($baseline[0]['total']);
 });
+
+test('preview score accepts condensed simulation holiday rank draft', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 5);
+
+    $result = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Condensed draft import',
+    );
+    $import = $result['import'];
+
+    @unlink($path);
+
+    $scenario = BidScenario::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Condensed draft preview',
+        'vacation_bank' => 10,
+    ]);
+
+    $lineIds = BidLine::query()
+        ->where('bid_import_id', $import->id)
+        ->orderBy('line_num')
+        ->limit(3)
+        ->pluck('id')
+        ->all();
+
+    $defaults = app(\App\Services\BidTools\CondensedBidderProfileMapper::class)->condensedDefaults();
+
+    $this->actingAs($user)->postJson(
+        route('api.bid-tools.scenarios.preview-score', $scenario->id),
+        [
+            'line_ids' => $lineIds,
+            'draft' => [
+                'vacation_bank' => 12,
+                'holiday_rank' => $defaults['holiday_rank'],
+                'desk_rank' => $defaults['desk_rank'],
+                'weights' => [
+                    'holiday' => 1,
+                    'personal' => 1,
+                    'desk' => 1,
+                    'vacation_penalty' => 1,
+                    'sort_mode' => 'blended',
+                    'criteria_order' => ['holiday', 'personal', 'desk'],
+                ],
+            ],
+        ],
+    )->assertOk()->assertJsonCount(3, 'scored_rows');
+});
