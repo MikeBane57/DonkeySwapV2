@@ -5,6 +5,7 @@ namespace App\Http\Requests\BidTools\Concerns;
 use App\Services\BidTools\CondensedBidderProfileMapper;
 use App\Services\BidTools\ScenarioScoreService;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 trait BidderProfileRules
 {
@@ -16,14 +17,7 @@ trait BidderProfileRules
         return [
             "{$prefix}" => ['required', 'array'],
             "{$prefix}.vacation_bank" => ['required', 'integer', 'min:0', 'max:255'],
-            "{$prefix}.holiday_rank" => ['required', 'array', 'min:1'],
-            "{$prefix}.holiday_rank.*.key" => [
-                'required',
-                'string',
-                Rule::in(array_keys(CondensedBidderProfileMapper::HOLIDAY_GROUPS)),
-            ],
-            "{$prefix}.holiday_rank.*.priority" => ['required', 'string', Rule::in(['ignore', 'low', 'high'])],
-            "{$prefix}.holiday_rank.*.tier" => ['nullable', 'integer', 'min:1'],
+            ...$this->flexibleHolidayRankRules("{$prefix}.holiday_rank", required: true),
             "{$prefix}.desk_rank" => ['required', 'array', 'min:1'],
             "{$prefix}.desk_rank.*.key" => [
                 'required',
@@ -49,5 +43,55 @@ trait BidderProfileRules
             "{$prefix}.personal_dates.*.label" => ['nullable', 'string', 'max:120'],
             "{$prefix}.personal_dates.*.priority" => ['required', 'string', Rule::in(['ignore', 'low', 'high'])],
         ];
+    }
+
+    /**
+     * Accept condensed holiday groups (key + priority) or full dated entries.
+     *
+     * @return array<string, mixed>
+     */
+    protected function flexibleHolidayRankRules(string $prefix, bool $required = false): array
+    {
+        $priorityRule = $required ? 'required' : "required_with:{$prefix}";
+
+        return [
+            $prefix => $required ? ['required', 'array', 'min:1'] : ['nullable', 'array'],
+            "{$prefix}.*.date" => ['nullable', 'date_format:Y-m-d'],
+            "{$prefix}.*.label" => ['nullable', 'string', 'max:120'],
+            "{$prefix}.*.id" => ['nullable', 'string', 'max:64'],
+            "{$prefix}.*.key" => [
+                'nullable',
+                'string',
+                Rule::in(array_keys(CondensedBidderProfileMapper::HOLIDAY_GROUPS)),
+            ],
+            "{$prefix}.*.priority" => [$priorityRule, 'string', Rule::in(['ignore', 'low', 'high'])],
+            "{$prefix}.*.tier" => ['nullable', 'integer', 'min:1'],
+        ];
+    }
+
+    protected function validateFlexibleHolidayRank(Validator $validator, string $prefix): void
+    {
+        $validator->after(function (Validator $validator) use ($prefix): void {
+            $entries = data_get($validator->getData(), $prefix);
+            if (! is_array($entries)) {
+                return;
+            }
+
+            foreach ($entries as $index => $entry) {
+                if (! is_array($entry)) {
+                    continue;
+                }
+
+                $hasDate = is_string($entry['date'] ?? null) && $entry['date'] !== '';
+                $hasKey = is_string($entry['key'] ?? null) && $entry['key'] !== '';
+
+                if (! $hasDate && ! $hasKey) {
+                    $validator->errors()->add(
+                        "{$prefix}.{$index}",
+                        'Each holiday entry must include either a date or a condensed group key.',
+                    );
+                }
+            }
+        });
     }
 }
