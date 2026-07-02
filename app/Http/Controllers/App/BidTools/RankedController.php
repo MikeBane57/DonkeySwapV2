@@ -10,7 +10,6 @@ use App\Models\BidScenario;
 use App\Models\BidScenarioLineNote;
 use App\Services\BidTools\BidLinePickerService;
 use App\Services\BidTools\BidLinePreferenceCatalog;
-use App\Services\BidTools\LineRowFormatter;
 use App\Services\BidTools\ScenarioScoreService;
 use App\Services\BidTools\ScoredLineResponseFormatter;
 use Illuminate\Http\JsonResponse;
