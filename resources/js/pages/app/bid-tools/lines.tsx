@@ -52,7 +52,7 @@ export default function BidToolsLines({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Bid lines" />
-            <div className="space-y-4 p-4 pb-12">
+            <div className="mx-auto max-w-6xl space-y-4 p-4 pb-12">
                 <div className="flex flex-wrap items-end justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-semibold tracking-tight">
@@ -99,7 +99,75 @@ export default function BidToolsLines({
                     </div>
                 </div>
 
-                <div className="overflow-x-auto rounded-lg border border-sidebar-border/70">
+                <div className="space-y-3 md:hidden">
+                    {lines.map((row) => (
+                        <article
+                            key={row.id}
+                            className="rounded-lg border border-sidebar-border/60 bg-card p-3"
+                        >
+                            <p className="font-mono text-sm font-medium">
+                                {row.line_num}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                {row.desk_group} · {row.start_time}
+                                {row.rotation ? ` · ${row.rotation}` : ''}
+                            </p>
+                            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                                <div>
+                                    <dt className="text-[10px] uppercase text-muted-foreground">
+                                        Workdays
+                                    </dt>
+                                    <dd>
+                                        {row.workdays_from_file ??
+                                            row.workdays_computed}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-[10px] uppercase text-muted-foreground">
+                                        Hol off
+                                    </dt>
+                                    <dd>{row.metrics.holidays_off}</dd>
+                                </div>
+                                <div>
+                                    <dt className="text-[10px] uppercase text-muted-foreground">
+                                        F / Sa / Su
+                                    </dt>
+                                    <dd>
+                                        {row.metrics.fri_off}/
+                                        {row.metrics.sat_off}/
+                                        {row.metrics.sun_off}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-[10px] uppercase text-muted-foreground">
+                                        F–Su / Sa–Su
+                                    </dt>
+                                    <dd>
+                                        {row.metrics.fri_sat_sun_all_off} /{' '}
+                                        {row.metrics.sat_sun_both_off}
+                                    </dd>
+                                </div>
+                            </dl>
+                            {row.source_label && (
+                                <p className="mt-2 text-xs text-muted-foreground">
+                                    Source: {row.source_label}
+                                </p>
+                            )}
+                            {row.training_summary && (
+                                <p className="mt-2 text-xs leading-snug">
+                                    {row.training_summary}
+                                </p>
+                            )}
+                            {row.schedule_callouts && (
+                                <p className="mt-2 text-xs leading-snug whitespace-pre-wrap text-muted-foreground">
+                                    {row.schedule_callouts}
+                                </p>
+                            )}
+                        </article>
+                    ))}
+                </div>
+
+                <div className="hidden overflow-x-auto rounded-lg border border-sidebar-border/70 md:block">
                     <table className="w-full min-w-[1200px] border-collapse text-left text-sm">
                         <thead>
                             <tr className="border-b bg-muted/50">

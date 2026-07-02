@@ -119,7 +119,65 @@ export function RankingRulesExplanation({
                         better). Desk # is list position (lower is better). Tier
                         ranks are first-match list positions (lower is better).
                     </p>
-                    <div className="overflow-x-auto rounded-md border border-sidebar-border/60">
+
+                    <div className="space-y-2 md:hidden">
+                        {explanation.line_details.map((line) => (
+                            <article
+                                key={line.bid_line_id}
+                                className={`rounded-md border border-sidebar-border/60 bg-background p-2.5 text-xs ${
+                                    line.group_boundary
+                                        ? 'border-t-2 border-t-primary/30'
+                                        : ''
+                                }`}
+                            >
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="font-mono font-medium">
+                                        #{line.rank} {line.line_num}
+                                    </span>
+                                    <span className="font-semibold tabular-nums">
+                                        {line.total}
+                                    </span>
+                                </div>
+                                <p className="mt-1 text-muted-foreground">
+                                    {line.desk_bucket}
+                                    {explanation.sort_mode === 'group_ranked' &&
+                                        ` · ${line.desk_tier_label}`}
+                                    {' · '}
+                                    {line.start_time_label}
+                                </p>
+                                <dl className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1">
+                                    <div>
+                                        <dt className="text-[10px] uppercase text-muted-foreground">
+                                            Hol
+                                        </dt>
+                                        <dd>
+                                            {line.sort_scores.holiday ?? '—'}{' '}
+                                            (tier {line.tier_ranks.holiday ?? '—'})
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-[10px] uppercase text-muted-foreground">
+                                            Per
+                                        </dt>
+                                        <dd>
+                                            {line.sort_scores.personal ?? '—'}{' '}
+                                            (tier {line.tier_ranks.personal ?? '—'})
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-[10px] uppercase text-muted-foreground">
+                                            Desk #
+                                        </dt>
+                                        <dd>
+                                            {line.tier_ranks.desk_order ?? '—'}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </article>
+                        ))}
+                    </div>
+
+                    <div className="hidden overflow-x-auto rounded-md border border-sidebar-border/60 md:block">
                         <table className="w-full min-w-[880px] text-left text-xs">
                             <thead>
                                 <tr className="border-b bg-muted/40">

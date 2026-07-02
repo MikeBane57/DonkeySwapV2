@@ -13,6 +13,7 @@ import {
 import {
     CompactPrioritySelect,
     DraggablePreferenceRow,
+    MobileReorderButtons,
     preferencePuckGroupClass,
     preferencePuckLabelClass,
 } from '@/pages/app/bid-tools/preference-rank-shared';
@@ -58,10 +59,12 @@ function PrioritySelect({
 
 function DraggableRow({
     index,
+    listLength,
     onReorder,
     children,
 }: {
     index: number;
+    listLength: number;
     onReorder: (from: number, to: number) => void;
     children: ReactNode;
 }) {
@@ -92,11 +95,16 @@ function DraggableRow({
                     e.dataTransfer.setData('text/plain', String(index));
                     e.dataTransfer.effectAllowed = 'move';
                 }}
-                className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+                className="hidden cursor-grab touch-none text-muted-foreground active:cursor-grabbing md:inline-flex"
                 aria-label="Drag to reorder"
             >
                 <GripVertical className="h-4 w-4" />
             </button>
+            <MobileReorderButtons
+                index={index}
+                listLength={listLength}
+                onReorder={onReorder}
+            />
             {children}
         </div>
     );
@@ -248,6 +256,7 @@ export function TieredRankList({
                                 <Row
                                     key={`${idPrefix}-${entry.key}`}
                                     index={flatIndex}
+                                    listLength={entries.length}
                                     onReorder={reorderFlat}
                                 >
                                     <span className={compact ? preferencePuckLabelClass : 'min-w-0 flex-1 text-sm'}>

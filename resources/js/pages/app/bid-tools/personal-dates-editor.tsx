@@ -10,6 +10,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { MobileReorderButtons } from '@/pages/app/bid-tools/preference-rank-shared';
 
 export type Priority = 'ignore' | 'low' | 'high';
 
@@ -22,7 +23,7 @@ export type PersonalDateEntry = {
 };
 
 const dateInputClass =
-    'h-8 w-[9.25rem] text-xs [color-scheme:dark] sm:w-[9.5rem]';
+    'h-8 w-full text-xs [color-scheme:dark] sm:w-[9.5rem]';
 
 function moveIndex<T>(list: T[], from: number, to: number): T[] {
     if (from === to || from < 0 || to < 0) {
@@ -70,10 +71,12 @@ function PrioritySelect({
 
 function DraggableRow({
     index,
+    listLength,
     onReorder,
     children,
 }: {
     index: number;
+    listLength: number;
     onReorder: (from: number, to: number) => void;
     children: React.ReactNode;
 }) {
@@ -81,7 +84,7 @@ function DraggableRow({
 
     return (
         <div
-            className={`flex flex-wrap items-center gap-2 rounded-md border border-transparent px-1 py-1 ${over ? 'border-primary/40 bg-muted/40' : ''}`}
+            className={`flex flex-col gap-2 rounded-md border border-sidebar-border/50 bg-muted/10 p-2 sm:flex-row sm:flex-wrap sm:items-center sm:border-transparent sm:bg-transparent sm:p-1 ${over ? 'border-primary/40 bg-muted/40' : ''}`}
             onDragOver={(e) => {
                 e.preventDefault();
                 setOver(true);
@@ -97,19 +100,28 @@ function DraggableRow({
                 }
             }}
         >
-            <button
-                type="button"
-                draggable
-                onDragStart={(e) => {
-                    e.dataTransfer.setData('text/plain', String(index));
-                    e.dataTransfer.effectAllowed = 'move';
-                }}
-                className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
-                aria-label="Drag to reorder"
-            >
-                <GripVertical className="h-4 w-4" />
-            </button>
-            {children}
+            <div className="flex items-center gap-2">
+                <button
+                    type="button"
+                    draggable
+                    onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', String(index));
+                        e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    className="hidden cursor-grab touch-none text-muted-foreground active:cursor-grabbing md:inline-flex"
+                    aria-label="Drag to reorder"
+                >
+                    <GripVertical className="h-4 w-4" />
+                </button>
+                <MobileReorderButtons
+                    index={index}
+                    listLength={listLength}
+                    onReorder={onReorder}
+                />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                {children}
+            </div>
         </div>
     );
 }
@@ -170,6 +182,7 @@ export function PersonalDatesEditor({
                     <DraggableRow
                         key={entryKey(entry, idx)}
                         index={idx}
+                        listLength={entries.length}
                         onReorder={(from, to) =>
                             onChange(moveIndex(entries, from, to))
                         }

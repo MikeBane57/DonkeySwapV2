@@ -1,4 +1,4 @@
-import { GripVertical } from 'lucide-react';
+import { ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Label } from '@/components/ui/label';
@@ -19,7 +19,7 @@ export const preferenceColumnClass = 'flex min-w-0 flex-col gap-1.5';
 export const preferencePuckGroupClass =
     'flex min-w-[9.5rem] flex-col gap-1 rounded-md border border-sidebar-border/60 bg-muted/10 px-2 py-1.5';
 export const preferencePuckRowClass =
-    'flex min-h-[1.75rem] items-center gap-1 rounded-sm border border-transparent px-0.5 py-0';
+    'flex min-h-[1.75rem] flex-wrap items-center gap-1 rounded-sm border border-transparent px-0.5 py-0';
 export const preferencePuckLabelClass =
     'min-w-0 flex-1 truncate text-xs leading-tight';
 
@@ -86,12 +86,51 @@ export function PreferenceColumnHeader({
     );
 }
 
+export function MobileReorderButtons({
+    index,
+    listLength,
+    onReorder,
+}: {
+    index: number;
+    listLength: number;
+    onReorder: (from: number, to: number) => void;
+}) {
+    if (listLength <= 1) {
+        return null;
+    }
+
+    return (
+        <div className="flex shrink-0 md:hidden">
+            <button
+                type="button"
+                disabled={index === 0}
+                onClick={() => onReorder(index, index - 1)}
+                className="rounded p-1 text-muted-foreground disabled:opacity-30"
+                aria-label="Move up"
+            >
+                <ChevronUp className="h-4 w-4" />
+            </button>
+            <button
+                type="button"
+                disabled={index === listLength - 1}
+                onClick={() => onReorder(index, index + 1)}
+                className="rounded p-1 text-muted-foreground disabled:opacity-30"
+                aria-label="Move down"
+            >
+                <ChevronDown className="h-4 w-4" />
+            </button>
+        </div>
+    );
+}
+
 export function DraggablePreferenceRow({
     index,
+    listLength,
     onReorder,
     children,
 }: {
     index: number;
+    listLength?: number;
     onReorder: (from: number, to: number) => void;
     children: ReactNode;
 }) {
@@ -122,11 +161,18 @@ export function DraggablePreferenceRow({
                     e.dataTransfer.setData('text/plain', String(index));
                     e.dataTransfer.effectAllowed = 'move';
                 }}
-                className="cursor-grab touch-none shrink-0 text-muted-foreground active:cursor-grabbing"
+                className="hidden cursor-grab touch-none shrink-0 text-muted-foreground active:cursor-grabbing md:inline-flex"
                 aria-label="Drag to reorder"
             >
                 <GripVertical className="h-3.5 w-3.5" />
             </button>
+            {listLength !== undefined && (
+                <MobileReorderButtons
+                    index={index}
+                    listLength={listLength}
+                    onReorder={onReorder}
+                />
+            )}
             {children}
         </div>
     );
@@ -151,6 +197,7 @@ export function StartTimeTiebreakPicker({
                     <DraggablePreferenceRow
                         key={hour}
                         index={idx}
+                        listLength={value.length}
                         onReorder={(from, to) =>
                             onChange(moveIndex(value, from, to))
                         }
@@ -187,6 +234,7 @@ export function HolidayRankList({
                 <DraggablePreferenceRow
                     key={`${entry.date}-${idx}`}
                     index={idx}
+                    listLength={entries.length}
                     onReorder={(from, to) =>
                         onChange(moveIndex(entries, from, to))
                     }
