@@ -127,6 +127,37 @@ test('sort explanation uses assigned tier for desk group when list order is scra
     $scores = $scoreService->scoreLines($scenario, [$line->id]);
     $explanation = $scoreService->buildSortExplanation($scenario, $scores);
 
-    expect($explanation['desk_tier_groups'][2]['buckets'])->toBe(['DS7']);
-    expect($explanation['desk_tier_groups'][4]['buckets'])->toBe(['DG']);
+    expect($explanation['desk_tier_groups'][2]['buckets'])->toBe(['DS_DR_MIX']);
+    expect($explanation['desk_tier_groups'][10]['buckets'])->toBe(['DS7']);
+    expect($explanation['desk_tier_groups'][3]['buckets'])->toBe(['DG']);
+});
+
+test('desk entries for editor sync visual group tiers from list order', function () {
+    $scoreService = app(ScenarioScoreService::class);
+
+    $staleDeskRank = [
+        ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'DS_DR_MIX', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'DS7', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'AS', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'AG', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'RELIEF', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'MID', 'priority' => 'high', 'tier' => 12],
+    ];
+
+    $synced = $scoreService->deskEntriesForEditor($staleDeskRank, array_column($staleDeskRank, 'key'));
+
+    expect(collect($synced)->pluck('tier', 'key')->all())->toMatchArray([
+        'DS' => 1,
+        'DG' => 1,
+        'DR' => 2,
+        'DS_DR_MIX' => 2,
+        'DS7' => 2,
+        'AS' => 3,
+        'AG' => 3,
+        'RELIEF' => 4,
+        'MID' => 5,
+    ]);
 });

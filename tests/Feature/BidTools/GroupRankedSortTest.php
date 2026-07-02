@@ -175,6 +175,65 @@ test('group ranked mode applies holiday category order within the same desk tier
     expect($scores[0]['bid_line_id'])->toBe($pmLine->id);
 });
 
+test('group ranked mode partitions by synced visual desk groups', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeDeskStartTradeoffCsv($bidYear);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'group-synced-tiers.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Group synced tiers import',
+    )['import'];
+
+    @unlink($path);
+
+    $dsLine = BidLine::query()->where('bid_import_id', $import->id)->where('line_num', '552')->firstOrFail();
+    $dgLine = BidLine::query()->where('bid_import_id', $import->id)->where('line_num', '551')->firstOrFail();
+
+    $scenario = BidScenario::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Synced desk groups',
+        'vacation_bank' => 10,
+        'weights' => [
+            'holiday' => 0,
+            'personal' => 0,
+            'desk' => 0,
+            'vacation_penalty' => 0,
+            'sort_mode' => 'group_ranked',
+            'criteria_order' => ['desk', 'holiday', 'personal'],
+        ],
+        'holiday_rank' => [],
+        'desk_rank' => [
+            ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+            ['key' => 'DG', 'priority' => 'high', 'tier' => 1],
+            ['key' => 'DR', 'priority' => 'high', 'tier' => 5],
+            ['key' => 'DS_DR_MIX', 'priority' => 'high', 'tier' => 5],
+            ['key' => 'DS7', 'priority' => 'high', 'tier' => 5],
+            ['key' => 'AS', 'priority' => 'high', 'tier' => 3],
+            ['key' => 'AG', 'priority' => 'high', 'tier' => 3],
+        ],
+        'personal_dates' => [],
+    ]);
+
+    $scores = app(ScenarioScoreService::class)->scoreLines(
+        $scenario,
+        [$dgLine->id, $dsLine->id],
+    );
+
+    $byId = collect($scores)->keyBy('bid_line_id');
+
+    expect($byId[$dsLine->id]['tier_ranks']['desk'])->toBe(1);
+    expect($byId[$dgLine->id]['tier_ranks']['desk'])->toBe(1);
+    expect($scores[0]['bid_line_id'])->toBe($dsLine->id);
+});
+
 test('group ranked mode uses cumulative holiday sort scores within the same desk tier group', function () {
     config(['features.bid_tools' => true]);
 

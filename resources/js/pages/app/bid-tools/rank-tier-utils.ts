@@ -54,6 +54,13 @@ export function tierGroupsToEntries(
     return out;
 }
 
+/** Renumber tiers 1..N from consecutive groups in list order (matches editor G1, G2…). */
+export function syncTiersFromVisualGroups(
+    entries: TieredRankEntry[],
+): TieredRankEntry[] {
+    return tierGroupsToEntries(entriesToTierGroups(entries));
+}
+
 export function moveIndex<T>(list: T[], from: number, to: number): T[] {
     if (from === to || from < 0 || to < 0) {
         return list;

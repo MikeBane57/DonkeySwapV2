@@ -614,7 +614,9 @@ final class ScenarioScoreService
         }
 
         return RankTierHelper::sortEntriesByTierListOrder(
-            RankTierHelper::normalizeTierOrder($out),
+            RankTierHelper::syncTiersFromVisualGroups(
+                RankTierHelper::normalizeTierOrder($out),
+            ),
         );
     }
 
@@ -1127,7 +1129,7 @@ final class ScenarioScoreService
                 continue;
             }
 
-            $groupNumber = $index + 1;
+            $groupNumber = (int) ($group[0]['tier'] ?? ($index + 1));
             $out[] = [
                 'tier' => $groupNumber,
                 'label' => 'G'.$groupNumber,
