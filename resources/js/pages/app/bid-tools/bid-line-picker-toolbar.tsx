@@ -1,4 +1,11 @@
 import { Button } from '@/components/ui/button';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 
 export type LinePickerRow = {
     id: number;
@@ -33,6 +40,39 @@ export function deskBucketLabel(bucket: string): string {
     return DESK_BUCKET_LABELS[bucket] ?? bucket;
 }
 
+const BUCKET_ORDER = [
+    'DS',
+    'DG',
+    'DS7',
+    'DR',
+    'DS_DR_MIX',
+    'AG',
+    'AS',
+    'AS15',
+    'AR',
+    'AS_AR_MIX',
+    'MID',
+    'RELIEF',
+];
+
+function sortBuckets(buckets: string[]): string[] {
+    return [...buckets].sort((a, b) => {
+        const aRank = BUCKET_ORDER.indexOf(a);
+        const bRank = BUCKET_ORDER.indexOf(b);
+        if (aRank === -1 && bRank === -1) {
+            return a.localeCompare(b);
+        }
+        if (aRank === -1) {
+            return 1;
+        }
+        if (bRank === -1) {
+            return -1;
+        }
+
+        return aRank - bRank;
+    });
+}
+
 export function BidLinePickerToolbar({
     lines,
     onSelect,
@@ -58,69 +98,77 @@ export function BidLinePickerToolbar({
         return acc;
     }, {});
 
-    const buckets = Object.keys(bucketCounts).sort((a, b) => {
-        const order = [
-            'DS',
-            'DG',
-            'DS7',
-            'DR',
-            'DS_DR_MIX',
-            'AG',
-            'AS',
-            'AS15',
-            'AR',
-            'AS_AR_MIX',
-            'MID',
-            'RELIEF',
-        ];
-        const aRank = order.indexOf(a);
-        const bRank = order.indexOf(b);
-        if (aRank === -1 && bRank === -1) {
-            return a.localeCompare(b);
-        }
-        if (aRank === -1) {
-            return 1;
-        }
-        if (bRank === -1) {
-            return -1;
-        }
-
-        return aRank - bRank;
-    });
+    const buckets = sortBuckets(Object.keys(bucketCounts));
 
     return (
-        <div className="flex flex-wrap gap-2">
-            <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={selectAll}
-            >
-                Select all
-            </Button>
-            {buckets.map((bucket) => {
-                const count = bucketCounts[bucket] ?? 0;
-                if (count === 0) {
-                    return null;
-                }
+        <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+                <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={selectAll}
+                >
+                    Select all
+                </Button>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onClear}
+                >
+                    Clear
+                </Button>
+            </div>
 
-                return (
-                    <Button
-                        key={bucket}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                            selectMatching((l) => l.desk_bucket === bucket)
-                        }
-                    >
-                        {deskBucketLabel(bucket)} ({count})
-                    </Button>
-                );
-            })}
-            <Button type="button" variant="ghost" size="sm" onClick={onClear}>
-                Clear
-            </Button>
+            <div className="md:hidden">
+                <Select
+                    onValueChange={(bucket) =>
+                        selectMatching((l) => l.desk_bucket === bucket)
+                    }
+                >
+                    <SelectTrigger className="h-9 w-full text-sm">
+                        <SelectValue placeholder="Select by desk bucket…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {buckets.map((bucket) => {
+                            const count = bucketCounts[bucket] ?? 0;
+                            if (count === 0) {
+                                return null;
+                            }
+
+                            return (
+                                <SelectItem key={bucket} value={bucket}>
+                                    {deskBucketLabel(bucket)} ({count})
+                                </SelectItem>
+                            );
+                        })}
+                    </SelectContent>
+                </Select>
+            </div>
+
+            <div className="hidden flex-wrap gap-2 md:flex">
+                {buckets.map((bucket) => {
+                    const count = bucketCounts[bucket] ?? 0;
+                    if (count === 0) {
+                        return null;
+                    }
+
+                    return (
+                        <Button
+                            key={bucket}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                                selectMatching((l) => l.desk_bucket === bucket)
+                            }
+                        >
+                            {deskBucketLabel(bucket)} ({count})
+                        </Button>
+                    );
+                })}
+            </div>
         </div>
     );
 }

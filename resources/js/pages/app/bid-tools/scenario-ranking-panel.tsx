@@ -13,20 +13,19 @@ import {
 } from '@/components/ui/select';
 import {
     PersonalDatesEditor,
-    personalDatesForSave
-    
+    personalDatesForSave,
 } from '@/pages/app/bid-tools/personal-dates-editor';
-import type {PersonalDateEntry} from '@/pages/app/bid-tools/personal-dates-editor';
+import type { PersonalDateEntry } from '@/pages/app/bid-tools/personal-dates-editor';
 import {
     HolidayRankList,
+    MobileReorderButtons,
     PreferenceColumnHeader,
     StartTimeTiebreakPicker,
     normalizeCriteriaOrder,
     normalizeStartTimeTiebreakOrder,
-    preferenceColumnClass
-    
+    preferenceColumnClass,
 } from '@/pages/app/bid-tools/preference-rank-shared';
-import type {StartTimeTiebreakKey} from '@/pages/app/bid-tools/preference-rank-shared';
+import type { StartTimeTiebreakKey } from '@/pages/app/bid-tools/preference-rank-shared';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
 export type Priority = 'ignore' | 'low' | 'high';
@@ -87,11 +86,13 @@ function moveIndex<T>(list: T[], from: number, to: number): T[] {
 
 function DraggableRow({
     index,
+    listLength,
     onReorder,
     children,
     compact = false,
 }: {
     index: number;
+    listLength: number;
     onReorder: (from: number, to: number) => void;
     children: ReactNode;
     compact?: boolean;
@@ -100,7 +101,7 @@ function DraggableRow({
         <div
             className={
                 compact
-                    ? 'inline-flex items-center gap-1 rounded-md border border-sidebar-border/60 bg-muted/30 px-2 py-1'
+                    ? 'flex flex-wrap items-center gap-1 rounded-md border border-sidebar-border/60 bg-muted/30 px-2 py-1'
                     : 'flex flex-wrap items-center gap-2 rounded-md border border-transparent px-1 py-1'
             }
             onDragOver={(e) => e.preventDefault()}
@@ -120,11 +121,16 @@ function DraggableRow({
                     e.dataTransfer.setData('text/plain', String(index));
                     e.dataTransfer.effectAllowed = 'move';
                 }}
-                className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+                className="hidden cursor-grab touch-none text-muted-foreground active:cursor-grabbing md:inline-flex"
                 aria-label="Drag to reorder"
             >
                 <GripVertical className="h-3.5 w-3.5" />
             </button>
+            <MobileReorderButtons
+                index={index}
+                listLength={listLength}
+                onReorder={onReorder}
+            />
             {children}
         </div>
     );
@@ -303,6 +309,7 @@ export function ScenarioRankingPanel({
                             <DraggableRow
                                 key={id}
                                 index={idx}
+                                listLength={value.weights.criteria_order.length}
                                 compact
                                 onReorder={(from, to) =>
                                     setWeights({

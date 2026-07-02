@@ -398,7 +398,60 @@ function ComparisonResults({
                 </table>
             </div>
 
-            <div className="no-print overflow-x-auto rounded-lg border border-sidebar-border/70">
+            <div className="no-print md:hidden">
+                <div className="space-y-3">
+                    {comparison.rows.map((row) => {
+                        const fmt = row.line;
+                        return (
+                            <article
+                                key={row.bid_line_id}
+                                className="rounded-lg border border-sidebar-border/60 bg-card p-3"
+                            >
+                                <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                        <p className="font-mono text-sm font-medium">
+                                            {row.line_num}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {fmt?.desk_group ?? '—'} ·{' '}
+                                            {fmt?.start_time ?? '—'} · Hol{' '}
+                                            {fmt?.metrics.holidays_off ?? '—'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="mt-3 space-y-2">
+                                    {comparison.scenarios.map((s) => {
+                                        const score = row.scenarios.find(
+                                            (r) => r.scenario_id === s.id,
+                                        );
+                                        return (
+                                            <div
+                                                key={s.id}
+                                                className="flex items-center justify-between rounded-md bg-muted/30 px-2.5 py-1.5 text-sm"
+                                            >
+                                                <span className="min-w-0 truncate font-medium">
+                                                    {s.name}
+                                                </span>
+                                                <span className="shrink-0 tabular-nums">
+                                                    #{score?.rank ?? '—'} ·{' '}
+                                                    {score?.total ?? '—'}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                {fmt?.schedule_callouts && (
+                                    <p className="mt-2 text-xs leading-snug whitespace-pre-wrap text-muted-foreground">
+                                        {fmt.schedule_callouts}
+                                    </p>
+                                )}
+                            </article>
+                        );
+                    })}
+                </div>
+            </div>
+
+            <div className="no-print hidden overflow-x-auto rounded-lg border border-sidebar-border/70 md:block">
                 <table className="w-full min-w-[900px] text-left text-sm">
                     <thead>
                         <tr className="border-b bg-muted/50">
@@ -507,7 +560,7 @@ export default function BidScenarioCompare({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Compare scenarios" />
-            <div className="bid-tools-print space-y-6 p-4 pb-12">
+            <div className="bid-tools-print mx-auto max-w-6xl space-y-6 p-4 pb-12">
                 <div className="no-print flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-semibold tracking-tight">
