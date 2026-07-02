@@ -23,6 +23,10 @@ import {
     scenarioToRankingState,
 } from '@/pages/app/bid-tools/scenario-ranking-panel';
 import type { ScenarioRankingState } from '@/pages/app/bid-tools/scenario-ranking-panel';
+import {
+    RankingRulesExplanation,
+    type SortExplanation,
+} from '@/pages/app/bid-tools/ranking-rules-explanation';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -105,6 +109,8 @@ export default function BidScenarioRanked({
         allLineIds(lines),
     );
     const [scoredRows, setScoredRows] = useState<ScoredRow[] | null>(null);
+    const [sortExplanation, setSortExplanation] =
+        useState<SortExplanation | null>(null);
     const [loading, setLoading] = useState(false);
     const [previewError, setPreviewError] = useState<string | null>(null);
 
@@ -158,6 +164,7 @@ export default function BidScenarioRanked({
     const fetchPreview = useCallback(async () => {
         if (selectedIds.length === 0) {
             setScoredRows([]);
+            setSortExplanation(null);
             setPreviewError(null);
 
             return;
@@ -200,8 +207,12 @@ export default function BidScenarioRanked({
                 );
             }
 
-            const data = (await res.json()) as { scored_rows: ScoredRow[] };
+            const data = (await res.json()) as {
+                scored_rows: ScoredRow[];
+                sort_explanation: SortExplanation | null;
+            };
             setScoredRows(data.scored_rows);
+            setSortExplanation(data.sort_explanation ?? null);
         } catch (error) {
             setPreviewError(
                 error instanceof Error
@@ -578,6 +589,10 @@ export default function BidScenarioRanked({
                                     </tbody>
                                 </table>
                             </div>
+
+                            <RankingRulesExplanation
+                                explanation={sortExplanation}
+                            />
                         </>
                     ) : !loading ? (
                         <p className="no-print text-sm text-muted-foreground">

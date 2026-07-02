@@ -78,5 +78,6 @@ test('comparing many bid lines stores slim scores in session', function () {
         ])
         ->assertOk()
         ->assertJsonCount(60, 'scored_rows')
-        ->assertJsonPath('scored_rows.0.rank', 1);
+        ->assertJsonPath('scored_rows.0.rank', 1)
+        ->assertJsonPath('sort_explanation.sort_mode', 'blended');
 });

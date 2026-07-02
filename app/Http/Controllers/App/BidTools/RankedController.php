@@ -12,6 +12,7 @@ use App\Services\BidTools\BidLinePickerService;
 use App\Services\BidTools\BidLinePreferenceCatalog;
 use App\Services\BidTools\LineRowFormatter;
 use App\Services\BidTools\ScenarioScoreService;
+use App\Services\BidTools\ScoredLineResponseFormatter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,9 +24,9 @@ class RankedController extends Controller
 {
     public function __construct(
         private readonly ScenarioScoreService $scoreService,
-        private readonly LineRowFormatter $rowFormatter,
         private readonly BidLinePickerService $linePicker,
         private readonly BidLinePreferenceCatalog $preferenceCatalog,
+        private readonly ScoredLineResponseFormatter $scoredLineFormatter,
     ) {}
 
     public function show(Request $request, int $scenario): Response
@@ -91,7 +92,7 @@ class RankedController extends Controller
         $lineIds = $this->filterLineIds($s, $request->validated('line_ids'));
 
         if ($lineIds === []) {
-            return response()->json(['scored_rows' => []]);
+            return response()->json(['scored_rows' => [], 'sort_explanation' => null]);
         }
 
         $scores = $this->scoreService->scoreLines($working, $lineIds);
@@ -100,9 +101,9 @@ class RankedController extends Controller
             ->get()
             ->keyBy('bid_line_id');
 
-        return response()->json([
-            'scored_rows' => $this->formatScoredRows($scores, $notes),
-        ]);
+        return response()->json(
+            $this->scoredLineFormatter->format($working, $scores, $notes),
+        );
     }
 
     public function score(ScoreBidLinesRequest $request, int $scenario): RedirectResponse
@@ -150,36 +151,6 @@ class RankedController extends Controller
         );
 
         return back();
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $scores
-     * @return list<array<string, mixed>>
-     */
-    private function formatScoredRows(array $scores, $notes): array
-    {
-        $lineModels = BidLine::query()
-            ->whereIn('id', collect($scores)->pluck('bid_line_id')->all())
-            ->get()
-            ->keyBy('id');
-
-        $rank = 1;
-        $rows = [];
-        foreach ($scores as $row) {
-            $id = (int) $row['bid_line_id'];
-            $lm = $lineModels->get($id);
-            $rows[] = [
-                'rank' => $rank++,
-                'bid_line_id' => $id,
-                'line_num' => $row['line_num'],
-                'total' => $row['total'],
-                'parts' => $row['parts'] ?? [],
-                'line' => $lm ? $this->rowFormatter->format($lm) : null,
-                'submitted_externally' => (bool) ($notes[$id]->submitted_externally ?? false),
-            ];
-        }
-
-        return $rows;
     }
 
     /**

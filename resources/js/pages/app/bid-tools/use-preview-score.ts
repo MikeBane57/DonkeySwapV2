@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { logClientError } from '@/lib/client-logger';
 import { getCsrfToken } from '@/lib/csrf';
 import type { ScoredLineRow } from '@/pages/app/bid-tools/scored-lines-table';
+import type { SortExplanation } from '@/pages/app/bid-tools/ranking-rules-explanation';
 
 type PreviewDraft = Record<string, unknown>;
 
@@ -19,6 +20,8 @@ export function usePreviewScore({
     debounceMs?: number;
 }) {
     const [rows, setRows] = useState<ScoredLineRow[] | null>(null);
+    const [sortExplanation, setSortExplanation] =
+        useState<SortExplanation | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const requestId = useRef(0);
@@ -26,6 +29,7 @@ export function usePreviewScore({
     useEffect(() => {
         if (!enabled || lineIds.length === 0) {
             setRows(null);
+            setSortExplanation(null);
             setLoading(false);
             setError(null);
             return;
@@ -71,10 +75,12 @@ export function usePreviewScore({
 
                 const data = (await res.json()) as {
                     scored_rows: ScoredLineRow[];
+                    sort_explanation: SortExplanation | null;
                 };
 
                 if (currentRequest === requestId.current) {
                     setRows(data.scored_rows);
+                    setSortExplanation(data.sort_explanation ?? null);
                     setLoading(false);
                 }
             } catch (e) {
@@ -95,5 +101,5 @@ export function usePreviewScore({
         };
     }, [scenarioId, lineIds, draft, enabled, debounceMs]);
 
-    return { rows, loading, error };
+    return { rows, sortExplanation, loading, error };
 }
