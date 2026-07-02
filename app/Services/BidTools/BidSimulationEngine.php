@@ -50,6 +50,8 @@ final class BidSimulationEngine
                 'desk_group' => $formatted['desk_group'] ?? null,
                 'start_time' => $formatted['start_time'] ?? null,
                 'holidays_off' => $formatted['metrics']['holidays_off'] ?? null,
+                'key_holidays' => $formatted['metrics']['key_holidays'] ?? [],
+                'schedule_callouts' => $formatted['schedule_callouts'] ?? '—',
             ];
         }
 

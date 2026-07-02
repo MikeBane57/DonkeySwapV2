@@ -25,6 +25,17 @@ final class FederalHolidayCalendar
         'super_bowl_sunday',
     ];
 
+    /**
+     * Key holiday groups shown on recommended bid order views.
+     *
+     * @var array<string, list<string>>
+     */
+    public const KEY_HOLIDAY_GROUPS = [
+        'christmas' => ['christmas_eve', 'christmas_day'],
+        'thanksgiving' => ['thanksgiving', 'black_friday'],
+        'july_4' => ['july_4'],
+    ];
+
     public static function defaultHolidayPriority(string $id): string
     {
         return in_array($id, self::DEFAULT_RANKED_HOLIDAY_IDS, true) ? 'high' : 'ignore';
