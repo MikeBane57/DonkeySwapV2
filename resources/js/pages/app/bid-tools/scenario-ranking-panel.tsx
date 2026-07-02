@@ -466,7 +466,7 @@ export function scenarioToRankingState(scenario: {
             ),
         },
         holiday_rank: scenario.holiday_rank,
-        desk_rank: scenario.desk_rank,
+        desk_rank: syncTiersFromVisualGroups(scenario.desk_rank),
         personal_dates: scenario.personal_dates,
     };
 }

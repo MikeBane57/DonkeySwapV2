@@ -96,10 +96,23 @@ export function assignEntryToGroup(
         return entries;
     }
 
-    const next = [...entries];
-    next[index] = { ...next[index], tier: groupNumber };
+    const groups = entriesToTierGroups(entries);
+    const targetGroup = groups[groupNumber - 1];
+    if (!targetGroup) {
+        return createNewGroupForEntry(entries, index);
+    }
 
-    return normalizeTierOrder(next);
+    const lastMemberKey = targetGroup[targetGroup.length - 1]?.key;
+    const anchorIndex = entries.findIndex((entry) => entry.key === lastMemberKey);
+    if (anchorIndex < 0) {
+        return entries;
+    }
+
+    if (anchorIndex === index) {
+        return entries;
+    }
+
+    return joinEntryWithTarget(entries, index, anchorIndex);
 }
 
 export function createNewGroupForEntry(

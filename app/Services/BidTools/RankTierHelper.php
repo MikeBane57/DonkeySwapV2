@@ -109,13 +109,33 @@ final class RankTierHelper
     }
 
     /**
-     * 1-based group label (G1, G2…) from the user's assigned tier, not list position.
+     * 1-based visual group label (G1, G2…) from consecutive list groups in the editor.
      *
      * @param  list<array<string, mixed>>  $entries
      */
     public static function tierGroupIndexForKey(array $entries, string $lineKey, ?callable $normalizeKey = null): int
     {
-        return self::tierRankForKey($entries, $lineKey, $normalizeKey);
+        $normalize = $normalizeKey ?? static fn (string $key): string => strtoupper(trim($key));
+        $needle = $normalize($lineKey);
+        $groups = self::entriesToTierGroups(self::normalizeTierOrder($entries));
+        $worst = count($groups) + 1;
+
+        foreach ($groups as $groupIndex => $group) {
+            foreach ($group as $entry) {
+                $key = $normalize((string) ($entry['key'] ?? ''));
+                if ($key !== $needle) {
+                    continue;
+                }
+
+                if (($entry['priority'] ?? 'high') === 'ignore') {
+                    return $worst;
+                }
+
+                return $groupIndex + 1;
+            }
+        }
+
+        return $worst;
     }
 
     /**
@@ -193,25 +213,7 @@ final class RankTierHelper
      */
     public static function tierRankForKey(array $entries, string $lineKey, ?callable $normalizeKey = null): int
     {
-        $normalize = $normalizeKey ?? static fn (string $key): string => strtoupper(trim($key));
-        $normalized = self::normalizeTierOrder($entries);
-        $worst = count(self::orderedTiers($normalized)) + 1;
-        $needle = $normalize($lineKey);
-
-        foreach ($normalized as $entry) {
-            $key = $normalize((string) ($entry['key'] ?? ''));
-            if ($key !== $needle) {
-                continue;
-            }
-
-            if (($entry['priority'] ?? 'high') === 'ignore') {
-                return $worst;
-            }
-
-            return (int) ($entry['tier'] ?? $worst);
-        }
-
-        return $worst;
+        return self::tierGroupIndexForKey($entries, $lineKey, $normalizeKey);
     }
 
     /**

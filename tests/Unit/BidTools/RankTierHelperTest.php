@@ -96,7 +96,7 @@ test('entries to tier groups follow editor list order with sequential groups', f
     expect($groups[4][0]['key'])->toBe('DG');
 });
 
-test('tier group index uses assigned tier not list position', function () {
+test('tier group index uses visual list groups not isolated assigned tier', function () {
     $entries = [
         ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
         ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
@@ -112,8 +112,29 @@ test('tier group index uses assigned tier not list position', function () {
         ['key' => 'MID', 'priority' => 'high', 'tier' => 12],
     ];
 
-    expect(RankTierHelper::tierGroupIndexForKey($entries, 'DS7'))->toBe(3);
-    expect(RankTierHelper::tierGroupIndexForKey($entries, 'DG'))->toBe(5);
+    expect(RankTierHelper::tierGroupIndexForKey($entries, 'DS7'))->toBe(11);
+    expect(RankTierHelper::tierGroupIndexForKey($entries, 'DG'))->toBe(4);
+});
+
+test('tier group index follows editor visual group when buckets are consecutive', function () {
+    $entries = [
+        ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DS_DR_MIX', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DS7', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'AG', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'AS', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'AS15', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'AR', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'AS_AR_MIX', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'RELIEF', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'MID', 'priority' => 'high', 'tier' => 6],
+    ];
+
+    expect(RankTierHelper::tierGroupIndexForKey($entries, 'DS7'))->toBe(2);
+    expect(collect(RankTierHelper::entriesToTierGroups($entries)[1])->pluck('key')->all())
+        ->toBe(['DR', 'DS_DR_MIX', 'DS7']);
 });
 
 test('assigned tier groups sort by tier value regardless of list order', function () {
