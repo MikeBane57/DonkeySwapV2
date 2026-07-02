@@ -94,8 +94,54 @@ test('entries to tier groups follow editor list order with sequential groups', f
     expect($groups[0][0]['key'])->toBe('DS');
     expect($groups[1][0]['key'])->toBe('DR');
     expect($groups[4][0]['key'])->toBe('DG');
-    expect(RankTierHelper::tierGroupIndexForKey($entries, 'DR'))->toBe(2);
+});
+
+test('tier group index uses assigned tier not list position', function () {
+    $entries = [
+        ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DS_DR_MIX', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'AS', 'priority' => 'high', 'tier' => 6],
+        ['key' => 'AS15', 'priority' => 'high', 'tier' => 7],
+        ['key' => 'AR', 'priority' => 'high', 'tier' => 8],
+        ['key' => 'AS_AR_MIX', 'priority' => 'high', 'tier' => 9],
+        ['key' => 'AG', 'priority' => 'high', 'tier' => 10],
+        ['key' => 'RELIEF', 'priority' => 'high', 'tier' => 11],
+        ['key' => 'DS7', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'MID', 'priority' => 'high', 'tier' => 12],
+    ];
+
+    expect(RankTierHelper::tierGroupIndexForKey($entries, 'DS7'))->toBe(3);
     expect(RankTierHelper::tierGroupIndexForKey($entries, 'DG'))->toBe(5);
+});
+
+test('assigned tier groups sort by tier value regardless of list order', function () {
+    $entries = [
+        ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'DS7', 'priority' => 'high', 'tier' => 3],
+    ];
+
+    $groups = RankTierHelper::entriesToAssignedTierGroups($entries);
+
+    expect($groups)->toHaveCount(4);
+    expect($groups[2][0]['key'])->toBe('DS7');
+});
+
+test('sort entries by tier list order moves lower tiers earlier in desk list', function () {
+    $entries = [
+        ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'DS7', 'priority' => 'high', 'tier' => 3],
+    ];
+
+    $sorted = RankTierHelper::sortEntriesByTierListOrder($entries);
+
+    expect(collect($sorted)->pluck('key')->all())->toBe(['DS', 'DR', 'DS7', 'DG']);
+    expect(RankTierHelper::listRankForKey($sorted, 'DS7'))->toBe(3);
 });
 
 test('entries to tier groups combine tied tiers in list order', function () {

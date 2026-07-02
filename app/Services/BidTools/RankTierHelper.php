@@ -39,7 +39,7 @@ final class RankTierHelper
     }
 
     /**
-     * Group consecutive entries with the same normalized tier (matches editor G1/G2…).
+     * Group consecutive entries with the same normalized tier (matches editor list layout).
      *
      * @param  list<array<string, mixed>>  $entries
      * @return list<list<array<string, mixed>>>
@@ -63,26 +63,65 @@ final class RankTierHelper
     }
 
     /**
-     * 1-based editor group index (G1, G2…) for a key in list order.
+     * Groups keyed by assigned tier, sorted low-to-high (G1, G2, G3…).
+     *
+     * @param  list<array<string, mixed>>  $entries
+     * @return list<list<array<string, mixed>>>
+     */
+    public static function entriesToAssignedTierGroups(array $entries): array
+    {
+        $normalized = self::normalizeTierOrder($entries);
+        $byTier = [];
+
+        foreach ($normalized as $entry) {
+            $tier = (int) ($entry['tier'] ?? 1);
+            $byTier[$tier][] = $entry;
+        }
+
+        ksort($byTier);
+
+        return array_values($byTier);
+    }
+
+    /**
+     * 1-based group label (G1, G2…) from the user's assigned tier, not list position.
      *
      * @param  list<array<string, mixed>>  $entries
      */
     public static function tierGroupIndexForKey(array $entries, string $lineKey, ?callable $normalizeKey = null): int
     {
-        $normalize = $normalizeKey ?? static fn (string $key): string => strtoupper(trim($key));
-        $needle = $normalize($lineKey);
-        $groups = self::entriesToTierGroups($entries);
+        return self::tierRankForKey($entries, $lineKey, $normalizeKey);
+    }
 
-        foreach ($groups as $index => $group) {
-            foreach ($group as $entry) {
-                $key = $normalize((string) ($entry['key'] ?? ''));
-                if ($key === $needle) {
-                    return $index + 1;
-                }
-            }
+    /**
+     * Sort desk entries by assigned tier, preserving prior list order within a tier.
+     *
+     * @param  list<array<string, mixed>>  $entries
+     * @return list<array<string, mixed>>
+     */
+    public static function sortEntriesByTierListOrder(array $entries): array
+    {
+        if ($entries === []) {
+            return [];
         }
 
-        return count($groups) + 1;
+        $normalized = self::normalizeTierOrder($entries);
+        $rows = [];
+
+        foreach ($normalized as $index => $entry) {
+            $rows[] = [
+                'entry' => $entry,
+                'index' => $index,
+            ];
+        }
+
+        usort(
+            $rows,
+            fn (array $a, array $b): int => ((int) ($a['entry']['tier'] ?? 1)) <=> ((int) ($b['entry']['tier'] ?? 1))
+                ?: $a['index'] <=> $b['index'],
+        );
+
+        return array_map(fn (array $row): array => $row['entry'], $rows);
     }
 
     /**
