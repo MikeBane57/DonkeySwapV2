@@ -289,7 +289,9 @@ test('recommendations mark minimum bid depth by seniority rank', function () {
         ->assertInertia(fn ($page) => $page
             ->component('app/bid-tools/simulations/recommendations')
             ->where('minimum_depth', 3)
-            ->has('rows', 4));
+            ->has('rows', 4)
+            ->has('rows.0.key_holidays')
+            ->has('rows.0.schedule_callouts'));
 });
 
 test('removing bidder deletes unused scenario profile', function () {

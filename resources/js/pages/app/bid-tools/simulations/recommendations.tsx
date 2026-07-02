@@ -4,6 +4,11 @@ import AppLayout from '@/layouts/app-layout';
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
 import type { BreadcrumbItem } from '@/types';
 
+type KeyHolidayGroup = {
+    off: number;
+    total: number;
+};
+
 type RecRow = {
     rank: number;
     bid_line_id: number;
@@ -13,7 +18,27 @@ type RecRow = {
     desk_group: string | null;
     start_time: string | null;
     holidays_off: number | null;
+    key_holidays: {
+        christmas?: KeyHolidayGroup;
+        thanksgiving?: KeyHolidayGroup;
+        july_4?: KeyHolidayGroup;
+    };
+    schedule_callouts: string;
 };
+
+function keyHolidayLabel(group: KeyHolidayGroup | undefined): string {
+    if (!group || group.total === 0) {
+        return '—';
+    }
+    if (group.off === group.total) {
+        return 'Off';
+    }
+    if (group.off === 0) {
+        return '—';
+    }
+
+    return `${group.off}/${group.total}`;
+}
 
 export default function BidSimulationRecommendations({
     simulation,
@@ -48,6 +73,59 @@ export default function BidSimulationRecommendations({
         },
         { title: participant.display_name, href: '#' },
     ];
+
+    const tableHead = (
+        <tr className="border-b bg-muted/50">
+            <th className="p-2">#</th>
+            <th className="p-2">Line</th>
+            <th className="p-2">Group</th>
+            <th className="p-2">Start</th>
+            <th className="p-2">Xmas</th>
+            <th className="p-2">T&apos;giving</th>
+            <th className="p-2">Jul 4</th>
+            <th className="p-2">Hol</th>
+            <th className="p-2">Score</th>
+            <th className="max-w-[280px] p-2">Callouts</th>
+            <th className="p-2 no-print">Min bid</th>
+        </tr>
+    );
+
+    const renderRow = (row: RecRow, showMinimum: boolean) => (
+        <tr
+            key={row.bid_line_id}
+            className={
+                row.minimum_required
+                    ? 'border-b border-sidebar-border/40 bg-amber-500/10'
+                    : 'border-b border-sidebar-border/40'
+            }
+        >
+            <td className="p-2 font-medium">{row.rank}</td>
+            <td className="p-2 font-mono text-xs">{row.line_num}</td>
+            <td className="p-2">{row.desk_group ?? '—'}</td>
+            <td className="p-2 text-xs">{row.start_time ?? '—'}</td>
+            <td className="p-2 text-xs">
+                {keyHolidayLabel(row.key_holidays?.christmas)}
+            </td>
+            <td className="p-2 text-xs">
+                {keyHolidayLabel(row.key_holidays?.thanksgiving)}
+            </td>
+            <td className="p-2 text-xs">
+                {keyHolidayLabel(row.key_holidays?.july_4)}
+            </td>
+            <td className="p-2">{row.holidays_off ?? '—'}</td>
+            <td className="p-2">{row.total}</td>
+            <td className="max-w-[280px] p-2 text-xs leading-snug text-muted-foreground">
+                {row.schedule_callouts && row.schedule_callouts !== '—'
+                    ? row.schedule_callouts
+                    : '—'}
+            </td>
+            {showMinimum && (
+                <td className="p-2 text-xs no-print">
+                    {row.minimum_required ? 'Required' : ''}
+                </td>
+            )}
+        </tr>
+    );
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -111,7 +189,9 @@ export default function BidSimulationRecommendations({
                     <p className="text-amber-800 dark:text-amber-200">
                         Lines highlighted below are your top {minimum_depth}{' '}
                         choices — the minimum you should submit at seniority #
-                        {participant.seniority_rank}.
+                        {participant.seniority_rank}. Xmas, T&apos;giving, and
+                        Jul 4 show whether those holiday dates are off (eve/day
+                        or Thu/Fri for Thanksgiving).
                     </p>
                 </section>
 
@@ -123,8 +203,12 @@ export default function BidSimulationRecommendations({
                                 <th>Line</th>
                                 <th>Grp</th>
                                 <th>Start</th>
+                                <th>Xmas</th>
+                                <th>T&apos;giv</th>
+                                <th>Jul 4</th>
                                 <th>Hol</th>
                                 <th>Score</th>
+                                <th>Callouts</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -136,8 +220,29 @@ export default function BidSimulationRecommendations({
                                     </td>
                                     <td>{row.desk_group ?? '—'}</td>
                                     <td>{row.start_time ?? '—'}</td>
+                                    <td>
+                                        {keyHolidayLabel(
+                                            row.key_holidays?.christmas,
+                                        )}
+                                    </td>
+                                    <td>
+                                        {keyHolidayLabel(
+                                            row.key_holidays?.thanksgiving,
+                                        )}
+                                    </td>
+                                    <td>
+                                        {keyHolidayLabel(
+                                            row.key_holidays?.july_4,
+                                        )}
+                                    </td>
                                     <td>{row.holidays_off ?? '—'}</td>
                                     <td>{row.total}</td>
+                                    <td className="text-xs">
+                                        {row.schedule_callouts &&
+                                        row.schedule_callouts !== '—'
+                                            ? row.schedule_callouts
+                                            : '—'}
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -151,50 +256,9 @@ export default function BidSimulationRecommendations({
                 </div>
 
                 <div className="no-print overflow-x-auto rounded-lg border border-sidebar-border/70">
-                    <table className="w-full min-w-[720px] text-left text-sm">
-                        <thead>
-                            <tr className="border-b bg-muted/50">
-                                <th className="p-2">#</th>
-                                <th className="p-2">Line</th>
-                                <th className="p-2">Group</th>
-                                <th className="p-2">Start</th>
-                                <th className="p-2">Hol</th>
-                                <th className="p-2">Score</th>
-                                <th className="p-2">Min bid</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows.map((row) => (
-                                <tr
-                                    key={row.bid_line_id}
-                                    className={
-                                        row.minimum_required
-                                            ? 'border-b border-sidebar-border/40 bg-amber-500/10'
-                                            : 'border-b border-sidebar-border/40'
-                                    }
-                                >
-                                    <td className="p-2 font-medium">
-                                        {row.rank}
-                                    </td>
-                                    <td className="p-2 font-mono text-xs">
-                                        {row.line_num}
-                                    </td>
-                                    <td className="p-2">
-                                        {row.desk_group ?? '—'}
-                                    </td>
-                                    <td className="p-2 text-xs">
-                                        {row.start_time ?? '—'}
-                                    </td>
-                                    <td className="p-2">
-                                        {row.holidays_off ?? '—'}
-                                    </td>
-                                    <td className="p-2">{row.total}</td>
-                                    <td className="p-2 text-xs">
-                                        {row.minimum_required ? 'Required' : ''}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
+                    <table className="w-full min-w-[960px] text-left text-sm">
+                        <thead>{tableHead}</thead>
+                        <tbody>{rows.map((row) => renderRow(row, true))}</tbody>
                     </table>
                 </div>
 

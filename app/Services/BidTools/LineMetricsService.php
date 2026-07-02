@@ -14,6 +14,7 @@ final class LineMetricsService
     /**
      * @return array{
      *   holidays_off: int,
+     *   key_holidays: array<string, array{off: int, total: int}>,
      *   fri_off: int,
      *   sat_off: int,
      *   sun_off: int,
@@ -25,7 +26,8 @@ final class LineMetricsService
     {
         $line->loadMissing('import');
         $bidYear = (int) $line->import->bid_year;
-        $holidayDates = $this->holidays->holidaysInBidYear($bidYear)->keys()->all();
+        $holidayCatalog = $this->holidays->holidaysInBidYear($bidYear);
+        $holidayDates = $holidayCatalog->keys()->all();
 
         $days = $line->days()->orderBy('assignment_date')->get();
         $byDate = [];
@@ -39,6 +41,22 @@ final class LineMetricsService
             if (($byDate[$h] ?? false) === true) {
                 $holidaysOff++;
             }
+        }
+
+        $keyHolidays = [];
+        foreach (FederalHolidayCalendar::KEY_HOLIDAY_GROUPS as $group => $ids) {
+            $total = 0;
+            $off = 0;
+            foreach ($holidayCatalog as $date => $meta) {
+                if (! in_array($meta['id'], $ids, true)) {
+                    continue;
+                }
+                $total++;
+                if (($byDate[$date] ?? false) === true) {
+                    $off++;
+                }
+            }
+            $keyHolidays[$group] = ['off' => $off, 'total' => $total];
         }
 
         $friOff = 0;
@@ -87,6 +105,7 @@ final class LineMetricsService
 
         return [
             'holidays_off' => $holidaysOff,
+            'key_holidays' => $keyHolidays,
             'fri_off' => $friOff,
             'sat_off' => $satOff,
             'sun_off' => $sunOff,
