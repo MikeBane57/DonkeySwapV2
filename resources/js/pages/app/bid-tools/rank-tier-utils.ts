@@ -61,6 +61,81 @@ export function syncTiersFromVisualGroups(
     return tierGroupsToEntries(entriesToTierGroups(entries));
 }
 
+function mergeNonContiguousTierBlocks(
+    entries: TieredRankEntry[],
+): TieredRankEntry[] {
+    if (entries.length === 0) {
+        return [];
+    }
+
+    let work = normalizeTierOrder(entries);
+    const indicesByTier = new Map<number, number[]>();
+
+    work.forEach((entry, index) => {
+        const tier = entry.tier ?? 1;
+        const list = indicesByTier.get(tier) ?? [];
+        list.push(index);
+        indicesByTier.set(tier, list);
+    });
+
+    for (const [tier, indices] of indicesByTier) {
+        if (indices.length <= 1) {
+            continue;
+        }
+
+        let firstRunEnd = indices[0];
+        for (let offset = 1; offset < indices.length; offset++) {
+            if (indices[offset] === firstRunEnd + 1) {
+                firstRunEnd = indices[offset];
+            } else {
+                break;
+            }
+        }
+
+        const orphanKeys = indices
+            .filter((index) => index > firstRunEnd)
+            .map((index) => work[index]?.key)
+            .filter((key): key is string => Boolean(key));
+
+        if (orphanKeys.length === 0) {
+            continue;
+        }
+
+        const orphans: TieredRankEntry[] = [];
+        const without: TieredRankEntry[] = [];
+        for (const entry of work) {
+            if ((entry.tier ?? 1) === tier && orphanKeys.includes(entry.key)) {
+                orphans.push(entry);
+            } else {
+                without.push(entry);
+            }
+        }
+
+        const anchorKey = work[firstRunEnd]?.key;
+        let insertAt = without.length;
+        const anchorIndex = without.findIndex((entry) => entry.key === anchorKey);
+        if (anchorIndex >= 0) {
+            insertAt = anchorIndex + 1;
+        }
+
+        without.splice(insertAt, 0, ...orphans);
+        work = without;
+    }
+
+    return work;
+}
+
+/** Group orphaned same-tier rows, then renumber visual groups G1, G2… */
+export function prepareDeskRankEntries(
+    entries: TieredRankEntry[],
+): TieredRankEntry[] {
+    if (entries.length === 0) {
+        return [];
+    }
+
+    return syncTiersFromVisualGroups(mergeNonContiguousTierBlocks(entries));
+}
+
 export function moveIndex<T>(list: T[], from: number, to: number): T[] {
     if (from === to || from < 0 || to < 0) {
         return list;

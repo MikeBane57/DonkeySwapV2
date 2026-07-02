@@ -170,6 +170,100 @@ final class RankTierHelper
     }
 
     /**
+     * Pull same-tier rows into the first list block for that tier (e.g. DS7 at end → G2).
+     *
+     * @param  list<array<string, mixed>>  $entries
+     * @return list<array<string, mixed>>
+     */
+    public static function mergeNonContiguousTierBlocks(array $entries): array
+    {
+        if ($entries === []) {
+            return [];
+        }
+
+        $work = self::normalizeTierOrder($entries);
+        $indicesByTier = [];
+
+        foreach ($work as $index => $entry) {
+            $tier = (int) ($entry['tier'] ?? 1);
+            $indicesByTier[$tier][] = $index;
+        }
+
+        foreach ($indicesByTier as $tier => $indices) {
+            if (count($indices) <= 1) {
+                continue;
+            }
+
+            $firstRunEnd = $indices[0];
+            for ($offset = 1; $offset < count($indices); $offset++) {
+                if ($indices[$offset] === $firstRunEnd + 1) {
+                    $firstRunEnd = $indices[$offset];
+
+                    continue;
+                }
+
+                break;
+            }
+
+            $orphanKeys = [];
+            foreach ($indices as $index) {
+                if ($index > $firstRunEnd) {
+                    $orphanKeys[] = (string) ($work[$index]['key'] ?? '');
+                }
+            }
+
+            if ($orphanKeys === []) {
+                continue;
+            }
+
+            $orphans = [];
+            $without = [];
+            foreach ($work as $entry) {
+                $key = (string) ($entry['key'] ?? '');
+                if ((int) ($entry['tier'] ?? 1) === $tier && in_array($key, $orphanKeys, true)) {
+                    $orphans[] = $entry;
+
+                    continue;
+                }
+
+                $without[] = $entry;
+            }
+
+            $anchorKey = (string) ($work[$firstRunEnd]['key'] ?? '');
+            $insertAt = count($without);
+            foreach ($without as $index => $entry) {
+                if ((string) ($entry['key'] ?? '') === $anchorKey) {
+                    $insertAt = $index + 1;
+
+                    break;
+                }
+            }
+
+            array_splice($without, $insertAt, 0, $orphans);
+            $work = $without;
+        }
+
+        return $work;
+    }
+
+    /**
+     * Move entries that share a tier into one contiguous block, then renumber visual groups.
+     *
+     * @param  list<array<string, mixed>>  $entries
+     * @return list<array<string, mixed>>
+     */
+    public static function prepareDeskRankEntries(array $entries): array
+    {
+        if ($entries === []) {
+            return [];
+        }
+
+        return self::syncTiersFromVisualGroups(
+            self::mergeNonContiguousTierBlocks($entries),
+        );
+    }
+
+    /**
      * @param  list<array<string, mixed>>  $entries
      * @return list<int>
      */

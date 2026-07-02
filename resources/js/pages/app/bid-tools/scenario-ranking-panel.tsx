@@ -26,7 +26,7 @@ import {
     preferenceColumnClass,
 } from '@/pages/app/bid-tools/preference-rank-shared';
 import type { StartTimeTiebreakKey } from '@/pages/app/bid-tools/preference-rank-shared';
-import { syncTiersFromVisualGroups } from '@/pages/app/bid-tools/rank-tier-utils';
+import { prepareDeskRankEntries } from '@/pages/app/bid-tools/rank-tier-utils';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
 export type Priority = 'ignore' | 'low' | 'high';
@@ -146,7 +146,7 @@ export function rankingStateToSavePayload(
         vacation_bank: value.vacation_bank,
         weights: value.weights,
         holiday_rank: value.holiday_rank,
-        desk_rank: syncTiersFromVisualGroups(value.desk_rank),
+        desk_rank: prepareDeskRankEntries(value.desk_rank),
         personal_dates: personalDatesForSave(value.personal_dates),
     };
 }
@@ -466,7 +466,7 @@ export function scenarioToRankingState(scenario: {
             ),
         },
         holiday_rank: scenario.holiday_rank,
-        desk_rank: syncTiersFromVisualGroups(scenario.desk_rank),
+        desk_rank: prepareDeskRankEntries(scenario.desk_rank),
         personal_dates: scenario.personal_dates,
     };
 }

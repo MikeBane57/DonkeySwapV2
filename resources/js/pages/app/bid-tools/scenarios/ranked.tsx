@@ -17,6 +17,7 @@ import {
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
 import { personalDatesForSave } from '@/pages/app/bid-tools/personal-dates-editor';
+import { prepareDeskRankEntries } from '@/pages/app/bid-tools/rank-tier-utils';
 import {
     RankingRulesExplanation
     
@@ -169,7 +170,7 @@ export default function BidScenarioRanked({
                         vacation_bank: ranking.vacation_bank,
                         weights: ranking.weights,
                         holiday_rank: ranking.holiday_rank,
-                        desk_rank: ranking.desk_rank,
+                        desk_rank: prepareDeskRankEntries(ranking.desk_rank),
                         personal_dates: personalDatesForSave(
                             ranking.personal_dates,
                         ),
