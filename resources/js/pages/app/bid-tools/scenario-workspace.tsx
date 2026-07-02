@@ -4,6 +4,7 @@ import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
 import { ScoredLinesTable } from '@/pages/app/bid-tools/scored-lines-table';
 import type { ScoredLineRow } from '@/pages/app/bid-tools/scored-lines-table';
+import { RankingRulesExplanation } from '@/pages/app/bid-tools/ranking-rules-explanation';
 import { usePreviewScore } from '@/pages/app/bid-tools/use-preview-score';
 
 export function ScenarioWorkspace({
@@ -35,7 +36,7 @@ export function ScenarioWorkspace({
 
     const draftKey = useMemo(() => JSON.stringify(draft), [draft]);
 
-    const { rows, loading, error } = usePreviewScore({
+    const { rows, sortExplanation, loading, error } = usePreviewScore({
         scenarioId,
         lineIds: selectedIds,
         draft: JSON.parse(draftKey) as Record<string, unknown>,
@@ -78,6 +79,7 @@ export function ScenarioWorkspace({
                     scenarioId={scenarioId}
                     compact
                 />
+                <RankingRulesExplanation explanation={sortExplanation} />
             </BidToolsCollapsibleSection>
         </div>
     );

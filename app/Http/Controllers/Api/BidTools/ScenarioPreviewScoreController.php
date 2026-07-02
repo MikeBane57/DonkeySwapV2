@@ -8,16 +8,16 @@ use App\Models\BidLine;
 use App\Models\BidScenario;
 use App\Models\BidScenarioLineNote;
 use App\Services\BidTools\BidScenarioProfileBuilder;
-use App\Services\BidTools\LineRowFormatter;
 use App\Services\BidTools\ScenarioScoreService;
+use App\Services\BidTools\ScoredLineResponseFormatter;
 use Illuminate\Http\JsonResponse;
 
 class ScenarioPreviewScoreController extends Controller
 {
     public function __construct(
         private readonly ScenarioScoreService $scoreService,
-        private readonly LineRowFormatter $rowFormatter,
         private readonly BidScenarioProfileBuilder $profileBuilder,
+        private readonly ScoredLineResponseFormatter $scoredLineFormatter,
     ) {}
 
     public function __invoke(PreviewScoreBidLinesRequest $request, int $scenario): JsonResponse
@@ -46,33 +46,22 @@ class ScenarioPreviewScoreController extends Controller
             ? $this->scoreService->scoreLines($s, $ids)
             : $this->scoreService->scoreLinesWithDraft($s, $draft, $ids);
 
-        $lineModels = BidLine::query()
-            ->whereIn('id', collect($scores)->pluck('bid_line_id')->all())
-            ->get()
-            ->keyBy('id');
-
         $notes = BidScenarioLineNote::query()
             ->where('bid_scenario_id', $s->id)
             ->get()
             ->keyBy('bid_line_id');
 
-        $rank = 1;
-        $rows = [];
-        foreach ($scores as $row) {
-            $id = (int) $row['bid_line_id'];
-            $lm = $lineModels->get($id);
-            $fmt = $lm ? $this->rowFormatter->format($lm) : null;
-            $rows[] = [
-                'rank' => $rank++,
-                'bid_line_id' => $id,
-                'line_num' => $row['line_num'],
-                'total' => $row['total'],
-                'parts' => $row['parts'] ?? [],
-                'line' => $fmt,
-                'submitted_externally' => (bool) ($notes[$id]->submitted_externally ?? false),
-            ];
+        $working = clone $s;
+        if ($draft !== []) {
+            foreach (['vacation_bank', 'weights', 'holiday_rank', 'desk_rank', 'personal_dates', 'desk_bucket_mappings', 'line_desk_buckets'] as $key) {
+                if (array_key_exists($key, $draft)) {
+                    $working->setAttribute($key, $draft[$key]);
+                }
+            }
         }
 
-        return response()->json(['scored_rows' => $rows]);
+        return response()->json(
+            $this->scoredLineFormatter->format($working, $scores, $notes),
+        );
     }
 }

@@ -46,7 +46,16 @@ test('preview score returns ranked lines as json', function () {
     $response->assertOk()
         ->assertJsonStructure([
             'scored_rows' => [
-                ['rank', 'bid_line_id', 'line_num', 'total', 'parts', 'line'],
+                ['rank', 'bid_line_id', 'line_num', 'total', 'parts', 'line', 'sort_debug'],
+            ],
+            'sort_explanation' => [
+                'sort_mode',
+                'sort_mode_label',
+                'summary',
+                'steps',
+                'criteria_order',
+                'desk_tier_groups',
+                'line_details',
             ],
         ])
         ->assertJsonCount(5, 'scored_rows');

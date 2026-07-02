@@ -4,7 +4,7 @@ namespace App\Services\BidTools;
 
 use App\Models\BidLine;
 use App\Models\BidScenario;
-use Illuminate\Support\Collection;
+use Carbon\CarbonImmutable;
 
 final class ScenarioScoreService
 {
@@ -61,11 +61,14 @@ final class ScenarioScoreService
         $bidYear = (int) $scenario->import->bid_year;
         $holidayEntries = $this->normalizeHolidayRank($scenario->holiday_rank, $bidYear);
         $personalEntries = $this->normalizePersonalDates($scenario->personal_dates ?? []);
-        $deskEntries = $this->migrateDeskRankKeys(
-            $this->normalizeKeyedRank($scenario->desk_rank, $this->defaultDeskRank()),
-        );
         $deskMappings = $this->condensedDesk->normalizeMappings($scenario->desk_bucket_mappings ?? []);
         $lineDeskBuckets = $this->condensedDesk->normalizeLineBuckets($scenario->line_desk_buckets ?? []);
+        $deskKeys = $this->condensedDesk->bucketsPresentInImport(
+            $scenario->bid_import_id,
+            $deskMappings,
+            $lineDeskBuckets,
+        );
+        $deskEntries = $this->deskEntriesForEditor($scenario->desk_rank, $deskKeys);
 
         $lines = BidLine::query()
             ->where('bid_import_id', $scenario->bid_import_id)
@@ -86,45 +89,18 @@ final class ScenarioScoreService
                 $byDate[$d->assignment_date->format('Y-m-d')] = $d->is_off;
             }
 
-            $hc = count($holidayEntries);
-            $holidayPoints = 0.0;
-            foreach ($holidayEntries as $i => $e) {
-                $p = $e['priority'] ?? 'high';
-                if ($p === 'ignore') {
-                    continue;
-                }
-                $mul = self::PRIORITY_MUL[$p] ?? 1.0;
-                $posW = max(1, $hc - $i);
-                $date = $e['date'];
-                if (($byDate[$date] ?? false) === true) {
-                    $holidayPoints += $mul * $posW;
-                }
-            }
-            $holidayPoints *= (float) ($weights['holiday'] ?? 1);
+            $holidaySortScore = $this->scoreHolidayPreference($holidayEntries, $byDate);
+            $holidayPoints = $holidaySortScore * (float) ($weights['holiday'] ?? 1);
 
-            $pc = count($personalEntries);
-            $personalPoints = 0.0;
-            foreach ($personalEntries as $i => $e) {
-                $p = $e['priority'] ?? 'high';
-                if ($p === 'ignore') {
-                    continue;
-                }
-                $mul = self::PRIORITY_MUL[$p] ?? 1.0;
-                $posW = max(1, $pc - $i);
-                foreach (self::datesCoveredByPersonalEntry($e) as $date) {
-                    if (($byDate[$date] ?? false) === true) {
-                        $personalPoints += $mul * $posW;
-                    }
-                }
-            }
-            $personalPoints *= (float) ($weights['personal'] ?? 1);
+            $personalSortScore = $this->scorePersonalPreference($personalEntries, $byDate);
+            $personalPoints = $personalSortScore * (float) ($weights['personal'] ?? 1);
 
             $deskInfo = $this->dominantDesk->analyze($line);
             $bucket = $this->condensedDesk->normalizeBucketKey(
                 $this->condensedDesk->bucketForLine($line, $deskMappings, $lineDeskBuckets),
             );
-            $deskPoints = $this->scoreKeyedPreference($deskEntries, $bucket)
-                * (float) ($weights['desk'] ?? 1);
+            $deskSortScore = $this->scoreKeyedPreference($deskEntries, $bucket);
+            $deskPoints = $deskSortScore * (float) ($weights['desk'] ?? 1);
 
             $vacCost = $this->vacation->totalCost($scenario, $line);
             $bank = max(1, (int) $scenario->vacation_bank);
@@ -149,6 +125,11 @@ final class ScenarioScoreService
                     'holiday' => round($holidayPoints, 2),
                     'personal' => round($personalPoints, 2),
                     'desk' => round($deskPoints, 2),
+                ],
+                'sort_scores' => [
+                    'holiday' => round($holidaySortScore, 2),
+                    'personal' => round($personalSortScore, 2),
+                    'desk' => round($deskSortScore, 2),
                 ],
                 'tier_ranks' => [
                     'holiday' => $this->holidayTierRank($holidayEntries, $byDate),
@@ -176,6 +157,10 @@ final class ScenarioScoreService
                     'raw_group_bucket' => $deskInfo['group_bucket'],
                 ],
             ];
+        }
+
+        if ($sortMode === self::SORT_MODE_GROUP_RANKED) {
+            return self::sortGroupRankedLines($out, $criteriaOrder, $startTimeTiebreak);
         }
 
         usort($out, fn ($a, $b) => self::compareScoredLines($a, $b, $criteriaOrder, $sortMode, $startTimeTiebreak));
@@ -310,29 +295,7 @@ final class ScenarioScoreService
                 return $aGroup <=> $bGroup;
             }
 
-            foreach ($criteriaOrder as $criterion) {
-                if (! is_string($criterion)) {
-                    continue;
-                }
-
-                $cmp = $criterion === 'desk'
-                    ? self::compareDeskOrderRanks($a, $b)
-                    : self::compareCriterionTierRanks($a, $b, $criterion);
-                if ($cmp !== 0) {
-                    return $cmp;
-                }
-            }
-
-            $tiebreakCmp = self::compareStartTimeTiebreak(
-                (string) ($a['start_time_tiebreak_key'] ?? 'other'),
-                (string) ($b['start_time_tiebreak_key'] ?? 'other'),
-                $startTimeTiebreak,
-            );
-            if ($tiebreakCmp !== 0) {
-                return $tiebreakCmp;
-            }
-
-            return strcmp((string) ($a['line_num'] ?? ''), (string) ($b['line_num'] ?? ''));
+            return self::compareWithinDeskGroup($a, $b, $criteriaOrder, $startTimeTiebreak);
         } elseif (self::usesTierGroupSort($sortMode)) {
             foreach ($criteriaOrder as $criterion) {
                 if (! is_string($criterion)) {
@@ -417,6 +380,96 @@ final class ScenarioScoreService
     public static function usesTierGroupSort(string $sortMode): bool
     {
         return in_array($sortMode, [self::SORT_MODE_PRIORITY, self::SORT_MODE_BLENDED], true);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $lines
+     * @param  list<string>  $criteriaOrder
+     * @param  list<string>  $startTimeTiebreak
+     * @return list<array<string, mixed>>
+     */
+    public static function sortGroupRankedLines(
+        array $lines,
+        array $criteriaOrder,
+        array $startTimeTiebreak = ['6', '7', '14', '15', '22'],
+    ): array {
+        if ($lines === []) {
+            return [];
+        }
+
+        $groups = [];
+        foreach ($lines as $line) {
+            $group = (int) ($line['tier_ranks']['desk'] ?? PHP_INT_MAX);
+            $groups[$group][] = $line;
+        }
+
+        ksort($groups);
+
+        $out = [];
+        foreach ($groups as $groupLines) {
+            usort(
+                $groupLines,
+                fn ($a, $b) => self::compareWithinDeskGroup($a, $b, $criteriaOrder, $startTimeTiebreak),
+            );
+            array_push($out, ...$groupLines);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @param  array<string, mixed>  $b
+     * @param  list<string>  $criteriaOrder
+     * @param  list<string>  $startTimeTiebreak
+     */
+    public static function compareWithinDeskGroup(
+        array $a,
+        array $b,
+        array $criteriaOrder,
+        array $startTimeTiebreak = ['6', '7', '14', '15', '22'],
+    ): int {
+        foreach ($criteriaOrder as $criterion) {
+            if (! is_string($criterion)) {
+                continue;
+            }
+
+            $cmp = match ($criterion) {
+                'desk' => self::compareDeskOrderRanks($a, $b),
+                'holiday', 'personal' => self::compareCriterionSortScores($a, $b, $criterion)
+                    ?: self::compareCriterionTierRanks($a, $b, $criterion),
+                default => 0,
+            };
+            if ($cmp !== 0) {
+                return $cmp;
+            }
+        }
+
+        $tiebreakCmp = self::compareStartTimeTiebreak(
+            (string) ($a['start_time_tiebreak_key'] ?? 'other'),
+            (string) ($b['start_time_tiebreak_key'] ?? 'other'),
+            $startTimeTiebreak,
+        );
+        if ($tiebreakCmp !== 0) {
+            return $tiebreakCmp;
+        }
+
+        return strcmp((string) ($a['line_num'] ?? ''), (string) ($b['line_num'] ?? ''));
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @param  array<string, mixed>  $b
+     */
+    private static function compareCriterionSortScores(array $a, array $b, string $criterion): int
+    {
+        $left = (float) ($a['sort_scores'][$criterion] ?? 0);
+        $right = (float) ($b['sort_scores'][$criterion] ?? 0);
+        if ($left === $right) {
+            return 0;
+        }
+
+        return $right <=> $left;
     }
 
     /**
@@ -662,8 +715,8 @@ final class ScenarioScoreService
         $endsOn = (string) ($entry['ends_on'] ?? '');
         if ($startsOn !== '' && $endsOn !== '') {
             $dates = [];
-            $start = \Carbon\CarbonImmutable::parse($startsOn)->startOfDay();
-            $end = \Carbon\CarbonImmutable::parse($endsOn)->startOfDay();
+            $start = CarbonImmutable::parse($startsOn)->startOfDay();
+            $end = CarbonImmutable::parse($endsOn)->startOfDay();
             $d = $start;
             while ($d->lte($end)) {
                 $dates[] = $d->format('Y-m-d');
@@ -801,6 +854,63 @@ final class ScenarioScoreService
      * @param  list<array<string, mixed>>  $holidayEntries
      * @param  array<string, bool>  $byDate
      */
+    private function scoreHolidayPreference(array $holidayEntries, array $byDate): float
+    {
+        $count = count($holidayEntries);
+        $points = 0.0;
+        foreach ($holidayEntries as $i => $entry) {
+            $priority = $entry['priority'] ?? 'high';
+            if ($priority === 'ignore') {
+                continue;
+            }
+
+            $date = $entry['date'] ?? null;
+            if (! is_string($date) || $date === '') {
+                continue;
+            }
+
+            if (($byDate[$date] ?? false) !== true) {
+                continue;
+            }
+
+            $mul = self::PRIORITY_MUL[$priority] ?? 1.0;
+            $points += $mul * max(1, $count - $i);
+        }
+
+        return $points;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $personalEntries
+     * @param  array<string, bool>  $byDate
+     */
+    private function scorePersonalPreference(array $personalEntries, array $byDate): float
+    {
+        $count = count($personalEntries);
+        $points = 0.0;
+        foreach ($personalEntries as $i => $entry) {
+            $priority = $entry['priority'] ?? 'high';
+            if ($priority === 'ignore') {
+                continue;
+            }
+
+            foreach (self::datesCoveredByPersonalEntry($entry) as $date) {
+                if (($byDate[$date] ?? false) !== true) {
+                    continue;
+                }
+
+                $mul = self::PRIORITY_MUL[$priority] ?? 1.0;
+                $points += $mul * max(1, $count - $i);
+            }
+        }
+
+        return $points;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $holidayEntries
+     * @param  array<string, bool>  $byDate
+     */
     private function holidayTierRank(array $holidayEntries, array $byDate): int
     {
         $worst = count($holidayEntries) + 1;
@@ -844,6 +954,249 @@ final class ScenarioScoreService
         }
 
         return $worst;
+    }
+
+    /**
+     * Human-readable explanation of how lines were sorted (for UI debugging).
+     *
+     * @param  list<array<string, mixed>>  $scoredLines
+     * @return array<string, mixed>
+     */
+    public function buildSortExplanation(BidScenario $scenario, array $scoredLines): array
+    {
+        $scenario->loadMissing('import');
+
+        $weights = array_merge(self::defaultWeights(), $scenario->weights ?? []);
+        $criteriaOrder = self::normalizeCriteriaOrder($weights['criteria_order'] ?? null);
+        $startTimeTiebreak = self::normalizeStartTimeTiebreakOrder(
+            $weights['start_time_tiebreak_order'] ?? $weights['shift_order'] ?? null,
+        );
+        $sortMode = self::normalizeSortMode($weights['sort_mode'] ?? null);
+
+        $deskMappings = $this->condensedDesk->normalizeMappings($scenario->desk_bucket_mappings ?? []);
+        $lineDeskBuckets = $this->condensedDesk->normalizeLineBuckets($scenario->line_desk_buckets ?? []);
+        $deskKeys = $this->condensedDesk->bucketsPresentInImport(
+            $scenario->bid_import_id,
+            $deskMappings,
+            $lineDeskBuckets,
+        );
+        $deskEntries = $this->deskEntriesForEditor($scenario->desk_rank, $deskKeys);
+
+        $deskTierGroups = $this->deskTierGroupsSummary($deskEntries);
+        $criteriaLabels = $this->criteriaLabels($criteriaOrder);
+        $steps = $this->sortStepsForMode($sortMode, $criteriaLabels, $startTimeTiebreak);
+
+        $lineDetails = [];
+        $previousDeskTier = null;
+        $rank = 1;
+        foreach ($scoredLines as $row) {
+            $deskTier = (int) ($row['tier_ranks']['desk'] ?? PHP_INT_MAX);
+            $lineDetails[] = [
+                'rank' => $rank++,
+                'bid_line_id' => (int) $row['bid_line_id'],
+                'line_num' => (string) $row['line_num'],
+                'desk_bucket' => (string) ($row['breakdown']['group_bucket'] ?? ''),
+                'desk_tier' => $deskTier,
+                'desk_tier_label' => ScoredLineResponseFormatter::deskTierLabel($deskTier),
+                'group_boundary' => $sortMode === self::SORT_MODE_GROUP_RANKED
+                    && $previousDeskTier !== null
+                    && $deskTier !== $previousDeskTier,
+                'sort_scores' => $row['sort_scores'] ?? [],
+                'tier_ranks' => $row['tier_ranks'] ?? [],
+                'start_time_tiebreak_key' => (string) ($row['start_time_tiebreak_key'] ?? 'other'),
+                'start_time_label' => self::startTimeTiebreakLabel(
+                    (string) ($row['start_time_tiebreak_key'] ?? 'other'),
+                ),
+                'total' => $row['total'] ?? 0,
+            ];
+            $previousDeskTier = $deskTier;
+        }
+
+        return [
+            'sort_mode' => $sortMode,
+            'sort_mode_label' => self::sortModeLabel($sortMode),
+            'summary' => self::sortModeSummary($sortMode, $criteriaLabels),
+            'steps' => $steps,
+            'criteria_order' => $criteriaOrder,
+            'criteria_labels' => $criteriaLabels,
+            'start_time_tiebreak_order' => $startTimeTiebreak,
+            'start_time_tiebreak_labels' => array_map(
+                fn (string $key) => self::startTimeTiebreakLabel($key),
+                $startTimeTiebreak,
+            ),
+            'weights' => [
+                'holiday' => (float) ($weights['holiday'] ?? 1),
+                'personal' => (float) ($weights['personal'] ?? 1),
+                'desk' => (float) ($weights['desk'] ?? 1),
+                'vacation_penalty' => (float) ($weights['vacation_penalty'] ?? 1),
+            ],
+            'desk_tier_groups' => $deskTierGroups,
+            'line_details' => $lineDetails,
+        ];
+    }
+
+    public static function sortModeLabel(string $sortMode): string
+    {
+        return match ($sortMode) {
+            self::SORT_MODE_WEIGHTED => 'Weighted',
+            self::SORT_MODE_BLENDED => 'Blended',
+            self::SORT_MODE_GROUP_RANKED => 'Group ranked',
+            self::SORT_MODE_PRIORITY => 'Priority',
+            default => 'Blended',
+        };
+    }
+
+    /**
+     * @param  list<string>  $criteriaLabels
+     */
+    public static function sortModeSummary(string $sortMode, array $criteriaLabels): string
+    {
+        $chain = implode(' → ', $criteriaLabels);
+
+        return match ($sortMode) {
+            self::SORT_MODE_GROUP_RANKED => "Desk tier groups run G1, then G2, then G3… Within each group: {$chain}, then start time, then line number.",
+            self::SORT_MODE_WEIGHTED => "Lines sort by total weighted score first. Desk tier groups are not used. Tie-break: {$chain}, then start time, then line number.",
+            self::SORT_MODE_BLENDED, self::SORT_MODE_PRIORITY => "Global category order: {$chain}, then start time, then line number.",
+            default => "Category order: {$chain}, then start time, then line number.",
+        };
+    }
+
+    /**
+     * @param  list<string>  $criteriaOrder
+     * @return list<string>
+     */
+    private function criteriaLabels(array $criteriaOrder): array
+    {
+        $labels = [
+            'holiday' => 'Holidays',
+            'personal' => 'Personal',
+            'desk' => 'Desk',
+        ];
+
+        return array_values(array_map(
+            fn (string $key) => $labels[$key] ?? $key,
+            $criteriaOrder,
+        ));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $deskEntries
+     * @return list<array{tier: int, label: string, buckets: list<string>}>
+     */
+    private function deskTierGroupsSummary(array $deskEntries): array
+    {
+        $normalized = RankTierHelper::normalizeTierOrder($deskEntries);
+        $groups = [];
+        foreach ($normalized as $entry) {
+            if (($entry['priority'] ?? 'high') === 'ignore') {
+                continue;
+            }
+            $tier = (int) ($entry['tier'] ?? 1);
+            $key = $this->condensedDesk->normalizeBucketKey((string) ($entry['key'] ?? ''));
+            if ($key === '') {
+                continue;
+            }
+            $groups[$tier] ??= [];
+            if (! in_array($key, $groups[$tier], true)) {
+                $groups[$tier][] = $key;
+            }
+        }
+
+        ksort($groups);
+
+        $out = [];
+        foreach ($groups as $tier => $buckets) {
+            $out[] = [
+                'tier' => (int) $tier,
+                'label' => ScoredLineResponseFormatter::deskTierLabel((int) $tier),
+                'buckets' => $buckets,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  list<string>  $criteriaLabels
+     * @param  list<string>  $startTimeTiebreak
+     * @return list<array{label: string, detail: string}>
+     */
+    private function sortStepsForMode(string $sortMode, array $criteriaLabels, array $startTimeTiebreak): array
+    {
+        $startLabels = implode(' → ', array_map(
+            fn (string $key) => self::startTimeTiebreakLabel($key),
+            $startTimeTiebreak,
+        ));
+        $chain = implode(' → ', $criteriaLabels);
+
+        if ($sortMode === self::SORT_MODE_GROUP_RANKED) {
+            return [
+                [
+                    'label' => 'Desk tier groups',
+                    'detail' => 'All lines in G1 are listed before G2, G2 before G3, and so on. Each line\'s group comes from its desk bucket in the desk rank editor.',
+                ],
+                [
+                    'label' => 'Category order within group',
+                    'detail' => "{$chain}. Holidays and personal use unweighted preference scores (higher is better), then first-match list position. Desk uses list position in the desk rank editor (lower # is better).",
+                ],
+                [
+                    'label' => 'Start time tiebreak',
+                    'detail' => "Preferred order: {$startLabels}.",
+                ],
+                [
+                    'label' => 'Line number',
+                    'detail' => 'When still tied, lower line number ranks higher.',
+                ],
+            ];
+        }
+
+        if ($sortMode === self::SORT_MODE_WEIGHTED) {
+            return [
+                [
+                    'label' => 'Total weighted score',
+                    'detail' => 'Sum of weighted holiday, personal, and desk points minus vacation penalty. Higher total ranks higher.',
+                ],
+                [
+                    'label' => 'Category tie-break',
+                    'detail' => "{$chain} weighted parts when totals match.",
+                ],
+                [
+                    'label' => 'Start time tiebreak',
+                    'detail' => "Preferred order: {$startLabels}.",
+                ],
+                [
+                    'label' => 'Line number',
+                    'detail' => 'When still tied, lower line number ranks higher.',
+                ],
+            ];
+        }
+
+        return [
+            [
+                'label' => 'Category order',
+                'detail' => "{$chain}. Each category uses list/tier position (lower is better).",
+            ],
+            [
+                'label' => 'Start time tiebreak',
+                'detail' => "Preferred order: {$startLabels}.",
+            ],
+            [
+                'label' => 'Line number',
+                'detail' => 'When still tied, lower line number ranks higher.',
+            ],
+        ];
+    }
+
+    public static function startTimeTiebreakLabel(string $key): string
+    {
+        return match ($key) {
+            '6' => '0600',
+            '7' => '0700',
+            '14' => '1400',
+            '15' => '1500',
+            '22' => '2200 (Mid)',
+            default => $key === '' || $key === 'other' ? 'Other' : $key,
+        };
     }
 
     /**
