@@ -63,8 +63,22 @@ final class BidSimulationEngine
      */
     public function run(BidSimulation $simulation): array
     {
-        $simulation->load(['participants.scenario', 'import']);
+        $simulation->load(['participants.scenario.import', 'import']);
         $participants = $simulation->participants->sortBy('seniority_rank')->values();
+
+        $allLineIds = BidLine::query()
+            ->where('bid_import_id', $simulation->bid_import_id)
+            ->orderBy('line_num')
+            ->pluck('id')
+            ->all();
+
+        $linesById = BidLine::query()
+            ->whereIn('id', $allLineIds)
+            ->get(['id', 'line_num', 'desk_group', 'start_time'])
+            ->keyBy('id');
+
+        /** @var array<int, list<array<string, mixed>>> $rankingsByScenarioId */
+        $rankingsByScenarioId = [];
         $takenLineIds = [];
         $results = [];
 
@@ -76,29 +90,28 @@ final class BidSimulationEngine
                 continue;
             }
 
-            $availableLineIds = BidLine::query()
-                ->where('bid_import_id', $simulation->bid_import_id)
-                ->whereNotIn('id', $takenLineIds)
-                ->pluck('id')
-                ->all();
-
-            if ($availableLineIds === []) {
+            if ($allLineIds === []) {
                 $results[] = $this->emptyResult($participant, 'No lines remaining');
 
                 continue;
             }
 
-            $allLineIds = BidLine::query()
-                ->where('bid_import_id', $simulation->bid_import_id)
-                ->pluck('id')
-                ->all();
+            $scenarioId = (int) $scenario->id;
+            if (! isset($rankingsByScenarioId[$scenarioId])) {
+                $rankingsByScenarioId[$scenarioId] = $this->scoreService->scoreLines(
+                    $scenario,
+                    $allLineIds,
+                    withMetrics: false,
+                );
+            }
 
-            $fullRanking = $this->scoreService->scoreLines($scenario, $allLineIds);
+            $fullRanking = $rankingsByScenarioId[$scenarioId];
             $preferenceRank = null;
             $pick = null;
 
             foreach ($fullRanking as $index => $row) {
-                if (! in_array((int) $row['bid_line_id'], $takenLineIds, true)) {
+                $lineId = (int) $row['bid_line_id'];
+                if (! isset($takenLineIds[$lineId])) {
                     $pick = $row;
                     $preferenceRank = $index + 1;
                     break;
@@ -112,9 +125,8 @@ final class BidSimulationEngine
             }
 
             $lineId = (int) $pick['bid_line_id'];
-            $takenLineIds[] = $lineId;
-            $line = BidLine::query()->find($lineId);
-            $formatted = $line ? $this->rowFormatter->format($line) : null;
+            $takenLineIds[$lineId] = true;
+            $line = $linesById->get($lineId);
 
             $results[] = [
                 'participant_id' => $participant->id,
@@ -122,8 +134,8 @@ final class BidSimulationEngine
                 'seniority_rank' => $participant->seniority_rank,
                 'bid_line_id' => $lineId,
                 'line_num' => $pick['line_num'],
-                'desk_group' => $formatted['desk_group'] ?? null,
-                'start_time' => $formatted['start_time'] ?? null,
+                'desk_group' => $line?->desk_group,
+                'start_time' => $line?->start_time,
                 'preference_rank' => $preferenceRank,
                 'total' => $pick['total'],
                 'message' => null,

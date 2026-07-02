@@ -103,7 +103,58 @@ test('user can add bidder with inline profile and run simulation', function () {
 
     $seniorLineId = $simulation->last_run_results[0]['bid_line_id'];
     $juniorLineId = $simulation->last_run_results[1]['bid_line_id'];
-    expect($seniorLineId)->not->toBe($juniorLineId);
+    expect($simulation->last_run_results[0]['bid_line_id'])->not->toBe($juniorLineId);
+});
+
+test('simulation run completes with many participants', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 55);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Large sim import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Large simulation',
+    ]);
+
+    for ($rank = 1; $rank <= 24; $rank++) {
+        $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+            'display_name' => "Bidder {$rank}",
+            'seniority_rank' => $rank,
+            'profile' => sampleBidderProfile([
+                'weights' => [
+                    'holiday' => 1 + ($rank % 3),
+                    'personal' => 1,
+                    'desk' => 1,
+                    'vacation_penalty' => 1,
+                    'sort_mode' => 'blended',
+                    'criteria_order' => ['holiday', 'personal', 'desk'],
+                ],
+            ]),
+        ]);
+    }
+
+    $this->actingAs($user)
+        ->post(route('bid-tools.simulations.run', $simulation->id))
+        ->assertRedirect(route('bid-tools.simulations.show', $simulation->id));
+
+    $simulation->refresh();
+
+    expect($simulation->last_run_results)->toHaveCount(24);
+    expect(collect($simulation->last_run_results)->pluck('bid_line_id')->unique())->toHaveCount(24);
 });
 
 test('user can add bidder from saved profile template with custom identity fields', function () {
