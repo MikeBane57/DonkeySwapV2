@@ -261,7 +261,7 @@ export function ScenarioRankingPanel({
                             {sortMode === 'weighted'
                                 ? 'Weighted sorts by total score. Use Group ranked or Blended to enforce desk tier groups.'
                                 : sortMode === 'group_ranked'
-                                  ? `Group ranked fills G1 using category order (${value.weights.criteria_order.map((id) => CRITERIA_LABELS[id] ?? id).join(' → ')}), then G2, etc.`
+                                  ? `Group ranked fills G1 using category order (${value.weights.criteria_order.map((id) => CRITERIA_LABELS[id] ?? id).join(' → ')}), then G2, etc. Mixed buckets in a group (e.g. AS + DG) compete on holidays across both.`
                                   : `Blended compares categories in your order (${value.weights.criteria_order.map((id) => CRITERIA_LABELS[id] ?? id).join(' → ')}), using list position — not the weights below.`}
                         </p>
                     </div>

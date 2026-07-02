@@ -440,7 +440,7 @@ final class ScenarioScoreService
             }
 
             $cmp = match ($criterion) {
-                'desk' => self::compareDeskOrderRanks($a, $b),
+                'desk' => self::compareDeskOrderRanksWithinGroup($a, $b),
                 'holiday', 'personal' => self::compareCriterionSortScores($a, $b, $criterion)
                     ?: self::compareCriterionTierRanks($a, $b, $criterion),
                 default => 0,
@@ -475,6 +475,25 @@ final class ScenarioScoreService
         }
 
         return $right <=> $left;
+    }
+
+    /**
+     * Within a desk tier group, desk bucket list order only breaks ties among
+     * lines that share the same bucket. Cross-bucket ordering is already
+     * expressed by desk tier groups (G1, G2, …).
+     *
+     * @param  array<string, mixed>  $a
+     * @param  array<string, mixed>  $b
+     */
+    private static function compareDeskOrderRanksWithinGroup(array $a, array $b): int
+    {
+        $aBucket = (string) ($a['breakdown']['group_bucket'] ?? '');
+        $bBucket = (string) ($b['breakdown']['group_bucket'] ?? '');
+        if ($aBucket === '' || $bBucket === '' || strcasecmp($aBucket, $bBucket) !== 0) {
+            return 0;
+        }
+
+        return self::compareDeskOrderRanks($a, $b);
     }
 
     /**
@@ -1195,7 +1214,7 @@ final class ScenarioScoreService
                 ],
                 [
                     'label' => 'Category order within group',
-                    'detail' => "{$chain}. Holidays and personal use unweighted preference scores (higher is better), then first-match list position. Desk uses list position in the desk rank editor (lower # is better).",
+                    'detail' => "{$chain}. Holidays and personal use unweighted preference scores (higher is better), then first-match list position. Desk list position applies only among lines in the same desk bucket — buckets grouped together (e.g. AS and DG in G2) compete on holidays and personal first.",
                 ],
                 [
                     'label' => 'Start time tiebreak',

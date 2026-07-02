@@ -606,7 +606,7 @@ export default function BidScenarioEdit({
                                     {sortMode === 'weighted'
                                         ? 'Lines are ranked by total weighted score first. Desk tier groups (AM → PM → Mid) are not used in weighted mode — switch to Group ranked or Blended to enforce group order.'
                                         : sortMode === 'group_ranked'
-                                          ? `All G1 desk lines rank before G2, then G3, etc. Within each group, lines sort by your category order (${categoryOrderSummary}). Desk uses list position in that group.`
+                                          ? `All G1 desk lines rank before G2, then G3, etc. Within each group, lines sort by your category order (${categoryOrderSummary}). Desk list position only breaks ties among lines in the same bucket — mixed buckets in a group (e.g. AS and DG in G2) sort by holidays and personal across both.`
                                           : `Lines are compared in your category order (${categoryOrderSummary}), using each list's ranking position — not the numeric weights below. Desk tiers still use your AM / PM / Mid groups.`}
                                 </p>
                             </div>
