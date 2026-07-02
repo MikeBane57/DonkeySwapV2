@@ -27,6 +27,7 @@ import {
 } from '@/pages/app/bid-tools/preference-rank-shared';
 import type { StartTimeTiebreakKey } from '@/pages/app/bid-tools/preference-rank-shared';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
+import { syncTiersFromVisualGroups } from '@/pages/app/bid-tools/rank-tier-utils';
 
 export type Priority = 'ignore' | 'low' | 'high';
 export type SortMode = 'weighted' | 'priority' | 'blended' | 'group_ranked';
@@ -145,7 +146,7 @@ export function rankingStateToSavePayload(
         vacation_bank: value.vacation_bank,
         weights: value.weights,
         holiday_rank: value.holiday_rank,
-        desk_rank: value.desk_rank,
+        desk_rank: syncTiersFromVisualGroups(value.desk_rank),
         personal_dates: personalDatesForSave(value.personal_dates),
     };
 }

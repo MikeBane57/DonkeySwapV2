@@ -157,3 +157,37 @@ test('entries to tier groups combine tied tiers in list order', function () {
     expect(collect($groups[0])->pluck('key')->all())->toBe(['DS', 'DR']);
     expect($groups[1][0]['key'])->toBe('DG');
 });
+
+test('sync tiers from visual groups renumbers stale tier values in list order', function () {
+    $entries = [
+        ['key' => 'DS', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'DS_DR_MIX', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'DS7', 'priority' => 'high', 'tier' => 5],
+        ['key' => 'AS', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'AG', 'priority' => 'high', 'tier' => 3],
+        ['key' => 'AS15', 'priority' => 'high', 'tier' => 9],
+        ['key' => 'AR', 'priority' => 'high', 'tier' => 10],
+        ['key' => 'AS_AR_MIX', 'priority' => 'high', 'tier' => 11],
+        ['key' => 'RELIEF', 'priority' => 'high', 'tier' => 4],
+        ['key' => 'MID', 'priority' => 'high', 'tier' => 12],
+    ];
+
+    $synced = RankTierHelper::syncTiersFromVisualGroups($entries);
+
+    expect(collect($synced)->pluck('tier', 'key')->all())->toBe([
+        'DS' => 1,
+        'DG' => 1,
+        'DR' => 2,
+        'DS_DR_MIX' => 2,
+        'DS7' => 2,
+        'AS' => 3,
+        'AG' => 3,
+        'AS15' => 4,
+        'AR' => 5,
+        'AS_AR_MIX' => 6,
+        'RELIEF' => 7,
+        'MID' => 8,
+    ]);
+});

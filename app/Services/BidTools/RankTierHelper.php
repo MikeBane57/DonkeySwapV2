@@ -84,6 +84,31 @@ final class RankTierHelper
     }
 
     /**
+     * Renumber tiers to 1..N from consecutive groups in list order (matches editor G1, G2…).
+     *
+     * @param  list<array<string, mixed>>  $entries
+     * @return list<array<string, mixed>>
+     */
+    public static function syncTiersFromVisualGroups(array $entries): array
+    {
+        if ($entries === []) {
+            return [];
+        }
+
+        $groups = self::entriesToTierGroups(self::normalizeTierOrder($entries));
+        $out = [];
+
+        foreach ($groups as $groupIndex => $group) {
+            $tier = $groupIndex + 1;
+            foreach ($group as $entry) {
+                $out[] = array_merge($entry, ['tier' => $tier]);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * 1-based group label (G1, G2…) from the user's assigned tier, not list position.
      *
      * @param  list<array<string, mixed>>  $entries

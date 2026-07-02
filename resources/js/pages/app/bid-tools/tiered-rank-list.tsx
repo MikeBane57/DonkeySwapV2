@@ -24,6 +24,7 @@ import {
     groupWithAbove,
     moveIndex,
     splitAfter,
+    syncTiersFromVisualGroups,
 } from '@/pages/app/bid-tools/rank-tier-utils';
 import type {
     Priority,
@@ -176,26 +177,30 @@ export function TieredRankList({
 
     const groups = useMemo(() => entriesToTierGroups(entries), [entries]);
 
+    const emitChange = (next: TieredRankEntry[]) => {
+        onChange(syncTiersFromVisualGroups(next));
+    };
+
     const updateEntry = (index: number, patch: Partial<TieredRankEntry>) => {
         const next = [...entries];
         next[index] = { ...next[index], ...patch };
-        onChange(next);
+        emitChange(next);
     };
 
     const reorderFlat = (from: number, to: number) => {
-        onChange(moveIndex(entries, from, to));
+        emitChange(moveIndex(entries, from, to));
     };
 
     const mergeWithAbove = (index: number) => {
-        onChange(groupWithAbove(entries, index));
+        emitChange(groupWithAbove(entries, index));
     };
 
     const splitBelow = (index: number) => {
-        onChange(splitAfter(entries, index));
+        emitChange(splitAfter(entries, index));
     };
 
     const assignGroup = (index: number, groupNumber: number | 'new') => {
-        onChange(
+        emitChange(
             groupNumber === 'new'
                 ? createNewGroupForEntry(entries, index)
                 : assignEntryToGroup(entries, index, groupNumber),
