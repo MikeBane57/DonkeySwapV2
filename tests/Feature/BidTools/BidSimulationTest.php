@@ -64,7 +64,7 @@ test('user can add bidder with inline profile and run simulation', function () {
                 'criteria_order' => ['holiday', 'personal', 'desk'],
             ]]),
         ])
-        ->assertRedirect(route('bid-tools.simulations.edit', $simulation->id));
+        ->assertRedirect(route('bid-tools.simulations.show', $simulation->id));
 
     $this->actingAs($user)
         ->post(route('bid-tools.simulations.participants.store', $simulation->id), [
@@ -78,19 +78,21 @@ test('user can add bidder with inline profile and run simulation', function () {
                 'criteria_order' => ['desk', 'holiday', 'personal'],
             ]]),
         ])
-        ->assertRedirect(route('bid-tools.simulations.edit', $simulation->id));
+        ->assertRedirect(route('bid-tools.simulations.show', $simulation->id));
 
     expect(BidSimulationParticipant::where('bid_simulation_id', $simulation->id)->count())->toBe(2);
     expect(BidScenario::where('user_id', $user->id)->count())->toBe(2);
 
     $this->actingAs($user)
-        ->get(route('bid-tools.simulations.edit', $simulation->id))
+        ->get(route('bid-tools.simulations.show', $simulation->id))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->component('app/bid-tools/simulations/edit')
+            ->component('app/bid-tools/simulations/show')
             ->has('participants', 2)
             ->has('participants.0.profile')
-            ->has('profile_templates', 2));
+            ->has('profile_templates', 2)
+            ->has('desk_catalog')
+            ->has('lines'));
 
     $this->actingAs($user)
         ->post(route('bid-tools.simulations.run', $simulation->id))
@@ -204,10 +206,10 @@ test('user can add bidder from saved profile template with custom identity field
     ]);
 
     $this->actingAs($user)
-        ->get(route('bid-tools.simulations.edit', $simulation->id))
+        ->get(route('bid-tools.simulations.show', $simulation->id))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->component('app/bid-tools/simulations/edit')
+            ->component('app/bid-tools/simulations/show')
             ->has('profile_templates', 1)
             ->where('profile_templates.0.id', $templateScenario->id)
             ->where('profile_templates.0.name', 'Saved prefs'));
@@ -222,7 +224,7 @@ test('user can add bidder from saved profile template with custom identity field
             'seniority_rank' => 4,
             'profile' => $copiedProfile,
         ])
-        ->assertRedirect(route('bid-tools.simulations.edit', $simulation->id));
+        ->assertRedirect(route('bid-tools.simulations.show', $simulation->id));
 
     $participant = BidSimulationParticipant::first();
     $scenario = BidScenario::whereKey($participant->bid_scenario_id)->first();
@@ -275,7 +277,7 @@ test('user can update bidder profile inline', function () {
             'seniority_rank' => 2,
             'profile' => sampleBidderProfile(['vacation_bank' => 8]),
         ],
-    )->assertRedirect(route('bid-tools.simulations.edit', $simulation->id));
+    )->assertRedirect(route('bid-tools.simulations.show', $simulation->id));
 
     $participant->refresh();
     $scenario->refresh();
@@ -556,4 +558,71 @@ test('skipped bidder does not take a line during simulation run', function () {
     expect($simulation->last_run_results[0]['message'])->toBe('Passed / no bid');
     expect($simulation->last_run_results[1]['display_name'])->toBe('Junior');
     expect($simulation->last_run_results[1]['bid_line_id'])->not->toBeNull();
+});
+
+test('simulation edit route redirects to unified show page', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 2);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Redirect import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Redirect test',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('bid-tools.simulations.edit', $simulation->id))
+        ->assertRedirect(route('bid-tools.simulations.show', $simulation->id));
+});
+
+test('user can save simulation-level import file mapping', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 3);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Mapping import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Mapping test',
+    ]);
+
+    $this->actingAs($user)->put(route('bid-tools.simulations.update', $simulation->id), [
+        'name' => 'Mapping test',
+        'desk_bucket_mappings' => [
+            ['desk_group' => 'DS', 'start_time' => '06:00', 'bucket' => 'DS7'],
+        ],
+        'line_desk_buckets' => [],
+    ])->assertRedirect(route('bid-tools.simulations.show', $simulation->id));
+
+    $simulation->refresh();
+
+    expect($simulation->desk_bucket_mappings)->toHaveCount(1);
+    expect($simulation->desk_bucket_mappings[0]['bucket'])->toBe('DS7');
 });

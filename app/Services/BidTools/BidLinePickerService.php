@@ -15,11 +15,15 @@ final class BidLinePickerService
     /**
      * @return list<array<string, mixed>>
      */
-    public function rowsForImport(int $importId, ?int $scenarioId = null): array
-    {
-        $mappings = [];
-        $lineBuckets = [];
-        if ($scenarioId !== null) {
+    public function rowsForImport(
+        int $importId,
+        ?int $scenarioId = null,
+        ?array $deskBucketMappings = null,
+        ?array $lineDeskBuckets = null,
+    ): array {
+        $mappings = $deskBucketMappings ?? [];
+        $lineBuckets = $lineDeskBuckets ?? [];
+        if ($scenarioId !== null && $deskBucketMappings === null && $lineDeskBuckets === null) {
             $scenario = BidScenario::query()->find($scenarioId);
             $mappings = $scenario?->desk_bucket_mappings ?? [];
             $lineBuckets = $scenario?->line_desk_buckets ?? [];
