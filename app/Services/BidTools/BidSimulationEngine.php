@@ -5,6 +5,7 @@ namespace App\Services\BidTools;
 use App\Models\BidLine;
 use App\Models\BidSimulation;
 use App\Models\BidSimulationParticipant;
+use Illuminate\Support\Collection;
 
 final class BidSimulationEngine
 {
@@ -104,7 +105,7 @@ final class BidSimulationEngine
 
     /**
      * @param  list<array<string, mixed>>  $scored
-     * @param  \Illuminate\Support\Collection<int, BidLine>  $preloadedLines
+     * @param  Collection<int, BidLine>  $preloadedLines
      * @return list<array<string, mixed>>
      */
     private function buildRecommendationRows(

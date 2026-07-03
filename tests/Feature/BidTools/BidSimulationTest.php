@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\BidLine;
 use App\Models\BidScenario;
 use App\Models\BidSimulation;
 use App\Models\BidSimulationParticipant;
@@ -541,7 +542,7 @@ test('updating bidder preferences clears manual line order', function () {
         ->where('bid_simulation_id', $simulation->id)
         ->first();
 
-    $lineIds = \App\Models\BidLine::query()
+    $lineIds = BidLine::query()
         ->where('bid_import_id', $import->id)
         ->orderByDesc('id')
         ->pluck('id')
@@ -1092,7 +1093,7 @@ test('simulation recommendations use simulation import mapping not stale bidder 
 
     @unlink($path);
 
-    $line = \App\Models\BidLine::query()
+    $line = BidLine::query()
         ->where('bid_import_id', $import->id)
         ->firstOrFail();
 

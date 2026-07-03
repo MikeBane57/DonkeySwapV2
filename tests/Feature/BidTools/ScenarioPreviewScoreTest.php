@@ -4,6 +4,7 @@ use App\Models\BidLine;
 use App\Models\BidScenario;
 use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
+use App\Services\BidTools\CondensedBidderProfileMapper;
 
 test('preview score returns ranked lines as json', function () {
     config(['features.bid_tools' => true]);
@@ -162,7 +163,7 @@ test('preview score accepts condensed simulation holiday rank draft', function (
         ->pluck('id')
         ->all();
 
-    $defaults = app(\App\Services\BidTools\CondensedBidderProfileMapper::class)->condensedDefaults();
+    $defaults = app(CondensedBidderProfileMapper::class)->condensedDefaults();
 
     $this->actingAs($user)->postJson(
         route('api.bid-tools.scenarios.preview-score', $scenario->id),
