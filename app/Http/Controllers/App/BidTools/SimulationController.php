@@ -346,13 +346,14 @@ class SimulationController extends Controller
         $p = $this->findParticipant($sim, $participant);
         $p->load('scenario');
 
-        $rows = $this->engine->recommendForParticipant($p, $sim);
+        $payload = $this->engine->recommendationPayloadForParticipant($p, $sim);
         $minimumDepth = max(1, (int) $p->seniority_rank);
 
         if ($request->wantsJson()) {
             return response()->json([
                 'minimum_depth' => $minimumDepth,
-                'rows' => $rows,
+                'rows' => $payload['rows'],
+                'sort_explanation' => $payload['sort_explanation'],
             ]);
         }
 
@@ -360,7 +361,8 @@ class SimulationController extends Controller
             'simulation' => $this->simulationPayload($sim),
             'participant' => $this->participantPayload($p),
             'minimum_depth' => $minimumDepth,
-            'rows' => $rows,
+            'rows' => $payload['rows'],
+            'sort_explanation' => $payload['sort_explanation'],
         ]);
     }
 

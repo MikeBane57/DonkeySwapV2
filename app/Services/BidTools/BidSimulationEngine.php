@@ -20,6 +20,16 @@ final class BidSimulationEngine
         BidSimulationParticipant $participant,
         ?BidSimulation $simulation = null,
     ): array {
+        return $this->recommendationPayloadForParticipant($participant, $simulation)['rows'];
+    }
+
+    /**
+     * @return array{rows: list<array<string, mixed>>, sort_explanation: array<string, mixed>}
+     */
+    public function recommendationPayloadForParticipant(
+        BidSimulationParticipant $participant,
+        ?BidSimulation $simulation = null,
+    ): array {
         $participant->loadMissing('scenario.import');
         $scenario = $participant->scenario;
         $minimumDepth = max(1, (int) $participant->seniority_rank);
@@ -73,7 +83,10 @@ final class BidSimulationEngine
             ];
         }
 
-        return $rows;
+        return [
+            'rows' => $rows,
+            'sort_explanation' => $this->scoreService->buildSortExplanation($scenario, $scored),
+        ];
     }
 
     /**

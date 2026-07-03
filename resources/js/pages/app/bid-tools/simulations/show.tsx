@@ -8,7 +8,6 @@ import AppLayout from '@/layouts/app-layout';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
 import type { DeskBucketMapping, DeskBucketReferenceRow } from '@/pages/app/bid-tools/desk-bucket-mapping-utils';
-import { applyLineDeskBucketOverrides } from '@/pages/app/bid-tools/desk-bucket-mapping-utils';
 import {
     ImportFileMappingSection,
     lineDeskBucketsFromStorage,
@@ -75,18 +74,20 @@ function ParticipantEditor({
     participant,
     profileDefaults,
     profileTemplates,
-    lines,
     mappingDraft,
+    simulationName,
+    bidYear,
 }: {
     simulationId: number;
     participant: Participant;
     profileDefaults: BidderProfile;
     profileTemplates: ProfileTemplate[];
-    lines: LinePickerRow[];
     mappingDraft: {
         desk_bucket_mappings: DeskBucketMapping[];
         line_desk_buckets: { bid_line_id: number; bucket: string }[];
     };
+    simulationName: string;
+    bidYear: number;
 }) {
     const [open, setOpen] = useState(false);
     const form = useForm({
@@ -231,17 +232,20 @@ function ParticipantEditor({
                         rankDefaults={profileDefaults}
                         value={form.data.profile}
                         onChange={(profile) => form.setData('profile', profile)}
-                        scenarioId={participant.bid_scenario_id}
-                        lines={lines}
                         hideVacationBank
+                        hideLinePreview
                         mappingDraft={mappingDraft}
                     />
 
                     <ParticipantRecommendationsPanel
                         simulationId={simulationId}
                         participantId={participant.id}
+                        displayName={participant.display_name}
+                        seniorityRank={participant.seniority_rank}
                         minimumBidLines={participant.minimum_bid_lines}
                         skipsBid={form.data.skips_bid}
+                        simulationName={simulationName}
+                        bidYear={bidYear}
                     />
 
                     <div className="flex flex-wrap gap-2">
@@ -333,22 +337,6 @@ export default function BidSimulationShow({
             line_desk_buckets: lineDeskBucketsToStorage(lineDeskBuckets),
         }),
         [deskBucketMappings, lineDeskBuckets],
-    );
-
-    const mappedLines = useMemo(
-        () =>
-            applyLineDeskBucketOverrides(
-                lines,
-                deskBucketMappings,
-                Object.fromEntries(
-                    deskBucketReference.map((row) => [
-                        `${row.desk_group}\0${row.start_time}`,
-                        row,
-                    ]),
-                ),
-                lineDeskBuckets,
-            ),
-        [lines, deskBucketMappings, deskBucketReference, lineDeskBuckets],
     );
 
     const saveSimulation = (e: React.FormEvent) => {
@@ -542,7 +530,7 @@ export default function BidSimulationShow({
                     <BidToolsCollapsibleSection
                         title="Simulation settings"
                         summary={simForm.data.name}
-                        defaultOpen
+                        defaultOpen={false}
                     >
                         <div className="space-y-2">
                             <Label htmlFor="simulation-name">Name</Label>
@@ -581,7 +569,7 @@ export default function BidSimulationShow({
                 <BidToolsCollapsibleSection
                     title="Bidders & recommended order"
                     summary={`${participants.length} bidder${participants.length === 1 ? '' : 's'}`}
-                    defaultOpen
+                    defaultOpen={false}
                 >
                     <p className="text-sm text-muted-foreground">
                         Seniority #1 picks first. Expand a bidder to edit
@@ -596,8 +584,9 @@ export default function BidSimulationShow({
                                     participant={p}
                                     profileDefaults={profileDefaults}
                                     profileTemplates={profileTemplates}
-                                    lines={mappedLines}
                                     mappingDraft={mappingDraft}
+                                    simulationName={simulation.name}
+                                    bidYear={simulation.bid_year}
                                 />
                             ))}
                         </div>
@@ -611,7 +600,7 @@ export default function BidSimulationShow({
                 <BidToolsCollapsibleSection
                     title="Add bidder"
                     summary="New participant"
-                    defaultOpen={participants.length === 0}
+                    defaultOpen={false}
                 >
                     <form className="space-y-4" onSubmit={addParticipant}>
                         <BidderIdentityFields
@@ -659,6 +648,7 @@ export default function BidSimulationShow({
                                 addForm.setData('profile', profile)
                             }
                             hideVacationBank
+                            hideLinePreview
                             mappingDraft={mappingDraft}
                         />
 
@@ -672,7 +662,7 @@ export default function BidSimulationShow({
                     <BidToolsCollapsibleSection
                         title="Simulation results"
                         summary={`${results.length} bidders`}
-                        defaultOpen
+                        defaultOpen={false}
                     >
                         <p className="text-sm text-muted-foreground">
                             Each bidder picks their top available line in

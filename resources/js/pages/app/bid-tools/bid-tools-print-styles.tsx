@@ -7,16 +7,34 @@ export function BidToolsPrintStyles() {
                     margin: 0.15in;
                 }
 
-                body * {
+                body.bid-tools-printing * {
                     visibility: hidden;
                 }
 
-                .bid-tools-print,
-                .bid-tools-print * {
+                body.bid-tools-printing .bid-tools-print-active,
+                body.bid-tools-printing .bid-tools-print-active * {
                     visibility: visible;
                 }
 
-                .bid-tools-print {
+                body.bid-tools-printing .bid-tools-print-active {
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: 100%;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                }
+
+                body:not(.bid-tools-printing) * {
+                    visibility: hidden;
+                }
+
+                body:not(.bid-tools-printing) .bid-tools-print,
+                body:not(.bid-tools-printing) .bid-tools-print * {
+                    visibility: visible;
+                }
+
+                body:not(.bid-tools-printing) .bid-tools-print {
                     position: absolute;
                     left: 0;
                     top: 0;

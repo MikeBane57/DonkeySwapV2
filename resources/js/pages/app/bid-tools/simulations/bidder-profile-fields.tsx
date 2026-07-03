@@ -232,6 +232,7 @@ export function BidderProfileFields({
     scenarioId,
     lines,
     hideVacationBank = false,
+    hideLinePreview = false,
     mappingDraft,
 }: {
     value: BidderProfile;
@@ -241,6 +242,7 @@ export function BidderProfileFields({
     scenarioId?: number;
     lines?: LinePickerRow[];
     hideVacationBank?: boolean;
+    hideLinePreview?: boolean;
     mappingDraft?: {
         desk_bucket_mappings: { desk_group: string; start_time: string | null; bucket: string }[];
         line_desk_buckets: { bid_line_id: number; bucket: string }[];
@@ -276,7 +278,7 @@ export function BidderProfileFields({
                 <BidToolsCollapsibleSection
                     title="Basics"
                     summary={`Bank ${value.vacation_bank}`}
-                    defaultOpen
+                    defaultOpen={false}
                 >
                     <div className="space-y-1.5">
                         <Label htmlFor={`${idPrefix}-vacation-bank`}>
@@ -306,7 +308,7 @@ export function BidderProfileFields({
             <BidToolsCollapsibleSection
                 title="Holidays & desk"
                 summary={`${holidayRank.length} hol · ${deskRank.length} desk`}
-                defaultOpen
+                defaultOpen={false}
             >
                 <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
                     <div className={preferenceColumnClass}>
@@ -354,6 +356,7 @@ export function BidderProfileFields({
             <BidToolsCollapsibleSection
                 title="Personal dates"
                 summary={`${value.personal_dates.length} entr${value.personal_dates.length === 1 ? 'y' : 'ies'}`}
+                defaultOpen={false}
             >
                 <PersonalDatesEditor
                     entries={value.personal_dates}
@@ -366,6 +369,7 @@ export function BidderProfileFields({
             <BidToolsCollapsibleSection
                 title="Ranking"
                 summary={value.weights.sort_mode ?? 'blended'}
+                defaultOpen={false}
             >
                 <div className="grid gap-4 lg:grid-cols-2">
                     <div className="space-y-2">
@@ -426,7 +430,7 @@ export function BidderProfileFields({
                 </div>
             </BidToolsCollapsibleSection>
 
-            <BidToolsCollapsibleSection title="Weights">
+            <BidToolsCollapsibleSection title="Weights" defaultOpen={false}>
                 <div className="grid gap-3 sm:grid-cols-2">
                     <WeightSlider
                         id={`${idPrefix}-w-holiday`}
@@ -457,7 +461,7 @@ export function BidderProfileFields({
                 </div>
             </BidToolsCollapsibleSection>
 
-            {scenarioId && lines && lines.length > 0 && (
+            {!hideLinePreview && scenarioId && lines && lines.length > 0 && (
                 <ScenarioWorkspace
                     scenarioId={scenarioId}
                     lines={lines}

@@ -398,7 +398,27 @@ test('recommendations mark minimum bid depth by seniority rank', function () {
             ->where('minimum_depth', 3)
             ->has('rows', 4)
             ->has('rows.0.key_holidays')
-            ->has('rows.0.schedule_callouts'));
+            ->has('rows.0.schedule_callouts')
+            ->has('sort_explanation'));
+
+    $this->actingAs($user)
+        ->getJson(route('bid-tools.simulations.participants.recommendations', [
+            $simulation->id,
+            $participant->id,
+        ]))
+        ->assertOk()
+        ->assertJsonPath('minimum_depth', 3)
+        ->assertJsonCount(4, 'rows')
+        ->assertJsonStructure([
+            'minimum_depth',
+            'rows',
+            'sort_explanation' => [
+                'sort_mode',
+                'sort_mode_label',
+                'summary',
+                'steps',
+            ],
+        ]);
 });
 
 test('removing bidder deletes unused scenario profile', function () {

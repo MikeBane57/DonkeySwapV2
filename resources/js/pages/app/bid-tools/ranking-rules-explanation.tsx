@@ -36,8 +36,12 @@ export type SortExplanation = {
 
 export function RankingRulesExplanation({
     explanation,
+    showLineDetails = true,
+    includeInPrint = false,
 }: {
     explanation: SortExplanation | null;
+    showLineDetails?: boolean;
+    includeInPrint?: boolean;
 }) {
     if (!explanation) {
         return null;
@@ -49,7 +53,9 @@ export function RankingRulesExplanation({
         explanation.sort_mode === 'priority';
 
     return (
-        <div className="no-print space-y-4 rounded-lg border border-sidebar-border/70 bg-muted/15 p-4">
+        <div
+            className={`space-y-4 rounded-lg border border-sidebar-border/70 bg-muted/15 p-4 ${includeInPrint ? '' : 'no-print'}`}
+        >
             <div>
                 <h3 className="text-sm font-semibold">How ranking was applied</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -108,7 +114,7 @@ export function RankingRulesExplanation({
                 </div>
             )}
 
-            {explanation.line_details.length > 0 && (
+            {showLineDetails && explanation.line_details.length > 0 && (
                 <div className="space-y-2">
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         Per-line sort values
