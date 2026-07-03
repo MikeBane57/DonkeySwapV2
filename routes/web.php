@@ -143,6 +143,7 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
     Route::middleware('feature:bid_tools')->prefix('bid-tools')->name('bid-tools.')->group(function () {
         Route::get('/', BidToolsHubController::class)->name('index');
         Route::get('/lines', LineBrowserController::class)->name('lines.index');
+        Route::patch('/lines/{line}/desk-group', [LineBrowserController::class, 'updateDeskGroup'])->name('lines.desk-group');
         Route::get('/scenarios/compare', [BidToolsScenarioCompareController::class, 'show'])->name('scenarios.compare');
         Route::post('/scenarios/compare', [BidToolsScenarioCompareController::class, 'compare'])->name('scenarios.compare.run');
         Route::get('/scenarios/create', [BidToolsScenarioController::class, 'create'])->name('scenarios.create');

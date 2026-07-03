@@ -23,6 +23,14 @@ final class LineMetricsService
      *     anchor_off: bool,
      *     days_off_before: int,
      *     days_off_after: int,
+     *     dates: list<array{
+     *       id: string,
+     *       label: string,
+     *       short_label: string,
+     *       off: bool,
+     *       days_off_before: int,
+     *       days_off_after: int,
+     *     }>,
      *   }>,
      *   fri_off: int,
      *   sat_off: int,
@@ -67,6 +75,7 @@ final class LineMetricsService
             $anchorDate = null;
             $anchorLabel = null;
             $anchorId = FederalHolidayCalendar::KEY_HOLIDAY_ANCHOR_IDS[$group] ?? null;
+            $dateRows = [];
 
             foreach ($holidayCatalog as $date => $meta) {
                 if ($anchorId !== null && $meta['id'] === $anchorId) {
@@ -77,11 +86,34 @@ final class LineMetricsService
                 if (! in_array($meta['id'], $ids, true)) {
                     continue;
                 }
+
+                $isOff = ($byDate[$date] ?? false) === true;
+                $dateContext = $isOff
+                    ? $this->daysOffContext($date, $byDate)
+                    : ['days_off_before' => 0, 'days_off_after' => 0, 'anchor_off' => false];
+
+                $dateRows[] = [
+                    'id' => $meta['id'],
+                    'label' => $meta['label'],
+                    'short_label' => FederalHolidayCalendar::KEY_HOLIDAY_SHORT_LABELS[$meta['id']] ?? $meta['label'],
+                    'off' => $isOff,
+                    'days_off_before' => $dateContext['days_off_before'],
+                    'days_off_after' => $dateContext['days_off_after'],
+                    'sort_date' => $date,
+                ];
+
                 $total++;
-                if (($byDate[$date] ?? false) === true) {
+                if ($isOff) {
                     $off++;
                 }
             }
+
+            usort($dateRows, fn (array $a, array $b): int => strcmp($a['sort_date'], $b['sort_date']));
+            $dateRows = array_map(function (array $row): array {
+                unset($row['sort_date']);
+
+                return $row;
+            }, $dateRows);
 
             $context = $anchorDate !== null
                 ? $this->daysOffContext($anchorDate, $byDate)
@@ -94,6 +126,7 @@ final class LineMetricsService
                 'anchor_off' => $context['anchor_off'],
                 'days_off_before' => $context['days_off_before'],
                 'days_off_after' => $context['days_off_after'],
+                'dates' => $dateRows,
             ];
         }
 

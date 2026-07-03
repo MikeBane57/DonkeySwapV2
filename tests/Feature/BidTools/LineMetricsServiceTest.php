@@ -82,6 +82,11 @@ test('line metrics track key holiday group off counts', function () {
         'days_off_before' => 0,
         'days_off_after' => 0,
     ]);
+
+    $christmasDates = collect($metrics['key_holidays']['christmas']['dates'])->keyBy('id');
+    expect($christmasDates['christmas_eve']['off'])->toBeTrue();
+    expect($christmasDates['christmas_day']['off'])->toBeTrue();
+    expect($christmasDates['christmas_day']['days_off_before'])->toBe(1);
 });
 
 test('line metrics count days off before anchor holiday date', function () {
@@ -150,6 +155,60 @@ test('line metrics count days off before anchor holiday date', function () {
         'days_off_before' => 2,
         'days_off_after' => 0,
     ]);
+
+    $christmasDates = collect($metrics['key_holidays']['christmas']['dates'])->keyBy('id');
+    expect($christmasDates['christmas_eve']['days_off_before'])->toBe(1);
+    expect($christmasDates['christmas_day']['days_off_before'])->toBe(2);
+});
+
+test('line metrics expose per-date off status for partial holiday groups', function () {
+    $bidYear = 2026;
+    $calendar = app(FederalHolidayCalendar::class);
+    $catalog = $calendar->holidaysInBidYear($bidYear);
+
+    $datesById = [];
+    foreach ($catalog as $date => $meta) {
+        $datesById[$meta['id']] = $date;
+    }
+
+    $user = User::factory()->create();
+    $import = BidImport::create([
+        'uploaded_by_user_id' => $user->id,
+        'bid_year' => $bidYear,
+        'file_hash' => 'metrics-partial-thanksgiving',
+        'original_filename' => 't.csv',
+        'is_current' => true,
+        'meta' => [],
+    ]);
+
+    $line = BidLine::create([
+        'bid_import_id' => $import->id,
+        'line_num' => '103',
+        'desk_group' => 'DG',
+        'start_time' => '0600',
+        'rotation' => 'A',
+        'workdays_from_file' => null,
+        'workdays_computed' => 1,
+    ]);
+
+    foreach ($catalog->keys() as $date) {
+        $isOff = $date === $datesById['thanksgiving'];
+
+        BidLineDay::create([
+            'bid_line_id' => $line->id,
+            'assignment_date' => $date,
+            'raw_cell' => $isOff ? 'x' : 'DG',
+            'is_off' => $isOff,
+            'normalized_code' => $isOff ? null : 'DG',
+        ]);
+    }
+
+    $metrics = app(LineMetricsService::class)->analyze($line->fresh());
+    $thanksgivingDates = collect($metrics['key_holidays']['thanksgiving']['dates'])->keyBy('id');
+
+    expect($metrics['key_holidays']['thanksgiving']['off'])->toBe(1);
+    expect($thanksgivingDates['thanksgiving']['off'])->toBeTrue();
+    expect($thanksgivingDates['black_friday']['off'])->toBeFalse();
 });
 
 test('line metrics track sept feb weekend counts separately from full year', function () {

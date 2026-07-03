@@ -126,6 +126,7 @@ final class ScenarioScoreService
                             'anchor_off' => false,
                             'days_off_before' => 0,
                             'days_off_after' => 0,
+                            'dates' => [],
                         ],
                         'thanksgiving' => [
                             'off' => 0,
@@ -134,6 +135,7 @@ final class ScenarioScoreService
                             'anchor_off' => false,
                             'days_off_before' => 0,
                             'days_off_after' => 0,
+                            'dates' => [],
                         ],
                         'july_4' => [
                             'off' => 0,
@@ -142,6 +144,7 @@ final class ScenarioScoreService
                             'anchor_off' => false,
                             'days_off_before' => 0,
                             'days_off_after' => 0,
+                            'dates' => [],
                         ],
                     ],
                     'fri_off' => 0,

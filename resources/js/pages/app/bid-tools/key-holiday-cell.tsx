@@ -1,5 +1,5 @@
 import {
-    keyHolidayContextLabel,
+    keyHolidayContextLines,
     keyHolidayLabel,
     type KeyHolidayGroup,
 } from '@/pages/app/bid-tools/holiday-metrics';
@@ -10,23 +10,24 @@ export function KeyHolidayCell({
     group: KeyHolidayGroup | undefined;
 }) {
     const label = keyHolidayLabel(group);
-    const context = keyHolidayContextLabel(group);
+    const contextLines = keyHolidayContextLines(group);
 
-    if (label === '—' && !context) {
+    if (label === '—' && contextLines.length === 0) {
         return <>—</>;
     }
 
     return (
         <div>
             <div>{label}</div>
-            {context && (
+            {contextLines.map((line) => (
                 <div
+                    key={line}
                     className="text-[11px] leading-snug text-muted-foreground"
-                    title={context}
+                    title={line}
                 >
-                    {context}
+                    {line}
                 </div>
-            )}
+            ))}
         </div>
     );
 }

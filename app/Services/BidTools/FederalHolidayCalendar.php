@@ -47,6 +47,19 @@ final class FederalHolidayCalendar
         'july_4' => 'july_4',
     ];
 
+    /**
+     * Compact table labels for key holiday dates.
+     *
+     * @var array<string, string>
+     */
+    public const KEY_HOLIDAY_SHORT_LABELS = [
+        'christmas_eve' => 'Eve',
+        'christmas_day' => 'Day',
+        'thanksgiving' => 'Thu',
+        'black_friday' => 'Fri',
+        'july_4' => 'Jul 4',
+    ];
+
     public static function defaultHolidayPriority(string $id): string
     {
         return in_array($id, self::DEFAULT_RANKED_HOLIDAY_IDS, true) ? 'high' : 'ignore';

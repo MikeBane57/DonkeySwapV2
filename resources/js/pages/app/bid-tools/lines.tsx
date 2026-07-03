@@ -14,6 +14,7 @@ import {
     type LineMetrics,
 } from '@/pages/app/bid-tools/holiday-metrics';
 import { KeyHolidayCell } from '@/pages/app/bid-tools/key-holiday-cell';
+import { LineDeskGroupEditor } from '@/pages/app/bid-tools/line-desk-group-editor';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -25,7 +26,6 @@ type LineRow = {
     id: number;
     line_num: string;
     desk_group: string;
-    source_label: string | null;
     start_time: string;
     rotation: string | null;
     workdays_from_file: number | null;
@@ -65,12 +65,18 @@ function WeekendMetricsCell({ metrics }: { metrics: LineMetrics }) {
 export default function BidToolsLines({
     import: bidImport,
     lines,
+    desk_groups,
     years,
 }: {
     import: { id: number; bid_year: number; file_hash: string } | null;
     lines: LineRow[];
+    desk_groups: string[];
     years: number[];
 }) {
+    const deskGroupOptions = Array.from(
+        new Set([...desk_groups, ...lines.map((row) => row.desk_group)]),
+    ).sort((a, b) => a.localeCompare(b));
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Bid lines" />
@@ -91,10 +97,11 @@ export default function BidToolsLines({
                             </p>
                         )}
                         <p className="mt-1 text-xs text-muted-foreground">
-                            Xmas, T&apos;giving, and Jul 4 show whether those
-                            holiday dates are off, with days-off context for the
-                            primary date. F/Sa/Su counts are full bid year; Sep–Feb
-                            shows the fall/winter months only.
+                            Holidays show each date as off or work (e.g. Eve off
+                            · Day work), with days-off context for every off
+                            date including eves. Edit group codes inline when
+                            the import label is wrong. F/Sa/Su counts are full
+                            bid year; Sep–Feb shows fall/winter only.
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -136,10 +143,15 @@ export default function BidToolsLines({
                             <p className="font-mono text-sm font-medium">
                                 {row.line_num}
                             </p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                                {row.desk_group} · {row.start_time}
-                                {row.rotation ? ` · ${row.rotation}` : ''}
-                            </p>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <LineDeskGroupEditor
+                                    lineId={row.id}
+                                    value={row.desk_group}
+                                    options={deskGroupOptions}
+                                />
+                                <span>{row.start_time}</span>
+                                {row.rotation ? <span>{row.rotation}</span> : null}
+                            </div>
                             <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
                                 <div>
                                     <dt className="text-[10px] uppercase text-muted-foreground">
@@ -205,11 +217,6 @@ export default function BidToolsLines({
                                     </dd>
                                 </div>
                             </dl>
-                            {row.source_label && (
-                                <p className="mt-2 text-xs text-muted-foreground">
-                                    Source: {row.source_label}
-                                </p>
-                            )}
                             {row.training_summary && (
                                 <p className="mt-2 text-xs leading-snug">
                                     {row.training_summary}
@@ -225,12 +232,11 @@ export default function BidToolsLines({
                 </div>
 
                 <div className="hidden overflow-x-auto rounded-lg border border-sidebar-border/70 md:block">
-                    <table className="w-full min-w-[1400px] border-collapse text-left text-sm">
+                    <table className="w-full min-w-[1320px] border-collapse text-left text-sm">
                         <thead>
                             <tr className="border-b bg-muted/50">
                                 <th className="p-2 font-medium">Line</th>
                                 <th className="p-2 font-medium">Group</th>
-                                <th className="p-2 font-medium">Source</th>
                                 <th className="p-2 font-medium">Start</th>
                                 <th className="p-2 font-medium">Rot</th>
                                 <th className="p-2 font-medium">WD</th>
@@ -256,9 +262,12 @@ export default function BidToolsLines({
                                     <td className="p-2 font-mono text-xs">
                                         {row.line_num}
                                     </td>
-                                    <td className="p-2">{row.desk_group}</td>
-                                    <td className="max-w-[140px] p-2 text-xs text-muted-foreground">
-                                        {row.source_label ?? '—'}
+                                    <td className="p-2">
+                                        <LineDeskGroupEditor
+                                            lineId={row.id}
+                                            value={row.desk_group}
+                                            options={deskGroupOptions}
+                                        />
                                     </td>
                                     <td className="p-2 text-xs">
                                         {row.start_time}
