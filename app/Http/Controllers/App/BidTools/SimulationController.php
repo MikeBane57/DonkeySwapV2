@@ -5,9 +5,11 @@ namespace App\Http\Controllers\App\BidTools;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BidTools\StoreBidSimulationParticipantRequest;
 use App\Http\Requests\BidTools\StoreBidSimulationRequest;
+use App\Http\Requests\BidTools\UpdateBidSimulationParticipantLineOrderRequest;
 use App\Http\Requests\BidTools\UpdateBidSimulationParticipantRequest;
 use App\Http\Requests\BidTools\UpdateBidSimulationRequest;
 use App\Models\BidImport;
+use App\Models\BidLine;
 use App\Models\BidScenario;
 use App\Models\BidSimulation;
 use App\Models\BidSimulationParticipant;
@@ -15,6 +17,7 @@ use App\Services\BidTools\BidLinePickerService;
 use App\Services\BidTools\BidLinePreferenceCatalog;
 use App\Services\BidTools\BidScenarioProfileBuilder;
 use App\Services\BidTools\BidSimulationEngine;
+use App\Services\BidTools\ManualLineOrderService;
 use App\Services\BidTools\ScenarioScoreService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -31,6 +34,7 @@ class SimulationController extends Controller
         private readonly BidLinePickerService $linePicker,
         private readonly BidLinePreferenceCatalog $preferenceCatalog,
         private readonly ScenarioScoreService $scoreService,
+        private readonly ManualLineOrderService $manualLineOrder,
     ) {}
 
     public function index(Request $request): Response
@@ -204,6 +208,7 @@ class SimulationController extends Controller
                     'code_overrides' => $scenario->code_overrides ?? [],
                     'desk_bucket_mappings' => [],
                     'line_desk_buckets' => [],
+                    'manual_line_order' => $scenario->manual_line_order,
                 ]);
 
                 BidSimulationParticipant::create([
@@ -278,6 +283,7 @@ class SimulationController extends Controller
             if ($p->scenario) {
                 $p->scenario->update([
                     'name' => "{$displayName} · {$sim->name}",
+                    'manual_line_order' => null,
                 ]);
                 $this->profileBuilder->applyToScenario(
                     $p->scenario,
@@ -353,6 +359,9 @@ class SimulationController extends Controller
             return response()->json([
                 'minimum_depth' => $minimumDepth,
                 'rows' => $payload['rows'],
+                'computed_rows' => $payload['computed_rows'],
+                'order_source' => $payload['order_source'],
+                'manual_line_order' => $payload['manual_line_order'],
                 'sort_explanation' => $payload['sort_explanation'],
             ]);
         }
@@ -362,6 +371,50 @@ class SimulationController extends Controller
             'participant' => $this->participantPayload($p),
             'minimum_depth' => $minimumDepth,
             'rows' => $payload['rows'],
+            'computed_rows' => $payload['computed_rows'],
+            'order_source' => $payload['order_source'],
+            'manual_line_order' => $payload['manual_line_order'],
+            'sort_explanation' => $payload['sort_explanation'],
+        ]);
+    }
+
+    public function updateParticipantLineOrder(
+        UpdateBidSimulationParticipantLineOrderRequest $request,
+        int $simulation,
+        int $participant,
+    ): JsonResponse {
+        $sim = $this->findSimulation($request, $simulation);
+        $p = $this->findParticipant($sim, $participant);
+        $p->load('scenario');
+
+        if ($p->scenario === null) {
+            abort(422, 'Bidder has no preference profile.');
+        }
+
+        $validLineIds = BidLine::query()
+            ->where('bid_import_id', $sim->bid_import_id)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $normalized = $this->manualLineOrder->normalize(
+            $request->validated('line_order'),
+            $validLineIds,
+        );
+
+        $p->scenario->update(['manual_line_order' => $normalized]);
+        $sim->update(['last_run_at' => null, 'last_run_results' => null]);
+
+        $p->load('scenario');
+        $payload = $this->engine->recommendationPayloadForParticipant($p, $sim);
+        $minimumDepth = max(1, (int) $p->seniority_rank);
+
+        return response()->json([
+            'minimum_depth' => $minimumDepth,
+            'rows' => $payload['rows'],
+            'computed_rows' => $payload['computed_rows'],
+            'order_source' => $payload['order_source'],
+            'manual_line_order' => $payload['manual_line_order'],
             'sort_explanation' => $payload['sort_explanation'],
         ]);
     }

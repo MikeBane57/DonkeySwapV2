@@ -11,6 +11,7 @@ final class BidSimulationEngine
     public function __construct(
         private readonly ScenarioScoreService $scoreService,
         private readonly LineRowFormatter $rowFormatter,
+        private readonly ManualLineOrderService $manualLineOrder,
     ) {}
 
     /**
@@ -24,7 +25,13 @@ final class BidSimulationEngine
     }
 
     /**
-     * @return array{rows: list<array<string, mixed>>, sort_explanation: array<string, mixed>}
+     * @return array{
+     *     rows: list<array<string, mixed>>,
+     *     computed_rows: list<array<string, mixed>>,
+     *     order_source: 'manual'|'computed',
+     *     manual_line_order: list<int>|null,
+     *     sort_explanation: array<string, mixed>
+     * }
      */
     public function recommendationPayloadForParticipant(
         BidSimulationParticipant $participant,
@@ -62,6 +69,41 @@ final class BidSimulationEngine
             preloadedLines: $preloadedLines,
         );
 
+        $manualOrder = $scenario->manual_line_order;
+        $usesManualOrder = is_array($manualOrder) && $manualOrder !== [];
+        $orderedScored = $usesManualOrder
+            ? $this->manualLineOrder->apply($scored, $manualOrder)
+            : $scored;
+
+        $rows = $this->buildRecommendationRows(
+            $orderedScored,
+            $preloadedLines,
+            $minimumDepth,
+        );
+
+        $computedRows = $usesManualOrder
+            ? $this->buildRecommendationRows($scored, $preloadedLines, $minimumDepth)
+            : $rows;
+
+        return [
+            'rows' => $rows,
+            'computed_rows' => $computedRows,
+            'order_source' => $usesManualOrder ? 'manual' : 'computed',
+            'manual_line_order' => $usesManualOrder ? array_values($manualOrder) : null,
+            'sort_explanation' => $this->scoreService->buildSortExplanation($scenario, $scored),
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $scored
+     * @param  \Illuminate\Support\Collection<int, BidLine>  $preloadedLines
+     * @return list<array<string, mixed>>
+     */
+    private function buildRecommendationRows(
+        array $scored,
+        $preloadedLines,
+        int $minimumDepth,
+    ): array {
         $rows = [];
         foreach ($scored as $index => $row) {
             $rank = $index + 1;
@@ -83,10 +125,7 @@ final class BidSimulationEngine
             ];
         }
 
-        return [
-            'rows' => $rows,
-            'sort_explanation' => $this->scoreService->buildSortExplanation($scenario, $scored),
-        ];
+        return $rows;
     }
 
     /**
@@ -157,6 +196,11 @@ final class BidSimulationEngine
             }
 
             $fullRanking = $rankingsByScenarioId[$scenarioId];
+            $manualOrder = $scenario->manual_line_order;
+            if (is_array($manualOrder) && $manualOrder !== []) {
+                $fullRanking = $this->manualLineOrder->apply($fullRanking, $manualOrder);
+            }
+
             $preferenceRank = null;
             $pick = null;
 

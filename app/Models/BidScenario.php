@@ -21,6 +21,7 @@ class BidScenario extends Model
         'code_overrides',
         'desk_bucket_mappings',
         'line_desk_buckets',
+        'manual_line_order',
     ];
 
     protected function casts(): array
@@ -35,6 +36,7 @@ class BidScenario extends Model
             'code_overrides' => 'array',
             'desk_bucket_mappings' => 'array',
             'line_desk_buckets' => 'array',
+            'manual_line_order' => 'array',
         ];
     }
 

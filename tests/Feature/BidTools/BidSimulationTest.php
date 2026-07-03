@@ -412,6 +412,9 @@ test('recommendations mark minimum bid depth by seniority rank', function () {
         ->assertJsonStructure([
             'minimum_depth',
             'rows',
+            'computed_rows',
+            'order_source',
+            'manual_line_order',
             'sort_explanation' => [
                 'sort_mode',
                 'sort_mode_label',
@@ -419,6 +422,130 @@ test('recommendations mark minimum bid depth by seniority rank', function () {
                 'steps',
             ],
         ]);
+});
+
+test('participant manual line order overrides computed recommendations and simulation run', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 4);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Manual order import',
+    )['import'];
+
+    @unlink($path);
+
+    $scenario = BidScenario::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Prefs',
+        'vacation_bank' => 10,
+    ]);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Manual order test',
+    ]);
+
+    $participant = BidSimulationParticipant::create([
+        'bid_simulation_id' => $simulation->id,
+        'seniority_rank' => 1,
+        'display_name' => 'Rank 1',
+        'bid_scenario_id' => $scenario->id,
+    ]);
+
+    $computed = app(BidSimulationEngine::class)->recommendForParticipant($participant, $simulation);
+    expect($computed)->toHaveCount(4);
+
+    $manualOrder = array_reverse(array_map(fn (array $row) => $row['bid_line_id'], $computed));
+
+    $this->actingAs($user)
+        ->putJson(route('bid-tools.simulations.participants.line-order', [
+            $simulation->id,
+            $participant->id,
+        ]), [
+            'line_order' => $manualOrder,
+        ])
+        ->assertOk()
+        ->assertJsonPath('order_source', 'manual')
+        ->assertJsonPath('rows.0.bid_line_id', $manualOrder[0]);
+
+    $results = app(BidSimulationEngine::class)->run($simulation->fresh()->load(['participants.scenario.import', 'import']));
+    expect($results[0]['bid_line_id'])->toBe($manualOrder[0]);
+
+    $this->actingAs($user)
+        ->putJson(route('bid-tools.simulations.participants.line-order', [
+            $simulation->id,
+            $participant->id,
+        ]), [
+            'line_order' => null,
+        ])
+        ->assertOk()
+        ->assertJsonPath('order_source', 'computed')
+        ->assertJsonPath('rows.0.bid_line_id', $computed[0]['bid_line_id']);
+});
+
+test('updating bidder preferences clears manual line order', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 2);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Clear manual import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Clear manual test',
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Alice',
+        'seniority_rank' => 1,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $participant = BidSimulationParticipant::query()
+        ->where('bid_simulation_id', $simulation->id)
+        ->first();
+
+    $lineIds = \App\Models\BidLine::query()
+        ->where('bid_import_id', $import->id)
+        ->orderByDesc('id')
+        ->pluck('id')
+        ->all();
+
+    $participant->scenario->update(['manual_line_order' => $lineIds]);
+
+    $this->actingAs($user)->put(route('bid-tools.simulations.participants.update', [
+        $simulation->id,
+        $participant->id,
+    ]), [
+        'display_name' => 'Alice',
+        'seniority_rank' => 1,
+        'skips_bid' => false,
+        'profile' => sampleBidderProfile(['vacation_bank' => 9]),
+    ])->assertRedirect();
+
+    expect($participant->scenario->fresh()->manual_line_order)->toBeNull();
 });
 
 test('removing bidder deletes unused scenario profile', function () {
