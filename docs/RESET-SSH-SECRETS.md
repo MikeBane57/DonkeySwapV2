@@ -110,7 +110,7 @@ Use this when the "Deploy on server" step fails with `ssh: unable to authenticat
    Replace `YOUR_SSH_USER`, `YOUR_SSH_HOST`, and `YOUR_SERVER_APP_PATH` with the same values you put in GitHub. If this works, the same values in GitHub will work.
 
 2. **Re-run the workflow:**
-   - GitHub repo → **Actions** → **Deploy (push = deploy)** → **Run workflow**.
+   - GitHub repo → **Actions** → **CI** → **Run workflow**.
    - Open the run and check the **Deploy on server** step. It should get past SSH and run `git pull`, `composer install`, etc.
 
 ---

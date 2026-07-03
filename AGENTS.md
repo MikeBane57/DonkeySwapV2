@@ -5,7 +5,7 @@
 DonkeySwap V2 is a Laravel 12 + React/Inertia app (shift-swap + bid-tools). It uses
 **PHP 8.3** locally (CI uses 8.4), **Node 22**, and **SQLite** by default
 (`DB_CONNECTION=sqlite` in `.env.example`). Standard commands live in `package.json`,
-`composer.json` scripts, and `.github/workflows/{lint,tests}.yml`; prefer those.
+`composer.json` scripts, and `.github/workflows/ci.yml`; prefer those.
 
 The startup update script already runs `composer install` and `npm ci`. The persisted
 VM snapshot keeps `.env` (with `APP_KEY`) and `database/database.sqlite`. On a fresh

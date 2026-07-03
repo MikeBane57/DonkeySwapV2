@@ -76,7 +76,7 @@ If the repo is **public**, `git pull` on the server works without extra setup.
 ## 5. Test
 
 1. Commit and push the new workflow (and this doc) to `main`.
-2. Go to **Actions** and open the **“Deploy (push = deploy)”** run.
+2. Go to **Actions** and open the **CI** workflow run.
 3. If the SSH step fails, check: **SSH_HOST**, **SSH_USER**, **SERVER_APP_PATH**, and that the public key is in `~/.ssh/authorized_keys` on the server.
 
 After that, every push to `main` runs the full deploy automatically.

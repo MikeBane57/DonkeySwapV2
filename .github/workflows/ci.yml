@@ -1,77 +1,101 @@
-# One push from Cursor → lint + test, then deploy only if both pass.
-# Requires secrets: FTP_* (for assets), SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, SERVER_APP_PATH
-
-name: Deploy (push = deploy)
+# Single CI pipeline: lint + test once per push/PR. On main, deploy reuses the built frontend.
+name: CI
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:  # Allows "Run workflow" in Actions tab to re-deploy without pushing
+    branches:
+      - develop
+      - main
+      - master
+      - workos
+  pull_request:
+    branches:
+      - develop
+      - main
+      - master
+      - workos
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-      - name: Install Dependencies
-        run: |
-          composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
-          npm ci
-      - name: Run Pint
-        run: composer lint
-      - name: Format Frontend
-        run: npm run format
-      - name: Lint Frontend
-        run: npm run lint
-
-  test:
-    name: Test
+  ci:
+    name: Lint and test
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
           tools: composer:v2
-          coverage: xdebug
-      - name: Setup Node
+          coverage: none
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
-      - name: Install Node Dependencies
-        run: npm ci
-      - name: Install Dependencies
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader
-      - name: Copy Environment File
-        run: cp .env.example .env
-      - name: Generate Application Key
-        run: php artisan key:generate
-      - name: Build Assets
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --optimize-autoloader
+          npm ci
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: PHP style (Pint)
+        run: composer lint:check
+
+      - name: Frontend format
+        run: npm run format:check
+
+      - name: Frontend lint
+        run: npm run lint:check
+
+      - name: Build frontend
+        env:
+          VITE_APP_VERSION: 2.1.${{ github.run_number }}
         run: npm run build
+
       - name: Tests
-        run: ./vendor/bin/pest
+        run: php artisan test
+
+      - name: Upload frontend build
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: public/build/
+          retention-days: 1
 
   deploy:
-    name: Build, upload assets, deploy on server
+    name: Upload assets and deploy
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     timeout-minutes: 15
-
     steps:
       - name: Verify deploy secrets are set
         run: |
@@ -94,31 +118,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
         with:
-          php-version: "8.4"
-          extensions: mbstring, xml, ctype, json, fileinfo
-          coverage: none
-
-      - name: Install Composer dependencies
-        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
-
-      - name: Prepare .env for build
-        run: |
-          cp .env.example .env
-          php artisan key:generate
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "npm"
-
-      - name: Build frontend
-        env:
-          VITE_APP_VERSION: 2.1.${{ github.run_number }}
-        run: npm ci && npm run build
+          name: frontend-build
+          path: public/build/
 
       - name: Upload public/build via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
@@ -132,8 +136,6 @@ jobs:
           port: 21
           timeout: 60000
 
-      # Server: pull code, install deps, migrate, then optimize (config + events + routes + views).
-      # set -e: any failing command fails the deploy so migrations/caches are not silently skipped.
       - name: Deploy on server (git pull + composer + migrate + optimize)
         uses: appleboy/ssh-action@v1.0.3
         with:

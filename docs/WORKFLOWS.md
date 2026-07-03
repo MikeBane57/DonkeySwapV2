@@ -6,43 +6,40 @@ This document describes the main workflows in the codebase, with Mermaid diagram
 
 ## 1. CI/CD (GitHub Actions)
 
-### Deploy workflow (`deploy.yml`)
+### CI workflow (`ci.yml`)
 
-Runs on **push to `main`** or **manual "Run workflow"**. Lint and Test run in parallel; Deploy runs only if both pass.
+Runs on **push/PR** to develop/main/master/workos. On **push to `main`** (or manual **Run workflow**), deploy runs after CI passes.
 
 ```mermaid
 flowchart LR
     subgraph trigger["Trigger"]
         P[Push to main]
+        PR[Pull request]
         M[Workflow dispatch]
     end
 
     subgraph jobs["Jobs"]
-        L[Lint]
-        T[Test]
-        D[Deploy]
+        C[Lint and test]
+        D[Upload and deploy]
     end
 
-    P --> L
-    P --> T
-    M --> L
-    M --> T
-    L --> D
-    T --> D
+    P --> C
+    PR --> C
+    M --> C
+    C --> D
 ```
 
 **Steps:**
 
 | Job   | Steps |
 |-------|--------|
-| **Lint** | Checkout → Setup PHP 8.4 + Node 22 → `composer install`, `npm ci` → `composer lint` (Pint) → `npm run format` → `npm run lint` |
-| **Test** | Checkout → Setup PHP + Node → Install deps → Copy `.env`, key generate → `npm run build` → `./vendor/bin/pest` |
-| **Deploy** | Verify secrets → Checkout → Composer (no-dev) → Prepare .env → `npm ci && npm run build` → **Upload `public/build/` via FTP** → **SSH: git pull, composer, migrate, config/route cache** |
+| **Lint and test** | Checkout → Setup PHP 8.4 + Node 22 → `composer install`, `npm ci` → Pint/format/eslint **check** (no auto-fix) → `npm run build` → `php artisan test` → upload `public/build/` artifact (main only) |
+| **Upload and deploy** (main only) | Verify secrets → Download build artifact → **Upload `public/build/` via FTP** → **SSH: git pull, composer, migrate, optimize** |
 
 ### Other workflows
 
-- **`lint.yml`** (linter): On push/PR to develop/main/master/workos → Run Pint + frontend format + frontend lint.
-- **`tests.yml`** (tests): On push/PR to same branches → Install deps, build, run Pest.
+- **`production-sync.yml`**: Manual only — sync production data via SSH.
+- **`push-db-merge-to-live.yml`**: Manual only — import a committed `mysql_merge.sql` to live.
 
 ---
 

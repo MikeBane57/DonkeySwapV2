@@ -22,9 +22,9 @@ So you only need to **commit and push** your source code. The build and upload a
 ## What happens when you push (big picture)
 
 1. You edit code in Cursor → commit → push to `main`.
-2. GitHub receives the push and starts the “Deploy to Bluehost” workflow.
-3. The workflow builds the app (composer + npm build) on GitHub’s servers.
-4. The workflow uploads the built files to Bluehost over FTP.
+2. GitHub receives the push and starts the **CI** workflow.
+3. The workflow runs lint checks, tests, and builds the frontend once on GitHub’s servers.
+4. If everything passes, the deploy job uploads the built files to Bluehost over FTP.
 5. Your site on Bluehost is updated.
 
 You never upload from your own machine; GitHub does it after each push.
@@ -33,11 +33,11 @@ You never upload from your own machine; GitHub does it after each push.
 
 ## Live site not showing the latest changes (e.g. Preferences, Qualifications, notification bell)?
 
-The deploy workflow runs **only if Lint and Test both pass**. If either fails, the deploy job is skipped and the live site is not updated.
+The deploy job runs **only if the CI job passes**. If lint or tests fail, deploy is skipped and the live site is not updated.
 
 1. Open **[Actions](https://github.com/MikeBane57/DonkeySwapV2/actions)** for this repo.
-2. Click the most recent workflow run for a push to `main`.
-3. Check that all three jobs are green: **Lint**, **Test**, and **Build, upload assets, deploy on server**.
+2. Click the most recent **CI** workflow run for a push to `main`.
+3. Check that both jobs are green: **Lint and test**, and **Upload assets and deploy**.
 4. If any job failed (red), open it and fix the error (e.g. failing test or lint). Then commit, push again, or use **Re-run all jobs** after fixing.
 5. If all jobs passed but the site still looks old, do a hard refresh (Ctrl+F5 or Cmd+Shift+R) to avoid cached JS/CSS.
 

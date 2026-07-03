@@ -48,7 +48,7 @@ jobs:
               $PHP artisan wayfinder:generate --with-form
               npm run build
             else
-              echo "::warning::npm not found on server — run the Deploy workflow in GitHub Actions to upload frontend assets"
+              echo "::warning::npm not found on server — run the CI workflow in GitHub Actions to upload frontend assets"
             fi
             echo "==> migrate"
             $PHP artisan migrate --force
