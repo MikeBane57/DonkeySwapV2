@@ -5,10 +5,8 @@ import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-coll
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
 import type { KeyHolidayGroup } from '@/pages/app/bid-tools/holiday-metrics';
 import { KeyHolidayCell } from '@/pages/app/bid-tools/key-holiday-cell';
-import {
-    RankingRulesExplanation,
-    type SortExplanation,
-} from '@/pages/app/bid-tools/ranking-rules-explanation';
+import { RankingRulesExplanation } from '@/pages/app/bid-tools/ranking-rules-explanation';
+import type { SortExplanation } from '@/pages/app/bid-tools/ranking-rules-explanation';
 
 type RecRow = {
     rank: number;
