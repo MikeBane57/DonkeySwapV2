@@ -53,6 +53,7 @@ final class ScenarioScoreService
         ?array $deskBucketMappingsOverride = null,
         ?array $lineDeskBucketsOverride = null,
         ?Collection $preloadedLines = null,
+        bool $ignoreScenarioImportMapping = false,
     ): array {
         $scenario->loadMissing('import');
 
@@ -68,11 +69,11 @@ final class ScenarioScoreService
         $bidYear = (int) $scenario->import->bid_year;
         $holidayEntries = $this->normalizeHolidayRank($scenario->holiday_rank, $bidYear);
         $personalEntries = $this->normalizePersonalDates($scenario->personal_dates ?? []);
-        $deskMappings = $this->condensedDesk->normalizeMappings(
-            $deskBucketMappingsOverride ?? $scenario->desk_bucket_mappings ?? [],
-        );
-        $lineDeskBuckets = $this->condensedDesk->normalizeLineBuckets(
-            $lineDeskBucketsOverride ?? $scenario->line_desk_buckets ?? [],
+        [$deskMappings, $lineDeskBuckets] = $this->resolveImportMappingInputs(
+            $scenario,
+            $deskBucketMappingsOverride,
+            $lineDeskBucketsOverride,
+            $ignoreScenarioImportMapping,
         );
         $deskKeys = $this->deskKeysForScoring($scenario, $deskMappings, $lineDeskBuckets, $preloadedLines);
         $deskEntries = $this->deskEntriesForEditor($scenario->desk_rank, $deskKeys);
@@ -1159,8 +1160,13 @@ final class ScenarioScoreService
      * @param  list<array<string, mixed>>  $scoredLines
      * @return array<string, mixed>
      */
-    public function buildSortExplanation(BidScenario $scenario, array $scoredLines): array
-    {
+    public function buildSortExplanation(
+        BidScenario $scenario,
+        array $scoredLines,
+        ?array $deskBucketMappingsOverride = null,
+        ?array $lineDeskBucketsOverride = null,
+        bool $ignoreScenarioImportMapping = false,
+    ): array {
         $scenario->loadMissing('import');
 
         $weights = array_merge(self::defaultWeights(), $scenario->weights ?? []);
@@ -1170,8 +1176,12 @@ final class ScenarioScoreService
         );
         $sortMode = self::normalizeSortMode($weights['sort_mode'] ?? null);
 
-        $deskMappings = $this->condensedDesk->normalizeMappings($scenario->desk_bucket_mappings ?? []);
-        $lineDeskBuckets = $this->condensedDesk->normalizeLineBuckets($scenario->line_desk_buckets ?? []);
+        [$deskMappings, $lineDeskBuckets] = $this->resolveImportMappingInputs(
+            $scenario,
+            $deskBucketMappingsOverride,
+            $lineDeskBucketsOverride,
+            $ignoreScenarioImportMapping,
+        );
         $deskKeys = $this->condensedDesk->bucketsPresentInImport(
             $scenario->bid_import_id,
             $deskMappings,
@@ -1442,5 +1452,31 @@ final class ScenarioScoreService
                 $scenario->setAttribute($key, $original[$key]);
             }
         }
+    }
+
+    /**
+     * @return array{0: array<string, string>, 1: array<int, string>}
+     */
+    private function resolveImportMappingInputs(
+        BidScenario $scenario,
+        ?array $deskBucketMappingsOverride,
+        ?array $lineDeskBucketsOverride,
+        bool $ignoreScenarioImportMapping,
+    ): array {
+        if ($ignoreScenarioImportMapping) {
+            return [
+                $this->condensedDesk->normalizeMappings($deskBucketMappingsOverride ?? []),
+                $this->condensedDesk->normalizeLineBuckets($lineDeskBucketsOverride ?? []),
+            ];
+        }
+
+        return [
+            $this->condensedDesk->normalizeMappings(
+                $deskBucketMappingsOverride ?? $scenario->desk_bucket_mappings ?? [],
+            ),
+            $this->condensedDesk->normalizeLineBuckets(
+                $lineDeskBucketsOverride ?? $scenario->line_desk_buckets ?? [],
+            ),
+        ];
     }
 }

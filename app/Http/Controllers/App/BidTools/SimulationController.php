@@ -91,6 +91,8 @@ class SimulationController extends Controller
         $sim = $this->findSimulation($request, $simulation);
         $sim->load(['import', 'participants.scenario']);
 
+        $this->clearParticipantScenarioMappings($sim);
+
         $mappings = $sim->desk_bucket_mappings ?? [];
         $lineBuckets = $sim->line_desk_buckets ?? [];
 
@@ -343,6 +345,9 @@ class SimulationController extends Controller
                 ->with('error', 'Add at least one bidder before running the simulation.');
         }
 
+        $this->clearParticipantScenarioMappings($sim);
+        $sim->load('participants.scenario');
+
         $results = $this->engine->run($sim);
         $sim->update([
             'last_run_at' => now(),
@@ -358,6 +363,9 @@ class SimulationController extends Controller
     {
         $sim = $this->findSimulation($request, $simulation);
         $p = $this->findParticipant($sim, $participant);
+        $p->load('scenario');
+
+        $this->clearParticipantScenarioMappings($sim);
         $p->load('scenario');
 
         $payload = $this->engine->recommendationPayloadForParticipant($p, $sim);
@@ -520,9 +528,19 @@ class SimulationController extends Controller
      */
     private function profileTemplatesForSimulation(Request $request, BidSimulation $sim): array
     {
+        $participantScenarioIds = $sim->participants()
+            ->pluck('bid_scenario_id')
+            ->unique()
+            ->filter()
+            ->all();
+
         return BidScenario::query()
             ->where('user_id', $request->user()->id)
             ->where('bid_import_id', $sim->bid_import_id)
+            ->when(
+                $participantScenarioIds !== [],
+                fn ($query) => $query->whereNotIn('id', $participantScenarioIds),
+            )
             ->orderByDesc('updated_at')
             ->limit(50)
             ->get()

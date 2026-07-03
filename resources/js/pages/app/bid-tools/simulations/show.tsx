@@ -74,7 +74,6 @@ function ParticipantEditor({
     participant,
     profileDefaults,
     profileTemplates,
-    mappingDraft,
     simulationName,
     bidYear,
     otherParticipants,
@@ -83,10 +82,6 @@ function ParticipantEditor({
     participant: Participant;
     profileDefaults: BidderProfile;
     profileTemplates: ProfileTemplate[];
-    mappingDraft: {
-        desk_bucket_mappings: DeskBucketMapping[];
-        line_desk_buckets: { bid_line_id: number; bucket: string }[];
-    };
     simulationName: string;
     bidYear: number;
     otherParticipants: Participant[];
@@ -242,7 +237,6 @@ function ParticipantEditor({
                         onChange={(profile) => form.setData('profile', profile)}
                         hideVacationBank
                         hideLinePreview
-                        mappingDraft={mappingDraft}
                     />
 
                     <ParticipantRecommendationsPanel
@@ -342,14 +336,6 @@ export default function BidSimulationShow({
     useEffect(() => {
         addForm.setData('seniority_rank', participants.length + 1);
     }, [participants.length]);
-
-    const mappingDraft = useMemo(
-        () => ({
-            desk_bucket_mappings: deskBucketMappings,
-            line_desk_buckets: lineDeskBucketsToStorage(lineDeskBuckets),
-        }),
-        [deskBucketMappings, lineDeskBuckets],
-    );
 
     const saveSimulation = (e: React.FormEvent) => {
         e.preventDefault();
@@ -596,7 +582,6 @@ export default function BidSimulationShow({
                                     participant={p}
                                     profileDefaults={profileDefaults}
                                     profileTemplates={profileTemplates}
-                                    mappingDraft={mappingDraft}
                                     simulationName={simulation.name}
                                     bidYear={simulation.bid_year}
                                     otherParticipants={participants.filter(
@@ -669,7 +654,6 @@ export default function BidSimulationShow({
                             }
                             hideVacationBank
                             hideLinePreview
-                            mappingDraft={mappingDraft}
                         />
 
                         <Button type="submit" disabled={addForm.processing}>

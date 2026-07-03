@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
 use App\Services\BidTools\BidSimulationEngine;
 use App\Services\BidTools\CondensedBidderProfileMapper;
+use App\Services\BidTools\ScenarioScoreService;
 use Illuminate\Support\Facades\DB;
 
 function sampleBidderProfile(array $overrides = []): array
@@ -53,6 +54,19 @@ test('user can add bidder with inline profile and run simulation', function () {
         'name' => 'Test bid',
     ]);
 
+    BidScenario::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Saved template A',
+        'vacation_bank' => 12,
+    ]);
+    BidScenario::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Saved template B',
+        'vacation_bank' => 12,
+    ]);
+
     $this->actingAs($user)
         ->post(route('bid-tools.simulations.participants.store', $simulation->id), [
             'display_name' => 'Senior Person',
@@ -82,7 +96,7 @@ test('user can add bidder with inline profile and run simulation', function () {
         ->assertRedirect(route('bid-tools.simulations.show', $simulation->id));
 
     expect(BidSimulationParticipant::where('bid_simulation_id', $simulation->id)->count())->toBe(2);
-    expect(BidScenario::where('user_id', $user->id)->count())->toBe(2);
+    expect(BidScenario::where('user_id', $user->id)->count())->toBe(4);
 
     $this->actingAs($user)
         ->get(route('bid-tools.simulations.show', $simulation->id))
@@ -1058,4 +1072,76 @@ test('updating bidder profile does not persist import line mappings on scenario'
     expect($scenario->desk_bucket_mappings)->toBe([]);
     expect($scenario->line_desk_buckets)->toBe([]);
     expect($scenario->vacation_bank)->toBe(9);
+});
+
+test('simulation recommendations use simulation import mapping not stale bidder scenario mapping', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMinimalBidCsv($bidYear, '1', 'DS');
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Mapping score import',
+    )['import'];
+
+    @unlink($path);
+
+    $line = \App\Models\BidLine::query()
+        ->where('bid_import_id', $import->id)
+        ->firstOrFail();
+
+    $scenario = BidScenario::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Bidder prefs',
+        'vacation_bank' => 10,
+        'desk_bucket_mappings' => [],
+        'line_desk_buckets' => [
+            ['bid_line_id' => $line->id, 'bucket' => 'DG'],
+        ],
+    ]);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Mapping score test',
+        'desk_bucket_mappings' => [],
+        'line_desk_buckets' => [
+            ['bid_line_id' => $line->id, 'bucket' => 'DS7'],
+        ],
+    ]);
+
+    $participant = BidSimulationParticipant::create([
+        'bid_simulation_id' => $simulation->id,
+        'seniority_rank' => 1,
+        'display_name' => 'Alice',
+        'bid_scenario_id' => $scenario->id,
+    ]);
+
+    $scores = app(ScenarioScoreService::class)->scoreLines(
+        $scenario,
+        [$line->id],
+        deskBucketMappingsOverride: $simulation->desk_bucket_mappings,
+        lineDeskBucketsOverride: $simulation->line_desk_buckets,
+        ignoreScenarioImportMapping: true,
+    );
+
+    expect($scores[0]['breakdown']['group_bucket'])->toBe('DS7');
+
+    $this->actingAs($user)
+        ->getJson(route('bid-tools.simulations.participants.recommendations', [
+            $simulation->id,
+            $participant->id,
+        ]))
+        ->assertOk();
+
+    $scenario->refresh();
+    expect($scenario->desk_bucket_mappings)->toBe([]);
+    expect($scenario->line_desk_buckets)->toBe([]);
 });

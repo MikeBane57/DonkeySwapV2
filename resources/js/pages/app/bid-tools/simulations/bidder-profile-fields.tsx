@@ -233,7 +233,6 @@ export function BidderProfileFields({
     lines,
     hideVacationBank = false,
     hideLinePreview = false,
-    mappingDraft,
 }: {
     value: BidderProfile;
     onChange: (profile: BidderProfile) => void;
@@ -243,10 +242,6 @@ export function BidderProfileFields({
     lines?: LinePickerRow[];
     hideVacationBank?: boolean;
     hideLinePreview?: boolean;
-    mappingDraft?: {
-        desk_bucket_mappings: { desk_group: string; start_time: string | null; bucket: string }[];
-        line_desk_buckets: { bid_line_id: number; bucket: string }[];
-    };
 }) {
     const holidayRank = normalizeRankEntries(
         value.holiday_rank,
@@ -267,9 +262,8 @@ export function BidderProfileFields({
             holiday_rank: holidayRank,
             desk_rank: deskRank,
             personal_dates: personalDatesForSave(value.personal_dates),
-            ...(mappingDraft ?? {}),
         }),
-        [value, holidayRank, deskRank, mappingDraft],
+        [value, holidayRank, deskRank],
     );
 
     return (

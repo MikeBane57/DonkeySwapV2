@@ -42,6 +42,7 @@ final class BidSimulationEngine
         $minimumDepth = max(1, (int) $participant->seniority_rank);
 
         $mappingOverrides = $this->mappingOverridesForSimulation($simulation);
+        $usesSimulationMapping = $simulation !== null;
 
         $lineIds = BidLine::query()
             ->where('bid_import_id', $scenario->bid_import_id)
@@ -67,6 +68,7 @@ final class BidSimulationEngine
             deskBucketMappingsOverride: $mappingOverrides['desk_bucket_mappings'],
             lineDeskBucketsOverride: $mappingOverrides['line_desk_buckets'],
             preloadedLines: $preloadedLines,
+            ignoreScenarioImportMapping: $usesSimulationMapping,
         );
 
         $manualOrder = $scenario->manual_line_order;
@@ -90,7 +92,13 @@ final class BidSimulationEngine
             'computed_rows' => $computedRows,
             'order_source' => $usesManualOrder ? 'manual' : 'computed',
             'manual_line_order' => $usesManualOrder ? array_values($manualOrder) : null,
-            'sort_explanation' => $this->scoreService->buildSortExplanation($scenario, $scored),
+            'sort_explanation' => $this->scoreService->buildSortExplanation(
+                $scenario,
+                $scored,
+                $mappingOverrides['desk_bucket_mappings'],
+                $mappingOverrides['line_desk_buckets'],
+                $usesSimulationMapping,
+            ),
         ];
     }
 
@@ -136,6 +144,7 @@ final class BidSimulationEngine
         $simulation->load(['participants.scenario.import', 'import']);
         $participants = $simulation->participants->sortBy('seniority_rank')->values();
         $mappingOverrides = $this->mappingOverridesForSimulation($simulation);
+        $usesSimulationMapping = true;
 
         $allLineIds = BidLine::query()
             ->where('bid_import_id', $simulation->bid_import_id)
@@ -192,6 +201,7 @@ final class BidSimulationEngine
                     deskBucketMappingsOverride: $mappingOverrides['desk_bucket_mappings'],
                     lineDeskBucketsOverride: $mappingOverrides['line_desk_buckets'],
                     preloadedLines: $preloadedLines,
+                    ignoreScenarioImportMapping: $usesSimulationMapping,
                 );
             }
 
@@ -253,8 +263,8 @@ final class BidSimulationEngine
         }
 
         return [
-            'desk_bucket_mappings' => $simulation->desk_bucket_mappings ?? [],
-            'line_desk_buckets' => $simulation->line_desk_buckets ?? [],
+            'desk_bucket_mappings' => $simulation->desk_bucket_mappings,
+            'line_desk_buckets' => $simulation->line_desk_buckets,
         ];
     }
 
