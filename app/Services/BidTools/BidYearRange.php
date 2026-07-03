@@ -52,4 +52,20 @@ final class BidYearRange
 
         return $d->gte($start) && $d->lte($end);
     }
+
+    /**
+     * Sep–Feb months within the bid year (Feb start through following January).
+     */
+    public function isInSeptFebSeason(CarbonImmutable|string $date): bool
+    {
+        $d = $date instanceof CarbonImmutable
+            ? $date->startOfDay()
+            : CarbonImmutable::parse($date)->startOfDay();
+
+        if (! $this->containsDate($d)) {
+            return false;
+        }
+
+        return in_array((int) $d->month, [9, 10, 11, 12, 1, 2], true);
+    }
 }
