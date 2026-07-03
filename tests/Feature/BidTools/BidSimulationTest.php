@@ -626,3 +626,111 @@ test('user can save simulation-level import file mapping', function () {
     expect($simulation->desk_bucket_mappings)->toHaveCount(1);
     expect($simulation->desk_bucket_mappings[0]['bucket'])->toBe('DS7');
 });
+
+test('saving simulation mapping clears stale per-bidder scenario mappings', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 3);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Clear mapping import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Clear mapping test',
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Alice',
+        'seniority_rank' => 1,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $scenario = BidScenario::first();
+    $scenario->update([
+        'desk_bucket_mappings' => [
+            ['desk_group' => 'DS', 'start_time' => '06:00', 'bucket' => 'DG'],
+        ],
+        'line_desk_buckets' => [
+            ['bid_line_id' => 1, 'bucket' => 'AS'],
+        ],
+    ]);
+
+    $this->actingAs($user)->put(route('bid-tools.simulations.update', $simulation->id), [
+        'name' => 'Clear mapping test',
+        'desk_bucket_mappings' => [
+            ['desk_group' => 'DS', 'start_time' => '06:00', 'bucket' => 'DS7'],
+        ],
+        'line_desk_buckets' => [],
+    ]);
+
+    $scenario->refresh();
+
+    expect($scenario->desk_bucket_mappings)->toBe([]);
+    expect($scenario->line_desk_buckets)->toBe([]);
+});
+
+test('updating bidder profile does not persist import line mappings on scenario', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 3);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Bidder save import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Bidder save test',
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Alice',
+        'seniority_rank' => 1,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $participant = BidSimulationParticipant::first();
+    $scenario = BidScenario::first();
+    $scenario->update([
+        'desk_bucket_mappings' => [
+            ['desk_group' => 'DS', 'start_time' => '06:00', 'bucket' => 'DG'],
+        ],
+    ]);
+
+    $this->actingAs($user)->put(
+        route('bid-tools.simulations.participants.update', [$simulation->id, $participant->id]),
+        [
+            'display_name' => 'Alice Updated',
+            'seniority_rank' => 1,
+            'profile' => sampleBidderProfile(['vacation_bank' => 9]),
+        ],
+    );
+
+    $scenario->refresh();
+
+    expect($scenario->desk_bucket_mappings)->toBe([]);
+    expect($scenario->line_desk_buckets)->toBe([]);
+    expect($scenario->vacation_bank)->toBe(9);
+});

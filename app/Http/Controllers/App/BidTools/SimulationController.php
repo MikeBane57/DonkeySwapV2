@@ -130,6 +130,8 @@ class SimulationController extends Controller
             'last_run_results' => null,
         ]);
 
+        $this->clearParticipantScenarioMappings($sim);
+
         return redirect()
             ->route('bid-tools.simulations.show', $sim->id)
             ->with('success', 'Simulation updated.');
@@ -200,8 +202,8 @@ class SimulationController extends Controller
                         $legacyRanges,
                     ),
                     'code_overrides' => $scenario->code_overrides ?? [],
-                    'desk_bucket_mappings' => $scenario->desk_bucket_mappings ?? [],
-                    'line_desk_buckets' => $scenario->line_desk_buckets ?? [],
+                    'desk_bucket_mappings' => [],
+                    'line_desk_buckets' => [],
                 ]);
 
                 BidSimulationParticipant::create([
@@ -428,6 +430,26 @@ class SimulationController extends Controller
         }
 
         return $candidate;
+    }
+
+    /**
+     * Simulation import mapping is stored on the simulation, not per-bidder scenarios.
+     */
+    private function clearParticipantScenarioMappings(BidSimulation $simulation): void
+    {
+        $scenarioIds = $simulation->participants()->pluck('bid_scenario_id')->unique()->filter()->all();
+
+        if ($scenarioIds === []) {
+            return;
+        }
+
+        BidScenario::query()
+            ->whereIn('id', $scenarioIds)
+            ->get()
+            ->each(fn (BidScenario $scenario) => $scenario->update([
+                'desk_bucket_mappings' => [],
+                'line_desk_buckets' => [],
+            ]));
     }
 
     /**
