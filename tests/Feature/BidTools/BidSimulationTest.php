@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
 use App\Services\BidTools\BidSimulationEngine;
 use App\Services\BidTools\CondensedBidderProfileMapper;
+use Illuminate\Support\Facades\DB;
 
 function sampleBidderProfile(array $overrides = []): array
 {
@@ -132,7 +133,7 @@ test('simulation run completes with many participants', function () {
         'name' => 'Large simulation',
     ]);
 
-    for ($rank = 1; $rank <= 24; $rank++) {
+    for ($rank = 1; $rank <= 54; $rank++) {
         $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
             'display_name' => "Bidder {$rank}",
             'seniority_rank' => $rank,
@@ -155,8 +156,61 @@ test('simulation run completes with many participants', function () {
 
     $simulation->refresh();
 
-    expect($simulation->last_run_results)->toHaveCount(24);
-    expect(collect($simulation->last_run_results)->pluck('bid_line_id')->unique())->toHaveCount(24);
+    expect($simulation->last_run_results)->toHaveCount(54);
+    expect(collect($simulation->last_run_results)->pluck('bid_line_id')->filter()->unique())->toHaveCount(54);
+});
+
+test('simulation run does not reload bid line days for every participant scenario', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 55);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Query count import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Query count simulation',
+    ]);
+
+    for ($rank = 1; $rank <= 12; $rank++) {
+        $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+            'display_name' => "Bidder {$rank}",
+            'seniority_rank' => $rank,
+            'profile' => sampleBidderProfile([
+                'weights' => [
+                    'holiday' => $rank,
+                    'personal' => 1,
+                    'desk' => 1,
+                    'vacation_penalty' => 1,
+                    'criteria_order' => ['holiday', 'personal', 'desk'],
+                ],
+            ]),
+        ]);
+    }
+
+    $simulation->load(['participants.scenario.import', 'import']);
+
+    DB::enableQueryLog();
+
+    app(BidSimulationEngine::class)->run($simulation);
+
+    $dayQueries = collect(DB::getQueryLog())
+        ->filter(fn (array $query): bool => str_contains($query['query'], 'bid_line_days'))
+        ->count();
+
+    expect($dayQueries)->toBeLessThanOrEqual(2);
 });
 
 test('user can add bidder from saved profile template with custom identity fields', function () {

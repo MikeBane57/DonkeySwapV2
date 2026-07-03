@@ -3,6 +3,7 @@
 namespace App\Services\BidTools;
 
 use App\Models\BidLine;
+use Illuminate\Support\Collection;
 
 /**
  * Maps bid lines to desk preference buckets using desk group codes.
@@ -59,6 +60,9 @@ final class CondensedDeskClassifier
     public function __construct(
         private readonly StartTimeNormalizer $startTimes,
     ) {}
+
+    /** @var array<string, list<string>> */
+    private array $bucketsPresentCache = [];
 
     public function bucketForLine(BidLine $line, array $mappings = [], array $lineBuckets = []): string
     {
@@ -303,32 +307,59 @@ final class CondensedDeskClassifier
     }
 
     /**
+     * @param  list<array{desk_group: string, start_time: string|null, bucket: string}>  $mappings
+     * @param  array<int, string>  $lineBuckets
+     * @param  Collection<int, BidLine>|null  $lines
      * @return list<string>
      */
-    public function bucketsPresentInImport(int $bidImportId, array $mappings = [], array $lineBuckets = []): array
-    {
+    public function bucketsPresentInImport(
+        int $bidImportId,
+        array $mappings = [],
+        array $lineBuckets = [],
+        ?Collection $lines = null,
+    ): array {
         $normalizedMappings = $this->normalizeMappings($mappings);
         $normalizedLineBuckets = $this->normalizeLineBuckets($lineBuckets);
+        $cacheKey = $bidImportId.':'.md5(json_encode([$normalizedMappings, $normalizedLineBuckets]));
+
+        if ($lines === null && isset($this->bucketsPresentCache[$cacheKey])) {
+            return $this->bucketsPresentCache[$cacheKey];
+        }
+
         $seen = [];
-        BidLine::query()
-            ->where('bid_import_id', $bidImportId)
-            ->with('days')
-            ->select(['id', 'desk_group', 'start_time', 'bid_import_id'])
-            ->chunkById(200, function ($lines) use (&$seen, $normalizedMappings, $normalizedLineBuckets) {
-                foreach ($lines as $line) {
-                    $bucket = $this->bucketForLine($line, $normalizedMappings, $normalizedLineBuckets);
-                    if ($bucket !== 'unknown') {
-                        $seen[$bucket] = true;
-                    }
+        $collectBuckets = function (iterable $lineSet) use (&$seen, $normalizedMappings, $normalizedLineBuckets): void {
+            foreach ($lineSet as $line) {
+                $bucket = $this->bucketForLine($line, $normalizedMappings, $normalizedLineBuckets);
+                if ($bucket !== 'unknown') {
+                    $seen[$bucket] = true;
                 }
-            });
+            }
+        };
+
+        if ($lines !== null) {
+            $collectBuckets($lines);
+        } else {
+            BidLine::query()
+                ->where('bid_import_id', $bidImportId)
+                ->with('days')
+                ->select(['id', 'desk_group', 'start_time', 'bid_import_id'])
+                ->chunkById(200, function ($chunk) use ($collectBuckets): void {
+                    $collectBuckets($chunk);
+                });
+        }
 
         $ordered = array_values(array_filter(
             self::BUCKETS,
             fn (string $bucket) => isset($seen[$bucket]),
         ));
 
-        return $ordered !== [] ? $ordered : self::BUCKETS;
+        $result = $ordered !== [] ? $ordered : self::BUCKETS;
+
+        if ($lines === null) {
+            $this->bucketsPresentCache[$cacheKey] = $result;
+        }
+
+        return $result;
     }
 
     /**

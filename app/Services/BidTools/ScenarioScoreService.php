@@ -5,6 +5,7 @@ namespace App\Services\BidTools;
 use App\Models\BidLine;
 use App\Models\BidScenario;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 
 final class ScenarioScoreService
 {
@@ -51,6 +52,7 @@ final class ScenarioScoreService
         bool $withMetrics = true,
         ?array $deskBucketMappingsOverride = null,
         ?array $lineDeskBucketsOverride = null,
+        ?Collection $preloadedLines = null,
     ): array {
         $scenario->loadMissing('import');
 
@@ -72,16 +74,18 @@ final class ScenarioScoreService
         $lineDeskBuckets = $this->condensedDesk->normalizeLineBuckets(
             $lineDeskBucketsOverride ?? $scenario->line_desk_buckets ?? [],
         );
-        $deskKeys = $this->deskKeysForScoring($scenario, $deskMappings, $lineDeskBuckets);
+        $deskKeys = $this->deskKeysForScoring($scenario, $deskMappings, $lineDeskBuckets, $preloadedLines);
         $deskEntries = $this->deskEntriesForEditor($scenario->desk_rank, $deskKeys);
 
         $import = $scenario->import;
-        $lines = BidLine::query()
-            ->where('bid_import_id', $scenario->bid_import_id)
-            ->whereIn('id', $lineIds)
-            ->with(['days' => fn ($query) => $query->orderBy('assignment_date')])
-            ->get()
-            ->keyBy('id');
+        $lines = $preloadedLines !== null
+            ? $preloadedLines
+            : BidLine::query()
+                ->where('bid_import_id', $scenario->bid_import_id)
+                ->whereIn('id', $lineIds)
+                ->with(['days' => fn ($query) => $query->orderBy('assignment_date')])
+                ->get()
+                ->keyBy('id');
 
         $out = [];
         foreach ($lineIds as $lid) {
@@ -695,13 +699,18 @@ final class ScenarioScoreService
      * @param  array<int, string>  $lineDeskBuckets
      * @return list<string>
      */
-    private function deskKeysForScoring(BidScenario $scenario, array $deskMappings, array $lineDeskBuckets): array
-    {
+    private function deskKeysForScoring(
+        BidScenario $scenario,
+        array $deskMappings,
+        array $lineDeskBuckets,
+        ?Collection $preloadedLines = null,
+    ): array {
         if ($deskMappings !== [] || $lineDeskBuckets !== []) {
             return $this->condensedDesk->bucketsPresentInImport(
                 $scenario->bid_import_id,
                 $deskMappings,
                 $lineDeskBuckets,
+                $preloadedLines,
             );
         }
 
@@ -727,6 +736,7 @@ final class ScenarioScoreService
             $scenario->bid_import_id,
             $deskMappings,
             $lineDeskBuckets,
+            $preloadedLines,
         );
     }
 

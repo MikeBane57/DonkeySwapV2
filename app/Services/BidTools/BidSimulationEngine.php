@@ -32,22 +32,30 @@ final class BidSimulationEngine
             ->pluck('id')
             ->all();
 
+        $preloadedLines = BidLine::query()
+            ->where('bid_import_id', $scenario->bid_import_id)
+            ->whereIn('id', $lineIds)
+            ->with(['days' => fn ($query) => $query->orderBy('assignment_date')])
+            ->get()
+            ->keyBy('id');
+
+        foreach ($preloadedLines as $line) {
+            $line->setRelation('import', $scenario->import);
+        }
+
         $scored = $this->scoreService->scoreLines(
             $scenario,
             $lineIds,
             withMetrics: true,
             deskBucketMappingsOverride: $mappingOverrides['desk_bucket_mappings'],
             lineDeskBucketsOverride: $mappingOverrides['line_desk_buckets'],
+            preloadedLines: $preloadedLines,
         );
-        $lineModels = BidLine::query()
-            ->whereIn('id', $lineIds)
-            ->get()
-            ->keyBy('id');
 
         $rows = [];
         foreach ($scored as $index => $row) {
             $rank = $index + 1;
-            $lineModel = $lineModels->get((int) $row['bid_line_id']);
+            $lineModel = $preloadedLines->get((int) $row['bid_line_id']);
             $formatted = $lineModel ? $this->rowFormatter->format($lineModel) : null;
 
             $rows[] = [
@@ -83,10 +91,17 @@ final class BidSimulationEngine
             ->pluck('id')
             ->all();
 
-        $linesById = BidLine::query()
+        $preloadedLines = BidLine::query()
+            ->where('bid_import_id', $simulation->bid_import_id)
             ->whereIn('id', $allLineIds)
-            ->get(['id', 'line_num', 'desk_group', 'start_time'])
+            ->with(['days' => fn ($query) => $query->orderBy('assignment_date')])
+            ->get()
             ->keyBy('id');
+
+        $import = $simulation->import;
+        foreach ($preloadedLines as $line) {
+            $line->setRelation('import', $import);
+        }
 
         /** @var array<int, list<array<string, mixed>>> $rankingsByScenarioId */
         $rankingsByScenarioId = [];
@@ -124,6 +139,7 @@ final class BidSimulationEngine
                     withMetrics: false,
                     deskBucketMappingsOverride: $mappingOverrides['desk_bucket_mappings'],
                     lineDeskBucketsOverride: $mappingOverrides['line_desk_buckets'],
+                    preloadedLines: $preloadedLines,
                 );
             }
 
@@ -148,7 +164,7 @@ final class BidSimulationEngine
 
             $lineId = (int) $pick['bid_line_id'];
             $takenLineIds[$lineId] = true;
-            $line = $linesById->get($lineId);
+            $line = $preloadedLines->get($lineId);
 
             $results[] = [
                 'participant_id' => $participant->id,
