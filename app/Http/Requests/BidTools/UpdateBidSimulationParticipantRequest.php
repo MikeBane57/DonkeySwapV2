@@ -6,7 +6,6 @@ use App\Http\Requests\BidTools\Concerns\BidderProfileRules;
 use App\Models\BidSimulation;
 use App\Models\BidSimulationParticipant;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateBidSimulationParticipantRequest extends FormRequest
 {
@@ -24,9 +23,9 @@ class UpdateBidSimulationParticipantRequest extends FormRequest
     {
         $simulation = $this->route('simulation');
         $simulationId = $simulation instanceof BidSimulation ? $simulation->id : (int) $simulation;
-
-        $participant = $this->route('participant');
-        $participantId = $participant instanceof BidSimulationParticipant ? $participant->id : (int) $participant;
+        $existingCount = BidSimulationParticipant::query()
+            ->where('bid_simulation_id', $simulationId)
+            ->count();
 
         return array_merge([
             'display_name' => ['required', 'string', 'max:120'],
@@ -34,10 +33,7 @@ class UpdateBidSimulationParticipantRequest extends FormRequest
                 'required',
                 'integer',
                 'min:1',
-                'max:500',
-                Rule::unique('bid_simulation_participants', 'seniority_rank')
-                    ->where('bid_simulation_id', $simulationId)
-                    ->ignore($participantId),
+                'max:'.max(1, $existingCount),
             ],
             'skips_bid' => ['sometimes', 'boolean'],
         ], $this->bidderProfileRules());

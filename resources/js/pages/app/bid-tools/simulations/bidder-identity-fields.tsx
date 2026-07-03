@@ -1,6 +1,12 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { BidderSenioritySlotPicker } from '@/pages/app/bid-tools/simulations/bidder-seniority-slot-picker';
+
+type BidderSlot = {
+    seniority_rank: number;
+    display_name: string;
+};
 
 export function BidderIdentityFields({
     idPrefix,
@@ -14,6 +20,9 @@ export function BidderIdentityFields({
     onSkipsBidChange,
     displayNameError,
     seniorityRankError,
+    existingBidders,
+    seniorityMode,
+    originalSeniorityRank,
 }: {
     idPrefix: string;
     displayName: string;
@@ -26,6 +35,9 @@ export function BidderIdentityFields({
     onSkipsBidChange?: (value: boolean) => void;
     displayNameError?: string;
     seniorityRankError?: string;
+    existingBidders?: BidderSlot[];
+    seniorityMode?: 'insert' | 'reposition';
+    originalSeniorityRank?: number;
 }) {
     return (
         <div className="space-y-4 rounded-lg border border-sidebar-border/60 bg-muted/10 p-3">
@@ -49,25 +61,39 @@ export function BidderIdentityFields({
                     )}
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor={`${idPrefix}-seniority-rank`}>
-                        Seniority rank
-                    </Label>
-                    <Input
-                        id={`${idPrefix}-seniority-rank`}
-                        type="number"
-                        min={1}
-                        value={seniorityRank}
-                        onChange={(e) =>
-                            onSeniorityRankChange(Number(e.target.value))
-                        }
-                    />
-                    <p className="text-xs text-muted-foreground">
-                        Pick order and minimum lines to rank on bid sheet
-                    </p>
-                    {seniorityRankError && (
-                        <p className="text-sm text-destructive">
-                            {seniorityRankError}
-                        </p>
+                    {existingBidders && seniorityMode ? (
+                        <BidderSenioritySlotPicker
+                            idPrefix={idPrefix}
+                            value={seniorityRank}
+                            onChange={onSeniorityRankChange}
+                            existingBidders={existingBidders}
+                            mode={seniorityMode}
+                            currentRank={originalSeniorityRank}
+                            error={seniorityRankError}
+                        />
+                    ) : (
+                        <>
+                            <Label htmlFor={`${idPrefix}-seniority-rank`}>
+                                Seniority rank
+                            </Label>
+                            <Input
+                                id={`${idPrefix}-seniority-rank`}
+                                type="number"
+                                min={1}
+                                value={seniorityRank}
+                                onChange={(e) =>
+                                    onSeniorityRankChange(Number(e.target.value))
+                                }
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Pick order and minimum lines to rank on bid sheet
+                            </p>
+                            {seniorityRankError && (
+                                <p className="text-sm text-destructive">
+                                    {seniorityRankError}
+                                </p>
+                            )}
+                        </>
                     )}
                 </div>
             </div>

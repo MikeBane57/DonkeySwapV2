@@ -19,6 +19,7 @@ use App\Services\BidTools\BidScenarioProfileBuilder;
 use App\Services\BidTools\BidSimulationEngine;
 use App\Services\BidTools\ManualLineOrderService;
 use App\Services\BidTools\ScenarioScoreService;
+use App\Services\BidTools\SimulationParticipantSeniorityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,6 +36,7 @@ class SimulationController extends Controller
         private readonly BidLinePreferenceCatalog $preferenceCatalog,
         private readonly ScenarioScoreService $scoreService,
         private readonly ManualLineOrderService $manualLineOrder,
+        private readonly SimulationParticipantSeniorityService $seniorityService,
     ) {}
 
     public function index(Request $request): Response
@@ -238,6 +240,9 @@ class SimulationController extends Controller
         DB::transaction(function () use ($request, $sim) {
             $displayName = $request->validated('display_name');
             $scenarioName = "{$displayName} · {$sim->name}";
+            $seniorityRank = (int) $request->validated('seniority_rank');
+
+            $this->seniorityService->makeRoomForInsert($sim, $seniorityRank);
 
             $scenario = $this->profileBuilder->createForSimulation(
                 $request->user()->id,
@@ -249,7 +254,7 @@ class SimulationController extends Controller
             BidSimulationParticipant::create([
                 'bid_simulation_id' => $sim->id,
                 'display_name' => $displayName,
-                'seniority_rank' => (int) $request->validated('seniority_rank'),
+                'seniority_rank' => $seniorityRank,
                 'skips_bid' => (bool) $request->validated('skips_bid'),
                 'bid_scenario_id' => $scenario->id,
             ]);
@@ -273,12 +278,15 @@ class SimulationController extends Controller
 
         DB::transaction(function () use ($request, $sim, $p) {
             $displayName = $request->validated('display_name');
+            $newRank = (int) $request->validated('seniority_rank');
+            $oldRank = (int) $p->seniority_rank;
 
             $p->update([
                 'display_name' => $displayName,
-                'seniority_rank' => (int) $request->validated('seniority_rank'),
                 'skips_bid' => (bool) $request->validated('skips_bid'),
             ]);
+
+            $this->seniorityService->reposition($p, $newRank, $oldRank);
 
             if ($p->scenario) {
                 $p->scenario->update([

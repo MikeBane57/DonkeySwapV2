@@ -275,7 +275,7 @@ test('user can add bidder from saved profile template with custom identity field
     $this->actingAs($user)
         ->post(route('bid-tools.simulations.participants.store', $simulation->id), [
             'display_name' => 'From template',
-            'seniority_rank' => 4,
+            'seniority_rank' => 1,
             'profile' => $copiedProfile,
         ])
         ->assertRedirect(route('bid-tools.simulations.show', $simulation->id));
@@ -284,7 +284,7 @@ test('user can add bidder from saved profile template with custom identity field
     $scenario = BidScenario::whereKey($participant->bid_scenario_id)->first();
 
     expect($participant->display_name)->toBe('From template');
-    expect($participant->seniority_rank)->toBe(4);
+    expect($participant->seniority_rank)->toBe(1);
     expect($scenario->vacation_bank)->toBe(7);
     expect($scenario->weights['holiday'])->toBe(5);
     expect($scenario->weights['criteria_order'])->toBe(['holiday', 'desk', 'personal']);
@@ -328,7 +328,7 @@ test('user can update bidder profile inline', function () {
         route('bid-tools.simulations.participants.update', [$simulation->id, $participant->id]),
         [
             'display_name' => 'Alice Updated',
-            'seniority_rank' => 2,
+            'seniority_rank' => 1,
             'profile' => sampleBidderProfile(['vacation_bank' => 8]),
         ],
     )->assertRedirect(route('bid-tools.simulations.show', $simulation->id));
@@ -337,7 +337,7 @@ test('user can update bidder profile inline', function () {
     $scenario->refresh();
 
     expect($participant->display_name)->toBe('Alice Updated');
-    expect($participant->seniority_rank)->toBe(2);
+    expect($participant->seniority_rank)->toBe(1);
     expect($scenario->vacation_bank)->toBe(8);
     expect($scenario->name)->toBe('Alice Updated · Update test');
 });
@@ -546,6 +546,130 @@ test('updating bidder preferences clears manual line order', function () {
     ])->assertRedirect();
 
     expect($participant->scenario->fresh()->manual_line_order)->toBeNull();
+});
+
+test('adding a bidder at an occupied slot shifts lower bidders down', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 2);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Insert slot import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Insert slot test',
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Alice',
+        'seniority_rank' => 1,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Bob',
+        'seniority_rank' => 2,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Charlie',
+        'seniority_rank' => 2,
+        'profile' => sampleBidderProfile(),
+    ])->assertRedirect();
+
+    $participants = BidSimulationParticipant::query()
+        ->where('bid_simulation_id', $simulation->id)
+        ->orderBy('seniority_rank')
+        ->get();
+
+    expect($participants)->toHaveCount(3);
+    expect($participants->pluck('display_name', 'seniority_rank')->all())->toBe([
+        1 => 'Alice',
+        2 => 'Charlie',
+        3 => 'Bob',
+    ]);
+});
+
+test('updating bidder pick order repositions other bidders', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 2);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Reposition import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Reposition test',
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Alice',
+        'seniority_rank' => 1,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Bob',
+        'seniority_rank' => 2,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Carol',
+        'seniority_rank' => 3,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $carol = BidSimulationParticipant::query()
+        ->where('bid_simulation_id', $simulation->id)
+        ->where('display_name', 'Carol')
+        ->first();
+
+    $this->actingAs($user)->put(route('bid-tools.simulations.participants.update', [
+        $simulation->id,
+        $carol->id,
+    ]), [
+        'display_name' => 'Carol',
+        'seniority_rank' => 1,
+        'skips_bid' => false,
+        'profile' => sampleBidderProfile(),
+    ])->assertRedirect();
+
+    $participants = BidSimulationParticipant::query()
+        ->where('bid_simulation_id', $simulation->id)
+        ->orderBy('seniority_rank')
+        ->get();
+
+    expect($participants->pluck('display_name', 'seniority_rank')->all())->toBe([
+        1 => 'Carol',
+        2 => 'Alice',
+        3 => 'Bob',
+    ]);
 });
 
 test('removing bidder deletes unused scenario profile', function () {

@@ -1,6 +1,6 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { ChevronDown, Copy, Play, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -77,6 +77,7 @@ function ParticipantEditor({
     mappingDraft,
     simulationName,
     bidYear,
+    otherParticipants,
 }: {
     simulationId: number;
     participant: Participant;
@@ -88,6 +89,7 @@ function ParticipantEditor({
     };
     simulationName: string;
     bidYear: number;
+    otherParticipants: Participant[];
 }) {
     const [open, setOpen] = useState(false);
     const form = useForm({
@@ -196,6 +198,12 @@ function ParticipantEditor({
                         }
                         displayNameError={form.errors.display_name}
                         seniorityRankError={form.errors.seniority_rank}
+                        existingBidders={otherParticipants.map((p) => ({
+                            seniority_rank: p.seniority_rank,
+                            display_name: p.display_name,
+                        }))}
+                        seniorityMode="reposition"
+                        originalSeniorityRank={participant.seniority_rank}
                     />
 
                     {profileTemplates.length > 0 && (
@@ -331,6 +339,10 @@ export default function BidSimulationShow({
         profile: emptyBidderProfile(profileDefaults),
     });
 
+    useEffect(() => {
+        addForm.setData('seniority_rank', participants.length + 1);
+    }, [participants.length]);
+
     const mappingDraft = useMemo(
         () => ({
             desk_bucket_mappings: deskBucketMappings,
@@ -436,7 +448,7 @@ export default function BidSimulationShow({
                     setSelectedTemplateId(null);
                     addForm.setData({
                         display_name: '',
-                        seniority_rank: participants.length + 2,
+                        seniority_rank: participants.length + 1,
                         skips_bid: false,
                         profile: emptyBidderProfile(profileDefaults),
                     });
@@ -587,6 +599,9 @@ export default function BidSimulationShow({
                                     mappingDraft={mappingDraft}
                                     simulationName={simulation.name}
                                     bidYear={simulation.bid_year}
+                                    otherParticipants={participants.filter(
+                                        (row) => row.id !== p.id,
+                                    )}
                                 />
                             ))}
                         </div>
@@ -629,6 +644,11 @@ export default function BidSimulationShow({
                             }
                             displayNameError={addForm.errors.display_name}
                             seniorityRankError={addForm.errors.seniority_rank}
+                            existingBidders={participants.map((p) => ({
+                                seniority_rank: p.seniority_rank,
+                                display_name: p.display_name,
+                            }))}
+                            seniorityMode="insert"
                         />
 
                         <ProfileSourcePicker
