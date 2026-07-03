@@ -8,6 +8,12 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
+import {
+    formatWeekendBlockMetrics,
+    formatWeekendMetrics,
+    type LineMetrics,
+} from '@/pages/app/bid-tools/holiday-metrics';
+import { KeyHolidayCell } from '@/pages/app/bid-tools/key-holiday-cell';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -24,14 +30,7 @@ type LineRow = {
     rotation: string | null;
     workdays_from_file: number | null;
     workdays_computed: number;
-    metrics: {
-        holidays_off: number;
-        fri_off: number;
-        sat_off: number;
-        sun_off: number;
-        fri_sat_sun_all_off: number;
-        sat_sun_both_off: number;
-    };
+    metrics: LineMetrics;
     rotation_analysis: {
         non_canonical_runs: number[];
         notes: string[];
@@ -39,6 +38,29 @@ type LineRow = {
     training_summary: string;
     schedule_callouts: string;
 };
+
+function WeekendMetricsCell({ metrics }: { metrics: LineMetrics }) {
+    const septFeb = metrics.sept_feb;
+
+    return (
+        <div>
+            <div>{formatWeekendMetrics(metrics)}</div>
+            <div className="text-muted-foreground">
+                F–Su {metrics.fri_sat_sun_all_off} · Sa–Su{' '}
+                {metrics.sat_sun_both_off}
+            </div>
+            {septFeb && (
+                <div className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                    <span className="font-medium text-foreground/80">
+                        Sep–Feb:
+                    </span>{' '}
+                    {formatWeekendMetrics(septFeb)}
+                    <div>{formatWeekendBlockMetrics(septFeb)}</div>
+                </div>
+            )}
+        </div>
+    );
+}
 
 export default function BidToolsLines({
     import: bidImport,
@@ -68,6 +90,12 @@ export default function BidToolsLines({
                                 No current import to show.
                             </p>
                         )}
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            Xmas, T&apos;giving, and Jul 4 show whether those
+                            holiday dates are off, with days-off context for the
+                            primary date. F/Sa/Su counts are full bid year; Sep–Feb
+                            shows the fall/winter months only.
+                        </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         {years.length > 0 && (
@@ -130,21 +158,50 @@ export default function BidToolsLines({
                                 </div>
                                 <div>
                                     <dt className="text-[10px] uppercase text-muted-foreground">
-                                        F / Sa / Su
+                                        Xmas
                                     </dt>
                                     <dd>
-                                        {row.metrics.fri_off}/
-                                        {row.metrics.sat_off}/
-                                        {row.metrics.sun_off}
+                                        <KeyHolidayCell
+                                            group={
+                                                row.metrics.key_holidays
+                                                    ?.christmas
+                                            }
+                                        />
                                     </dd>
                                 </div>
                                 <div>
                                     <dt className="text-[10px] uppercase text-muted-foreground">
-                                        F–Su / Sa–Su
+                                        T&apos;giving
                                     </dt>
                                     <dd>
-                                        {row.metrics.fri_sat_sun_all_off} /{' '}
-                                        {row.metrics.sat_sun_both_off}
+                                        <KeyHolidayCell
+                                            group={
+                                                row.metrics.key_holidays
+                                                    ?.thanksgiving
+                                            }
+                                        />
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-[10px] uppercase text-muted-foreground">
+                                        Jul 4
+                                    </dt>
+                                    <dd>
+                                        <KeyHolidayCell
+                                            group={
+                                                row.metrics.key_holidays?.july_4
+                                            }
+                                        />
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-[10px] uppercase text-muted-foreground">
+                                        F / Sa / Su
+                                    </dt>
+                                    <dd>
+                                        <WeekendMetricsCell
+                                            metrics={row.metrics}
+                                        />
                                     </dd>
                                 </div>
                             </dl>
@@ -168,7 +225,7 @@ export default function BidToolsLines({
                 </div>
 
                 <div className="hidden overflow-x-auto rounded-lg border border-sidebar-border/70 md:block">
-                    <table className="w-full min-w-[1200px] border-collapse text-left text-sm">
+                    <table className="w-full min-w-[1400px] border-collapse text-left text-sm">
                         <thead>
                             <tr className="border-b bg-muted/50">
                                 <th className="p-2 font-medium">Line</th>
@@ -178,6 +235,9 @@ export default function BidToolsLines({
                                 <th className="p-2 font-medium">Rot</th>
                                 <th className="p-2 font-medium">WD</th>
                                 <th className="p-2 font-medium">Hol off</th>
+                                <th className="p-2 font-medium">Xmas</th>
+                                <th className="p-2 font-medium">T&apos;giving</th>
+                                <th className="p-2 font-medium">Jul 4</th>
                                 <th className="p-2 font-medium">F/Sa/Su</th>
                                 <th className="max-w-[200px] p-2 font-medium">
                                     Training (SP/FA + TAM/TPM + date)
@@ -214,14 +274,32 @@ export default function BidToolsLines({
                                         {row.metrics.holidays_off}
                                     </td>
                                     <td className="p-2 text-xs">
-                                        {row.metrics.fri_off}/
-                                        {row.metrics.sat_off}/
-                                        {row.metrics.sun_off}
-                                        <div className="text-muted-foreground">
-                                            F–Su{' '}
-                                            {row.metrics.fri_sat_sun_all_off} ·
-                                            Sa–Su {row.metrics.sat_sun_both_off}
-                                        </div>
+                                        <KeyHolidayCell
+                                            group={
+                                                row.metrics.key_holidays
+                                                    ?.christmas
+                                            }
+                                        />
+                                    </td>
+                                    <td className="p-2 text-xs">
+                                        <KeyHolidayCell
+                                            group={
+                                                row.metrics.key_holidays
+                                                    ?.thanksgiving
+                                            }
+                                        />
+                                    </td>
+                                    <td className="p-2 text-xs">
+                                        <KeyHolidayCell
+                                            group={
+                                                row.metrics.key_holidays?.july_4
+                                            }
+                                        />
+                                    </td>
+                                    <td className="p-2 text-xs">
+                                        <WeekendMetricsCell
+                                            metrics={row.metrics}
+                                        />
                                     </td>
                                     <td className="max-w-[220px] p-2 text-xs leading-snug">
                                         {row.training_summary}

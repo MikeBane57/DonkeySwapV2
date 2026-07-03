@@ -36,6 +36,17 @@ final class FederalHolidayCalendar
         'july_4' => ['july_4'],
     ];
 
+    /**
+     * Primary calendar date per key holiday group for days-off context.
+     *
+     * @var array<string, string>
+     */
+    public const KEY_HOLIDAY_ANCHOR_IDS = [
+        'christmas' => 'christmas_day',
+        'thanksgiving' => 'thanksgiving',
+        'july_4' => 'july_4',
+    ];
+
     public static function defaultHolidayPriority(string $id): string
     {
         return in_array($id, self::DEFAULT_RANKED_HOLIDAY_IDS, true) ? 'high' : 'ignore';

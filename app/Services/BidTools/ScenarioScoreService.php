@@ -119,15 +119,43 @@ final class ScenarioScoreService
                 : [
                     'holidays_off' => 0,
                     'key_holidays' => [
-                        'christmas' => ['off' => 0, 'total' => 0],
-                        'thanksgiving' => ['off' => 0, 'total' => 0],
-                        'july_4' => ['off' => 0, 'total' => 0],
+                        'christmas' => [
+                            'off' => 0,
+                            'total' => 0,
+                            'anchor_label' => null,
+                            'anchor_off' => false,
+                            'days_off_before' => 0,
+                            'days_off_after' => 0,
+                        ],
+                        'thanksgiving' => [
+                            'off' => 0,
+                            'total' => 0,
+                            'anchor_label' => null,
+                            'anchor_off' => false,
+                            'days_off_before' => 0,
+                            'days_off_after' => 0,
+                        ],
+                        'july_4' => [
+                            'off' => 0,
+                            'total' => 0,
+                            'anchor_label' => null,
+                            'anchor_off' => false,
+                            'days_off_before' => 0,
+                            'days_off_after' => 0,
+                        ],
                     ],
                     'fri_off' => 0,
                     'sat_off' => 0,
                     'sun_off' => 0,
                     'fri_sat_sun_all_off' => 0,
                     'sat_sun_both_off' => 0,
+                    'sept_feb' => [
+                        'fri_off' => 0,
+                        'sat_off' => 0,
+                        'sun_off' => 0,
+                        'fri_sat_sun_all_off' => 0,
+                        'sat_sun_both_off' => 0,
+                    ],
                 ];
 
             $parts = [
