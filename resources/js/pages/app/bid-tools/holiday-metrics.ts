@@ -186,3 +186,27 @@ export function formatWeekendMetrics(metrics: WeekendMetrics): string {
 export function formatWeekendBlockMetrics(metrics: WeekendMetrics): string {
     return `F–Su ${metrics.fri_sat_sun_all_off} · Sa–Su ${metrics.sat_sun_both_off}`;
 }
+
+export function keyHolidayPrintLabel(
+    group: KeyHolidayGroup | undefined,
+): string {
+    const label = keyHolidayLabel(group);
+    const contexts = keyHolidayContextLines(group);
+
+    if (contexts.length === 0) {
+        return label;
+    }
+
+    return `${label} (${contexts.join('; ')})`;
+}
+
+export function weekendMetricsPrintLabel(metrics: LineMetrics): string {
+    const fullYear = `${formatWeekendMetrics(metrics)}; ${formatWeekendBlockMetrics(metrics)}`;
+    const septFeb = metrics.sept_feb;
+
+    if (!septFeb) {
+        return fullYear;
+    }
+
+    return `${fullYear}; Sep–Feb ${formatWeekendMetrics(septFeb)}`;
+}
