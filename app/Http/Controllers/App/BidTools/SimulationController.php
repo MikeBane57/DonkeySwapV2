@@ -98,13 +98,17 @@ class SimulationController extends Controller
 
         return Inertia::render('app/bid-tools/simulations/show', [
             'simulation' => $this->simulationPayload($sim),
-            'profile_defaults' => $this->profileBuilder->defaultsForImport($sim->import),
+            'profile_defaults' => $this->profileBuilder->defaultsForImport(
+                $sim->import,
+                $mappings,
+                $lineBuckets,
+            ),
             'profile_templates' => $this->profileTemplatesForSimulation($request, $sim),
             'participants' => $sim->participants->map(fn (BidSimulationParticipant $p) => [
                 ...$this->participantPayload($p),
                 'profile' => $p->scenario
-                    ? $this->profileBuilder->toEditorPayload($p->scenario)
-                    : $this->profileBuilder->defaultsForImport($sim->import),
+                    ? $this->profileBuilder->toEditorPayload($p->scenario, $mappings, $lineBuckets)
+                    : $this->profileBuilder->defaultsForImport($sim->import, $mappings, $lineBuckets),
             ]),
             'desk_catalog' => $this->preferenceCatalog->deskCatalogForImport($sim->bid_import_id),
             'desk_bucket_reference' => $this->preferenceCatalog->deskBucketReferenceForImport(
@@ -251,6 +255,8 @@ class SimulationController extends Controller
                 $sim->import,
                 $scenarioName,
                 $request->validated('profile'),
+                $sim->desk_bucket_mappings ?? [],
+                $sim->line_desk_buckets ?? [],
             );
 
             BidSimulationParticipant::create([
@@ -293,11 +299,12 @@ class SimulationController extends Controller
             if ($p->scenario) {
                 $p->scenario->update([
                     'name' => "{$displayName} · {$sim->name}",
-                    'manual_line_order' => null,
                 ]);
                 $this->profileBuilder->applyToScenario(
                     $p->scenario,
                     $request->validated('profile'),
+                    $sim->desk_bucket_mappings ?? [],
+                    $sim->line_desk_buckets ?? [],
                 );
             }
 
@@ -547,7 +554,11 @@ class SimulationController extends Controller
             ->map(fn (BidScenario $scenario) => [
                 'id' => $scenario->id,
                 'name' => $scenario->name,
-                'profile' => $this->profileBuilder->toEditorPayload($scenario),
+                'profile' => $this->profileBuilder->toEditorPayload(
+                    $scenario,
+                    $sim->desk_bucket_mappings ?? [],
+                    $sim->line_desk_buckets ?? [],
+                ),
             ])
             ->values()
             ->all();

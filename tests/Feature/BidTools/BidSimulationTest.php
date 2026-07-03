@@ -508,7 +508,7 @@ test('participant manual line order overrides computed recommendations and simul
         ->assertJsonPath('rows.0.bid_line_id', $computed[0]['bid_line_id']);
 });
 
-test('updating bidder preferences clears manual line order', function () {
+test('updating bidder preferences preserves manual line order', function () {
     config(['features.bid_tools' => true]);
 
     $user = User::factory()->create();
@@ -560,7 +560,7 @@ test('updating bidder preferences clears manual line order', function () {
         'profile' => sampleBidderProfile(['vacation_bank' => 9]),
     ])->assertRedirect();
 
-    expect($participant->scenario->fresh()->manual_line_order)->toBeNull();
+    expect($participant->scenario->fresh()->manual_line_order)->toBe($lineIds);
 });
 
 test('adding a bidder at an occupied slot shifts lower bidders down', function () {
@@ -965,6 +965,94 @@ test('user can save simulation-level import file mapping', function () {
 
     expect($simulation->desk_bucket_mappings)->toHaveCount(1);
     expect($simulation->desk_bucket_mappings[0]['bucket'])->toBe('DS7');
+});
+
+test('saving bidder desk rank keeps DS7 in group one when simulation maps DS early starts to DS7', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMinimalBidCsv($bidYear, '1', 'DS');
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'DS7 tier import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'DS7 tier test',
+        'desk_bucket_mappings' => [
+            ['desk_group' => 'DS', 'start_time' => '06:00', 'bucket' => 'DS7'],
+        ],
+    ]);
+
+    $deskRank = [
+        ['key' => 'DS7', 'priority' => 'high', 'tier' => 1],
+        ['key' => 'DG', 'priority' => 'high', 'tier' => 2],
+        ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
+    ];
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Alice',
+        'seniority_rank' => 1,
+        'profile' => sampleBidderProfile(['desk_rank' => $deskRank]),
+    ]);
+
+    $participant = BidSimulationParticipant::query()
+        ->where('bid_simulation_id', $simulation->id)
+        ->firstOrFail();
+
+    $byKey = collect($participant->scenario->fresh()->desk_rank)->keyBy('key');
+
+    expect($byKey->has('DS7'))->toBeTrue();
+    expect((int) $byKey['DS7']['tier'])->toBe(1);
+
+    $payload = $this->actingAs($user)
+        ->getJson(route('bid-tools.simulations.participants.recommendations', [
+            $simulation->id,
+            $participant->id,
+        ]))
+        ->assertOk()
+        ->json();
+
+    expect($payload['sort_explanation']['desk_tier_groups'][0]['buckets'])->toContain('DS7');
+
+    $this->actingAs($user)->put(route('bid-tools.simulations.participants.update', [
+        $simulation->id,
+        $participant->id,
+    ]), [
+        'display_name' => 'Alice',
+        'seniority_rank' => 1,
+        'skips_bid' => false,
+        'profile' => sampleBidderProfile([
+            'desk_rank' => [
+                ['key' => 'DS7', 'priority' => 'high', 'tier' => 1],
+                ['key' => 'DG', 'priority' => 'low', 'tier' => 2],
+                ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
+            ],
+        ]),
+    ])->assertRedirect();
+
+    $byKey = collect($participant->scenario->fresh()->desk_rank)->keyBy('key');
+    expect((int) $byKey['DS7']['tier'])->toBe(1);
+
+    $payload = $this->actingAs($user)
+        ->getJson(route('bid-tools.simulations.participants.recommendations', [
+            $simulation->id,
+            $participant->id,
+        ]))
+        ->assertOk()
+        ->json();
+
+    expect($payload['sort_explanation']['desk_tier_groups'][0]['buckets'])->toContain('DS7');
 });
 
 test('saving simulation mapping clears stale per-bidder scenario mappings', function () {

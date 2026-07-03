@@ -10,14 +10,25 @@ final class BidScenarioProfileBuilder
     public function __construct(
         private readonly ScenarioScoreService $scoreService,
         private readonly CondensedBidderProfileMapper $condensedMapper,
+        private readonly BidLinePreferenceCatalog $preferenceCatalog,
     ) {}
 
     /**
+     * @param  list<array{desk_group: string, start_time: string|null, bucket: string}>  $deskBucketMappings
+     * @param  list<array{bid_line_id: int, bucket: string}>|array<int, string>  $lineDeskBuckets
      * @return array<string, mixed>
      */
-    public function defaultsForImport(BidImport $import): array
-    {
-        $condensed = $this->condensedMapper->condensedDefaults();
+    public function defaultsForImport(
+        BidImport $import,
+        array $deskBucketMappings = [],
+        array $lineDeskBuckets = [],
+    ): array {
+        $deskKeys = app(CondensedDeskClassifier::class)->bucketsPresentInImport(
+            $import->id,
+            $deskBucketMappings,
+            $lineDeskBuckets,
+        );
+        $condensed = $this->condensedMapper->condensedDefaultsForDeskKeys($deskKeys);
 
         return [
             'vacation_bank' => 15,
@@ -29,10 +40,15 @@ final class BidScenarioProfileBuilder
     }
 
     /**
+     * @param  list<array{desk_group: string, start_time: string|null, bucket: string}>  $deskBucketMappings
+     * @param  list<array{bid_line_id: int, bucket: string}>|array<int, string>  $lineDeskBuckets
      * @return array<string, mixed>
      */
-    public function toEditorPayload(BidScenario $scenario): array
-    {
+    public function toEditorPayload(
+        BidScenario $scenario,
+        array $deskBucketMappings = [],
+        array $lineDeskBuckets = [],
+    ): array {
         $scenario->loadMissing(['import', 'vacationRanges']);
 
         $weights = array_merge(
@@ -47,6 +63,15 @@ final class BidScenarioProfileBuilder
         unset($weights['shift_order'], $weights['strict_shift_order'], $weights['strict_shift_rank'], $weights['start_time']);
 
         $condensed = $this->condensedMapper->toCondensedPayload($scenario);
+        $deskKeys = $this->preferenceCatalog->deskKeysForImport(
+            $scenario->bid_import_id,
+            $deskBucketMappings,
+            $lineDeskBuckets,
+        );
+        $deskRankForEditor = $this->scoreService->deskEntriesForEditor(
+            $scenario->desk_rank ?? [],
+            $deskKeys,
+        );
 
         $legacyRanges = $scenario->vacationRanges->map(fn ($r) => [
             'title' => $r->title ?? '',
@@ -58,7 +83,7 @@ final class BidScenarioProfileBuilder
             'vacation_bank' => $scenario->vacation_bank,
             'weights' => $weights,
             'holiday_rank' => $condensed['holiday_rank'],
-            'desk_rank' => $condensed['desk_rank'],
+            'desk_rank' => $this->condensedMapper->toCondensedDeskRank($deskRankForEditor),
             'personal_dates' => $this->scoreService->personalDatesForEditor(
                 $scenario->personal_dates ?? [],
                 $legacyRanges,
@@ -68,14 +93,18 @@ final class BidScenarioProfileBuilder
 
     /**
      * @param  array<string, mixed>  $profile
+     * @param  list<array{desk_group: string, start_time: string|null, bucket: string}>  $deskBucketMappings
+     * @param  list<array{bid_line_id: int, bucket: string}>|array<int, string>  $lineDeskBuckets
      */
     public function createForSimulation(
         int $userId,
         BidImport $import,
         string $scenarioName,
         array $profile,
+        array $deskBucketMappings = [],
+        array $lineDeskBuckets = [],
     ): BidScenario {
-        $merged = $this->mergeProfile($import, $profile);
+        $merged = $this->mergeProfile($import, $profile, $deskBucketMappings, $lineDeskBuckets);
 
         return BidScenario::create([
             'user_id' => $userId,
@@ -95,11 +124,22 @@ final class BidScenarioProfileBuilder
 
     /**
      * @param  array<string, mixed>  $profile
+     * @param  list<array{desk_group: string, start_time: string|null, bucket: string}>  $deskBucketMappings
+     * @param  list<array{bid_line_id: int, bucket: string}>|array<int, string>  $lineDeskBuckets
      */
-    public function applyToScenario(BidScenario $scenario, array $profile): void
-    {
+    public function applyToScenario(
+        BidScenario $scenario,
+        array $profile,
+        array $deskBucketMappings = [],
+        array $lineDeskBuckets = [],
+    ): void {
         $scenario->loadMissing('import');
-        $merged = $this->mergeProfile($scenario->import, $profile);
+        $merged = $this->mergeProfile(
+            $scenario->import,
+            $profile,
+            $deskBucketMappings,
+            $lineDeskBuckets,
+        );
 
         $scenario->fill([
             'vacation_bank' => (int) $merged['vacation_bank'],
@@ -115,21 +155,38 @@ final class BidScenarioProfileBuilder
 
     /**
      * @param  array<string, mixed>  $profile
+     * @param  list<array{desk_group: string, start_time: string|null, bucket: string}>  $deskBucketMappings
+     * @param  list<array{bid_line_id: int, bucket: string}>|array<int, string>  $lineDeskBuckets
      * @return array<string, mixed>
      */
-    public function prepareDraftForScoring(BidImport $import, array $profile): array
-    {
-        return $this->mergeProfile($import, $profile);
+    public function prepareDraftForScoring(
+        BidImport $import,
+        array $profile,
+        array $deskBucketMappings = [],
+        array $lineDeskBuckets = [],
+    ): array {
+        return $this->mergeProfile($import, $profile, $deskBucketMappings, $lineDeskBuckets);
     }
 
     /**
      * @param  array<string, mixed>  $profile
+     * @param  list<array{desk_group: string, start_time: string|null, bucket: string}>  $deskBucketMappings
+     * @param  list<array{bid_line_id: int, bucket: string}>|array<int, string>  $lineDeskBuckets
      * @return array<string, mixed>
      */
-    private function mergeProfile(BidImport $import, array $profile): array
-    {
-        $defaults = $this->defaultsForImport($import);
-        $expanded = $this->condensedMapper->expandProfile($import, $profile);
+    private function mergeProfile(
+        BidImport $import,
+        array $profile,
+        array $deskBucketMappings = [],
+        array $lineDeskBuckets = [],
+    ): array {
+        $defaults = $this->defaultsForImport($import, $deskBucketMappings, $lineDeskBuckets);
+        $expanded = $this->condensedMapper->expandProfile(
+            $import,
+            $profile,
+            $deskBucketMappings,
+            $lineDeskBuckets,
+        );
 
         $weights = array_merge(
             $defaults['weights'],

@@ -127,6 +127,7 @@ final class BidSimulationEngine
                 'parts' => $row['parts'] ?? [],
                 'minimum_required' => $rank <= $minimumDepth,
                 'desk_group' => $formatted['desk_group'] ?? null,
+                'desk_bucket' => (string) ($row['breakdown']['group_bucket'] ?? ''),
                 'start_time' => $formatted['start_time'] ?? null,
                 'holidays_off' => $formatted['metrics']['holidays_off'] ?? null,
                 'key_holidays' => $formatted['metrics']['key_holidays'] ?? [],

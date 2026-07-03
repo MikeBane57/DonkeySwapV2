@@ -1,5 +1,5 @@
 import { GripVertical } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
@@ -15,6 +15,7 @@ type RecRow = {
     total: number;
     minimum_required: boolean;
     desk_group: string | null;
+    desk_bucket?: string | null;
     start_time: string | null;
     holidays_off: number | null;
     key_holidays: {
@@ -61,6 +62,17 @@ function withRanks(rows: RecRow[], minimumBidLines: number): RecRow[] {
         rank: index + 1,
         minimum_required: index + 1 <= minimumBidLines,
     }));
+}
+
+const EXTRA_SUGGESTED_LINES = 3;
+
+function formatDeskBucket(row: RecRow): string {
+    const bucket = row.desk_bucket?.trim();
+    if (bucket) {
+        return bucket;
+    }
+
+    return row.desk_group ?? '—';
 }
 
 function DraggableLineRow({
@@ -114,7 +126,7 @@ function DraggableLineRow({
             </td>
             <td className="p-2 font-medium">{row.rank}</td>
             <td className="p-2 font-mono text-xs">{row.line_num}</td>
-            <td className="p-2">{row.desk_group ?? '—'}</td>
+            <td className="p-2">{formatDeskBucket(row)}</td>
             <td className="p-2 text-xs">{row.start_time ?? '—'}</td>
             <td className="p-2 text-xs">
                 <KeyHolidayCell group={row.key_holidays?.christmas} />
@@ -159,7 +171,7 @@ function RecommendationsTable({
                     {editable && <th className="no-print w-8 p-2" />}
                     <th className="p-2">#</th>
                     <th className="p-2">Line</th>
-                    <th className="p-2">Group</th>
+                    <th className="p-2">Bucket</th>
                     <th className="p-2">Start</th>
                     <th className="p-2">Xmas</th>
                     <th className="p-2">T&apos;giving</th>
@@ -193,7 +205,7 @@ function RecommendationsTable({
                             <td className="p-2 font-mono text-xs">
                                 {row.line_num}
                             </td>
-                            <td className="p-2">{row.desk_group ?? '—'}</td>
+                            <td className="p-2">{formatDeskBucket(row)}</td>
                             <td className="p-2 text-xs">
                                 {row.start_time ?? '—'}
                             </td>
@@ -257,6 +269,7 @@ export function ParticipantRecommendationsPanel({
     skipsBid,
     simulationName,
     bidYear,
+    refreshKey = 0,
 }: {
     simulationId: number;
     participantId: number;
@@ -266,6 +279,7 @@ export function ParticipantRecommendationsPanel({
     skipsBid: boolean;
     simulationName: string;
     bidYear: number;
+    refreshKey?: number;
 }) {
     const [rows, setRows] = useState<RecRow[] | null>(null);
     const [sortExplanation, setSortExplanation] =
@@ -276,6 +290,7 @@ export function ParticipantRecommendationsPanel({
     const [error, setError] = useState<string | null>(null);
     const [loaded, setLoaded] = useState(false);
     const [dirty, setDirty] = useState(false);
+    const [expanded, setExpanded] = useState(false);
 
     const lineOrderUrl = `/app/bid-tools/simulations/${simulationId}/participants/${participantId}/line-order`;
     const recommendationsUrl = `/app/bid-tools/simulations/${simulationId}/participants/${participantId}/recommendations`;
@@ -340,6 +355,17 @@ export function ParticipantRecommendationsPanel({
             });
     };
 
+    useEffect(() => {
+        if (refreshKey === 0 || skipsBid || !expanded) {
+            return;
+        }
+
+        setLoaded(true);
+        setDirty(false);
+        reload();
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh after bidder save
+    }, [refreshKey]);
+
     const saveLineOrder = async (lineOrder: number[] | null) => {
         setSaving(true);
         setError(null);
@@ -389,9 +415,26 @@ export function ParticipantRecommendationsPanel({
 
         const mode = dirty || orderSource === 'manual' ? 'Manual' : 'Computed';
         const suffix = dirty ? ' · unsaved' : '';
+        const usingManual = orderSource === 'manual' || dirty;
+        const visibleCount = usingManual
+            ? rows.length
+            : Math.min(rows.length, minimumBidLines + EXTRA_SUGGESTED_LINES);
 
-        return `${mode} · ${rows.length} lines${suffix}`;
-    }, [rows, orderSource, dirty]);
+        return `${mode} · ${visibleCount}${usingManual ? '' : ` of ${rows.length}`} lines${suffix}`;
+    }, [rows, orderSource, dirty, minimumBidLines]);
+
+    const usingManual = orderSource === 'manual' || dirty;
+    const displayRows = useMemo(() => {
+        if (!rows) {
+            return null;
+        }
+
+        if (usingManual) {
+            return rows;
+        }
+
+        return rows.slice(0, minimumBidLines + EXTRA_SUGGESTED_LINES);
+    }, [rows, usingManual, minimumBidLines]);
 
     if (skipsBid) {
         return (
@@ -402,10 +445,13 @@ export function ParticipantRecommendationsPanel({
     }
 
     const printedAt = new Date().toLocaleString();
-    const requiredRows = rows?.filter((r) => r.minimum_required) ?? [];
-    const printId = `bid-order-print-${participantId}`;
-    const usingManual = orderSource === 'manual' || dirty;
     const orderTitle = usingManual ? 'Bid order' : 'Suggested bid order';
+    const hiddenRowCount =
+        rows && displayRows && rows.length > displayRows.length
+            ? rows.length - displayRows.length
+            : 0;
+    const requiredRows = displayRows?.filter((r) => r.minimum_required) ?? [];
+    const printId = `bid-order-print-${participantId}`;
 
     return (
         <BidToolsCollapsibleSection
@@ -413,6 +459,7 @@ export function ParticipantRecommendationsPanel({
             summary={sectionSummary}
             defaultOpen={false}
             onOpenChange={(open) => {
+                setExpanded(open);
                 if (open) {
                     load();
                 }
@@ -436,8 +483,11 @@ export function ParticipantRecommendationsPanel({
                                     </>
                                 ) : (
                                     <>
-                                        Ranked from preferences. Drag rows if
-                                        you know what they are actually bidding.
+                                        Ranked from preferences (showing
+                                        required lines plus{' '}
+                                        {EXTRA_SUGGESTED_LINES} extra). Drag
+                                        rows if you know what they are actually
+                                        bidding, then click Save order.
                                     </>
                                 )}{' '}
                                 Must rank at least {minimumBidLines} line
@@ -557,7 +607,7 @@ export function ParticipantRecommendationsPanel({
                                 <tr>
                                     <th>#</th>
                                     <th>Line</th>
-                                    <th>Grp</th>
+                                    <th>Bucket</th>
                                     <th>Start</th>
                                     <th>Xmas</th>
                                     <th>T&apos;giv</th>
@@ -574,7 +624,7 @@ export function ParticipantRecommendationsPanel({
                                         <td className="font-mono">
                                             {row.line_num}
                                         </td>
-                                        <td>{row.desk_group ?? '—'}</td>
+                                        <td>{formatDeskBucket(row)}</td>
                                         <td>{row.start_time ?? '—'}</td>
                                         <td>
                                             {row.key_holidays?.christmas
@@ -617,9 +667,17 @@ export function ParticipantRecommendationsPanel({
                         )}
                     </div>
 
+                    {hiddenRowCount > 0 && (
+                        <p className="no-print text-xs text-muted-foreground">
+                            Showing top {displayRows?.length ?? 0} of{' '}
+                            {rows.length} ranked lines. Save a manual order to
+                            view and edit the full list.
+                        </p>
+                    )}
+
                     <div className="no-print overflow-x-auto rounded-lg border border-sidebar-border/70">
                         <RecommendationsTable
-                            rows={rows}
+                            rows={displayRows ?? []}
                             showMinimum
                             editable
                             onReorder={handleReorder}

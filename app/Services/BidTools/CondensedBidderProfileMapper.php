@@ -51,14 +51,24 @@ final class CondensedBidderProfileMapper
 
     /**
      * @param  array<string, mixed>  $profile
+     * @param  list<array{desk_group: string, start_time: string|null, bucket: string}>  $deskBucketMappings
+     * @param  list<array{bid_line_id: int, bucket: string}>|array<int, string>  $lineDeskBuckets
      * @return array<string, mixed>
      */
-    public function expandProfile(BidImport $import, array $profile): array
-    {
+    public function expandProfile(
+        BidImport $import,
+        array $profile,
+        array $deskBucketMappings = [],
+        array $lineDeskBuckets = [],
+    ): array {
         $bidYear = (int) $import->bid_year;
-        $deskKeys = app(CondensedDeskClassifier::class)->bucketsPresentInImport($import->id);
+        $deskKeys = app(CondensedDeskClassifier::class)->bucketsPresentInImport(
+            $import->id,
+            $deskBucketMappings,
+            $lineDeskBuckets,
+        );
 
-        $condensedDefaults = $this->condensedDefaults();
+        $condensedDefaults = $this->condensedDefaultsForDeskKeys($deskKeys);
 
         return [
             'holiday_rank' => $this->expandHolidayRank(
@@ -69,6 +79,23 @@ final class CondensedBidderProfileMapper
                 $profile['desk_rank'] ?? $condensedDefaults['desk_rank'],
                 $deskKeys,
             ),
+        ];
+    }
+
+    /**
+     * @param  list<string>  $deskKeys
+     * @return array{
+     *   holiday_rank: list<array{key: string, priority: string}>,
+     *   desk_rank: list<array{key: string, priority: string}>,
+     * }
+     */
+    public function condensedDefaultsForDeskKeys(array $deskKeys): array
+    {
+        $keys = $deskKeys !== [] ? $deskKeys : self::DESK_KEYS;
+
+        return [
+            'holiday_rank' => $this->defaultHolidayRank(),
+            'desk_rank' => $this->defaultKeyedRank($keys),
         ];
     }
 
@@ -145,11 +172,17 @@ final class CondensedBidderProfileMapper
         $out = [];
         $seen = [];
 
+        $userKeys = array_values(array_unique(array_map(
+            fn (array $entry): string => strtoupper($entry['key']),
+            $ordered,
+        )));
+        $allowedKeys = array_values(array_unique(array_merge($importKeys, $userKeys)));
+
         foreach ($ordered as $entry) {
             $key = strtoupper($entry['key']);
             $priority = $entry['priority'];
 
-            if (in_array($key, $importKeys, true) && ! isset($seen[$key])) {
+            if (in_array($key, $allowedKeys, true) && ! isset($seen[$key])) {
                 $row = ['key' => $key, 'priority' => $priority];
                 if (isset($entry['tier'])) {
                     $row['tier'] = (int) $entry['tier'];

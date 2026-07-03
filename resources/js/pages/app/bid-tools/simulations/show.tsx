@@ -91,6 +91,8 @@ function ParticipantEditor({
     otherParticipants: Participant[];
 }) {
     const [open, setOpen] = useState(false);
+    const [recommendationsRefreshKey, setRecommendationsRefreshKey] =
+        useState(0);
     const form = useForm({
         display_name: participant.display_name,
         seniority_rank: participant.seniority_rank,
@@ -125,7 +127,10 @@ function ParticipantEditor({
         }));
         form.put(
             `/app/bid-tools/simulations/${simulationId}/participants/${participant.id}`,
-            { preserveScroll: true },
+            {
+                preserveScroll: true,
+                onSuccess: () => setRecommendationsRefreshKey((key) => key + 1),
+            },
         );
     };
 
@@ -248,6 +253,12 @@ function ParticipantEditor({
                         hideLinePreview
                     />
 
+                    <p className="text-xs text-muted-foreground">
+                        Desk group changes apply after you click Save bidder.
+                        Drag the bid order below and click Save order to
+                        override the computed ranking for simulation picks.
+                    </p>
+
                     <ParticipantRecommendationsPanel
                         simulationId={simulationId}
                         participantId={participant.id}
@@ -257,6 +268,7 @@ function ParticipantEditor({
                         skipsBid={form.data.skips_bid}
                         simulationName={simulationName}
                         bidYear={bidYear}
+                        refreshKey={recommendationsRefreshKey}
                     />
 
                     <div className="flex flex-wrap gap-2">

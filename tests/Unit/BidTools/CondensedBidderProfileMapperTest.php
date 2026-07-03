@@ -78,7 +78,7 @@ test('expand holiday rank applies same priority to eve and day', function () {
     expect($thanksgiving->pluck('priority')->unique()->all())->toBe(['high']);
 });
 
-test('expand desk rank keeps only condensed buckets present in import', function () {
+test('expand desk rank keeps user bucket tiers and merges import buckets', function () {
     $mapper = mapper();
 
     $expanded = $mapper->expandDeskRank([
@@ -91,8 +91,9 @@ test('expand desk rank keeps only condensed buckets present in import', function
 
     $byKey = collect($expanded)->keyBy('key');
 
-    expect($byKey->keys()->all())->toBe(['DG', 'DR', 'DS7']);
+    expect($byKey->keys()->all())->toContain('DG', 'DR', 'DS7', 'MID', 'RELIEF');
     expect($byKey['DR']['priority'])->toBe('low');
+    expect($byKey['DS7']['priority'])->toBe('high');
 });
 
 test('to condensed desk rank preserves stored bucket priorities', function () {

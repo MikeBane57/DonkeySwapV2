@@ -136,7 +136,7 @@ final class CondensedDeskClassifier
 
             $mappingStart = $mapping['start_time'];
             if ($mappingStart !== null && $mappingStart !== '') {
-                if ($this->startTimes->rankKey($mappingStart) !== $startKey) {
+                if (! $this->startTimes->matchesStartTime($line->start_time, $mappingStart)) {
                     continue;
                 }
 
