@@ -32,13 +32,7 @@ export type ScoredLineRow = {
     submitted_externally: boolean;
 };
 
-function MobileStat({
-    label,
-    value,
-}: {
-    label: string;
-    value: ReactNode;
-}) {
+function MobileStat({ label, value }: { label: string; value: ReactNode }) {
     return (
         <div className="min-w-0">
             <dt className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">

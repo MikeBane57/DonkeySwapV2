@@ -100,7 +100,7 @@ function DraggableLineRow({
                 }
             }}
         >
-            <td className="p-2 no-print">
+            <td className="no-print p-2">
                 <button
                     type="button"
                     draggable
@@ -135,7 +135,7 @@ function DraggableLineRow({
                     : '—'}
             </td>
             {showMinimum && (
-                <td className="p-2 text-xs no-print">
+                <td className="no-print p-2 text-xs">
                     {row.minimum_required ? 'Required' : ''}
                 </td>
             )}
@@ -158,7 +158,7 @@ function RecommendationsTable({
         <table className="w-full min-w-[960px] text-left text-sm">
             <thead>
                 <tr className="border-b bg-muted/50">
-                    {editable && <th className="w-8 p-2 no-print" />}
+                    {editable && <th className="no-print w-8 p-2" />}
                     <th className="p-2">#</th>
                     <th className="p-2">Line</th>
                     <th className="p-2">Group</th>
@@ -169,9 +169,7 @@ function RecommendationsTable({
                     <th className="p-2">Hol</th>
                     <th className="p-2">Score</th>
                     <th className="max-w-[280px] p-2">Callouts</th>
-                    {showMinimum && (
-                        <th className="p-2 no-print">Min bid</th>
-                    )}
+                    {showMinimum && <th className="no-print p-2">Min bid</th>}
                 </tr>
             </thead>
             <tbody>
@@ -225,7 +223,7 @@ function RecommendationsTable({
                                     : '—'}
                             </td>
                             {showMinimum && (
-                                <td className="p-2 text-xs no-print">
+                                <td className="no-print p-2 text-xs">
                                     {row.minimum_required ? 'Required' : ''}
                                 </td>
                             )}
@@ -367,7 +365,11 @@ export function ParticipantRecommendationsPanel({
 
             applyResponse((await response.json()) as RecommendationsPayload);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not save bid order.');
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : 'Could not save bid order.',
+            );
         } finally {
             setSaving(false);
         }
@@ -387,8 +389,7 @@ export function ParticipantRecommendationsPanel({
             return 'Expand to load rankings';
         }
 
-        const mode =
-            dirty || orderSource === 'manual' ? 'Manual' : 'Computed';
+        const mode = dirty || orderSource === 'manual' ? 'Manual' : 'Computed';
         const suffix = dirty ? ' · unsaved' : '';
 
         return `${mode} · ${rows.length} lines${suffix}`;

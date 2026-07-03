@@ -7,7 +7,10 @@ import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
-import type { DeskBucketMapping, DeskBucketReferenceRow } from '@/pages/app/bid-tools/desk-bucket-mapping-utils';
+import type {
+    DeskBucketMapping,
+    DeskBucketReferenceRow,
+} from '@/pages/app/bid-tools/desk-bucket-mapping-utils';
 import {
     ImportFileMappingSection,
     lineDeskBucketsFromStorage,
@@ -22,10 +25,11 @@ import {
 } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 import type { BidderProfile } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 import { ParticipantRecommendationsPanel } from '@/pages/app/bid-tools/simulations/participant-recommendations-panel';
-import {
-    ProfileSourcePicker,
+import { ProfileSourcePicker } from '@/pages/app/bid-tools/simulations/profile-source-picker';
+import type {
+    ProfileSource,
+    ProfileTemplate,
 } from '@/pages/app/bid-tools/simulations/profile-source-picker';
-import type { ProfileSource, ProfileTemplate } from '@/pages/app/bid-tools/simulations/profile-source-picker';
 import type { BreadcrumbItem } from '@/types';
 
 type Participant = {
@@ -203,7 +207,9 @@ function ParticipantEditor({
 
                     {profileTemplates.length > 0 && (
                         <div className="space-y-2">
-                            <Label htmlFor={`p-${participant.id}-replace-profile`}>
+                            <Label
+                                htmlFor={`p-${participant.id}-replace-profile`}
+                            >
                                 Replace preferences from saved profile
                             </Label>
                             <select
@@ -222,7 +228,10 @@ function ParticipantEditor({
                                     Choose a saved profile…
                                 </option>
                                 {profileTemplates.map((template) => (
-                                    <option key={template.id} value={template.id}>
+                                    <option
+                                        key={template.id}
+                                        value={template.id}
+                                    >
                                         {template.name}
                                     </option>
                                 ))}
@@ -613,7 +622,10 @@ export default function BidSimulationShow({
                                 addForm.setData('display_name', display_name)
                             }
                             onSeniorityRankChange={(seniority_rank) =>
-                                addForm.setData('seniority_rank', seniority_rank)
+                                addForm.setData(
+                                    'seniority_rank',
+                                    seniority_rank,
+                                )
                             }
                             onVacationBankChange={(vacation_bank) =>
                                 addForm.setData(

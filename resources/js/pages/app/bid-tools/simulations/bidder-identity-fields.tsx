@@ -43,7 +43,8 @@ export function BidderIdentityFields({
         <div className="space-y-4 rounded-lg border border-sidebar-border/60 bg-muted/10 p-3">
             <p className="text-xs text-muted-foreground">
                 Set name, seniority, and vacation bank for this bidder. These
-                usually change for each person even when reusing a saved profile.
+                usually change for each person even when reusing a saved
+                profile.
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -82,11 +83,14 @@ export function BidderIdentityFields({
                                 min={1}
                                 value={seniorityRank}
                                 onChange={(e) =>
-                                    onSeniorityRankChange(Number(e.target.value))
+                                    onSeniorityRankChange(
+                                        Number(e.target.value),
+                                    )
                                 }
                             />
                             <p className="text-xs text-muted-foreground">
-                                Pick order and minimum lines to rank on bid sheet
+                                Pick order and minimum lines to rank on bid
+                                sheet
                             </p>
                             {seniorityRankError && (
                                 <p className="text-sm text-destructive">

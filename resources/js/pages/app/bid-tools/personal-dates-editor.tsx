@@ -22,8 +22,7 @@ export type PersonalDateEntry = {
     priority: Priority;
 };
 
-const dateInputClass =
-    'h-8 w-full text-xs [color-scheme:dark] sm:w-[9.5rem]';
+const dateInputClass = 'h-8 w-full text-xs [color-scheme:dark] sm:w-[9.5rem]';
 
 function moveIndex<T>(list: T[], from: number, to: number): T[] {
     if (from === to || from < 0 || to < 0) {

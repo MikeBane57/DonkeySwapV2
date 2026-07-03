@@ -217,7 +217,9 @@ export function TieredRankList({
     return (
         <div className={compact ? 'space-y-1.5' : 'space-y-2'}>
             {!hideLabel && (
-                <Label className={compact ? 'text-xs' : undefined}>{label}</Label>
+                <Label className={compact ? 'text-xs' : undefined}>
+                    {label}
+                </Label>
             )}
             {hint && !compact && (
                 <p className="text-xs text-muted-foreground">{hint}</p>
@@ -266,7 +268,13 @@ export function TieredRankList({
                                     listLength={entries.length}
                                     onReorder={reorderFlat}
                                 >
-                                    <span className={compact ? preferencePuckLabelClass : 'min-w-0 flex-1 text-sm'}>
+                                    <span
+                                        className={
+                                            compact
+                                                ? preferencePuckLabelClass
+                                                : 'min-w-0 flex-1 text-sm'
+                                        }
+                                    >
                                         {labels[entry.key] ?? entry.key}
                                     </span>
                                     {!hidePriority && (

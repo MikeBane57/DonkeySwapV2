@@ -57,7 +57,9 @@ export function RankingRulesExplanation({
             className={`space-y-4 rounded-lg border border-sidebar-border/70 bg-muted/15 p-4 ${includeInPrint ? '' : 'no-print'}`}
         >
             <div>
-                <h3 className="text-sm font-semibold">How ranking was applied</h3>
+                <h3 className="text-sm font-semibold">
+                    How ranking was applied
+                </h3>
                 <p className="mt-1 text-sm text-muted-foreground">
                     <span className="font-medium text-foreground">
                         {explanation.sort_mode_label}
@@ -92,7 +94,7 @@ export function RankingRulesExplanation({
 
             {showDeskTiers && explanation.desk_tier_groups.length > 0 && (
                 <div className="space-y-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                         Desk tier groups
                     </h4>
                     <div className="flex flex-wrap gap-2">
@@ -116,14 +118,15 @@ export function RankingRulesExplanation({
 
             {showLineDetails && explanation.line_details.length > 0 && (
                 <div className="space-y-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                         Per-line sort values
                     </h4>
                     <p className="text-xs text-muted-foreground">
                         Compare adjacent rows to see which rule separated them.
-                        Hol/Per scores are unweighted preference points (higher is
-                        better). Desk # is list position (lower is better). Tier
-                        ranks are first-match list positions (lower is better).
+                        Hol/Per scores are unweighted preference points (higher
+                        is better). Desk # is list position (lower is better).
+                        Tier ranks are first-match list positions (lower is
+                        better).
                     </p>
 
                     <div className="space-y-2 md:hidden">
@@ -153,25 +156,27 @@ export function RankingRulesExplanation({
                                 </p>
                                 <dl className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1">
                                     <div>
-                                        <dt className="text-[10px] uppercase text-muted-foreground">
+                                        <dt className="text-[10px] text-muted-foreground uppercase">
                                             Hol
                                         </dt>
                                         <dd>
                                             {line.sort_scores.holiday ?? '—'}{' '}
-                                            (tier {line.tier_ranks.holiday ?? '—'})
+                                            (tier{' '}
+                                            {line.tier_ranks.holiday ?? '—'})
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt className="text-[10px] uppercase text-muted-foreground">
+                                        <dt className="text-[10px] text-muted-foreground uppercase">
                                             Per
                                         </dt>
                                         <dd>
                                             {line.sort_scores.personal ?? '—'}{' '}
-                                            (tier {line.tier_ranks.personal ?? '—'})
+                                            (tier{' '}
+                                            {line.tier_ranks.personal ?? '—'})
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt className="text-[10px] uppercase text-muted-foreground">
+                                        <dt className="text-[10px] text-muted-foreground uppercase">
                                             Desk #
                                         </dt>
                                         <dd>
@@ -190,7 +195,8 @@ export function RankingRulesExplanation({
                                     <th className="p-2">#</th>
                                     <th className="p-2">Line</th>
                                     <th className="p-2">Bucket</th>
-                                    {explanation.sort_mode === 'group_ranked' && (
+                                    {explanation.sort_mode ===
+                                        'group_ranked' && (
                                         <th className="p-2">Desk grp</th>
                                     )}
                                     <th className="p-2">Hol score</th>
@@ -218,7 +224,9 @@ export function RankingRulesExplanation({
                                         <td className="p-2 font-mono">
                                             {line.line_num}
                                         </td>
-                                        <td className="p-2">{line.desk_bucket}</td>
+                                        <td className="p-2">
+                                            {line.desk_bucket}
+                                        </td>
                                         {explanation.sort_mode ===
                                             'group_ranked' && (
                                             <td className="p-2 font-medium">

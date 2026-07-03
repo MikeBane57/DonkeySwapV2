@@ -113,7 +113,9 @@ function mergeNonContiguousTierBlocks(
 
         const anchorKey = work[firstRunEnd]?.key;
         let insertAt = without.length;
-        const anchorIndex = without.findIndex((entry) => entry.key === anchorKey);
+        const anchorIndex = without.findIndex(
+            (entry) => entry.key === anchorKey,
+        );
         if (anchorIndex >= 0) {
             insertAt = anchorIndex + 1;
         }
@@ -217,7 +219,9 @@ export function assignEntryToGroup(
     }
 
     const lastMemberKey = targetGroup[targetGroup.length - 1]?.key;
-    const anchorIndex = entries.findIndex((entry) => entry.key === lastMemberKey);
+    const anchorIndex = entries.findIndex(
+        (entry) => entry.key === lastMemberKey,
+    );
     if (anchorIndex < 0) {
         return entries;
     }

@@ -31,13 +31,14 @@ export const START_TIME_TIEBREAK_DEFAULT: StartTimeTiebreakKey[] = [
     '22',
 ];
 
-export const START_TIME_TIEBREAK_LABELS: Record<StartTimeTiebreakKey, string> = {
-    '6': '06:00',
-    '7': '07:00',
-    '14': '14:00',
-    '15': '15:00',
-    '22': '22:00',
-};
+export const START_TIME_TIEBREAK_LABELS: Record<StartTimeTiebreakKey, string> =
+    {
+        '6': '06:00',
+        '7': '07:00',
+        '14': '14:00',
+        '15': '15:00',
+        '22': '22:00',
+    };
 
 function moveIndex<T>(list: T[], from: number, to: number): T[] {
     if (from === to || from < 0 || to < 0) {
@@ -161,7 +162,7 @@ export function DraggablePreferenceRow({
                     e.dataTransfer.setData('text/plain', String(index));
                     e.dataTransfer.effectAllowed = 'move';
                 }}
-                className="hidden cursor-grab touch-none shrink-0 text-muted-foreground active:cursor-grabbing md:inline-flex"
+                className="hidden shrink-0 cursor-grab touch-none text-muted-foreground active:cursor-grabbing md:inline-flex"
                 aria-label="Drag to reorder"
             >
                 <GripVertical className="h-3.5 w-3.5" />
@@ -192,7 +193,9 @@ export function StartTimeTiebreakPicker({
                 Drag to set which clock start ranks higher when lines are
                 otherwise tied within the same desk tier.
             </p>
-            <div className={`${preferencePuckGroupClass} flex-row flex-wrap gap-1.5`}>
+            <div
+                className={`${preferencePuckGroupClass} flex-row flex-wrap gap-1.5`}
+            >
                 {value.map((hour, idx) => (
                     <DraggablePreferenceRow
                         key={hour}
@@ -239,7 +242,10 @@ export function HolidayRankList({
                         onChange(moveIndex(entries, from, to))
                     }
                 >
-                    <span className={preferencePuckLabelClass} title={entry.date}>
+                    <span
+                        className={preferencePuckLabelClass}
+                        title={entry.date}
+                    >
                         {entry.label || entry.date}
                     </span>
                     <CompactPrioritySelect
@@ -321,7 +327,11 @@ export function normalizeCriteriaOrder(raw: unknown): string[] {
         if (item === 'start_time') {
             continue;
         }
-        if (typeof item === 'string' && allowed.has(item) && !order.includes(item)) {
+        if (
+            typeof item === 'string' &&
+            allowed.has(item) &&
+            !order.includes(item)
+        ) {
             order.push(item);
         }
     }

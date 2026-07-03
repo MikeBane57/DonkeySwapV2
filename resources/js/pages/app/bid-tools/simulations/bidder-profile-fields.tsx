@@ -14,19 +14,17 @@ import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolba
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
 import {
     PersonalDatesEditor,
-    personalDatesForSave
-    
+    personalDatesForSave,
 } from '@/pages/app/bid-tools/personal-dates-editor';
-import type {PersonalDateEntry} from '@/pages/app/bid-tools/personal-dates-editor';
+import type { PersonalDateEntry } from '@/pages/app/bid-tools/personal-dates-editor';
 import {
     PreferenceColumnHeader,
     StartTimeTiebreakPicker,
     normalizeCriteriaOrder,
     normalizeStartTimeTiebreakOrder,
-    preferenceColumnClass
-    
+    preferenceColumnClass,
 } from '@/pages/app/bid-tools/preference-rank-shared';
-import type {StartTimeTiebreakKey} from '@/pages/app/bid-tools/preference-rank-shared';
+import type { StartTimeTiebreakKey } from '@/pages/app/bid-tools/preference-rank-shared';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
 
@@ -206,7 +204,8 @@ export function profileFromTemplate(
         weights: {
             ...template.weights,
             criteria_order: [...template.weights.criteria_order],
-            start_time_tiebreak_order: template.weights.start_time_tiebreak_order
+            start_time_tiebreak_order: template.weights
+                .start_time_tiebreak_order
                 ? [...template.weights.start_time_tiebreak_order]
                 : undefined,
         },

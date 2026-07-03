@@ -1,9 +1,8 @@
 import {
     keyHolidayContextLines,
-    keyHolidayLabel
-    
+    keyHolidayLabel,
 } from '@/pages/app/bid-tools/holiday-metrics';
-import type {KeyHolidayGroup} from '@/pages/app/bid-tools/holiday-metrics';
+import type { KeyHolidayGroup } from '@/pages/app/bid-tools/holiday-metrics';
 
 export function KeyHolidayCell({
     group,

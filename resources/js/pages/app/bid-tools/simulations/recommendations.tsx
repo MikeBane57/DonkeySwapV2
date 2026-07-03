@@ -86,7 +86,7 @@ export default function BidSimulationRecommendations({
             <th className="p-2">Hol</th>
             <th className="p-2">Score</th>
             <th className="max-w-[280px] p-2">Callouts</th>
-            <th className="p-2 no-print">Min bid</th>
+            <th className="no-print p-2">Min bid</th>
         </tr>
     );
 
@@ -120,7 +120,7 @@ export default function BidSimulationRecommendations({
                     : '—'}
             </td>
             {showMinimum && (
-                <td className="p-2 text-xs no-print">
+                <td className="no-print p-2 text-xs">
                     {row.minimum_required ? 'Required' : ''}
                 </td>
             )}

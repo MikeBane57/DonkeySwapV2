@@ -18,22 +18,16 @@ import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolba
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
 import { personalDatesForSave } from '@/pages/app/bid-tools/personal-dates-editor';
 import { prepareDeskRankEntries } from '@/pages/app/bid-tools/rank-tier-utils';
-import {
-    RankingRulesExplanation
-    
-} from '@/pages/app/bid-tools/ranking-rules-explanation';
-import type {SortExplanation} from '@/pages/app/bid-tools/ranking-rules-explanation';
+import { RankingRulesExplanation } from '@/pages/app/bid-tools/ranking-rules-explanation';
+import type { SortExplanation } from '@/pages/app/bid-tools/ranking-rules-explanation';
 import {
     ScenarioRankingPanel,
     rankingStateToSavePayload,
     scenarioToRankingState,
 } from '@/pages/app/bid-tools/scenario-ranking-panel';
 import type { ScenarioRankingState } from '@/pages/app/bid-tools/scenario-ranking-panel';
-import {
-    ScoredLinesTable
-    
-} from '@/pages/app/bid-tools/scored-lines-table';
-import type {ScoredLineRow} from '@/pages/app/bid-tools/scored-lines-table';
+import { ScoredLinesTable } from '@/pages/app/bid-tools/scored-lines-table';
+import type { ScoredLineRow } from '@/pages/app/bid-tools/scored-lines-table';
 import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [

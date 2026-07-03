@@ -91,7 +91,9 @@ export function keyHolidayLabel(group: KeyHolidayGroup | undefined): string {
 
     if (group.dates && group.dates.length > 0) {
         if (group.off === 0) {
-            return group.dates.length === 1 ? 'Work' : statusFromDates(group.dates);
+            return group.dates.length === 1
+                ? 'Work'
+                : statusFromDates(group.dates);
         }
         if (group.off === group.total) {
             return 'Off';
@@ -110,9 +112,7 @@ export function keyHolidayLabel(group: KeyHolidayGroup | undefined): string {
     return `${group.off}/${group.total}`;
 }
 
-function keyHolidayLegacyContextLabel(
-    group: KeyHolidayGroup,
-): string | null {
+function keyHolidayLegacyContextLabel(group: KeyHolidayGroup): string | null {
     if (!group.anchor_off) {
         return null;
     }

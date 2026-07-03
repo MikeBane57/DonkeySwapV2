@@ -21,7 +21,10 @@ export function deskMappingKey(deskGroup: string, startTime: string): string {
 }
 
 export function bucketForMappedLine(
-    line: Pick<LinePickerRow, 'desk_group' | 'start_time' | 'desk_bucket' | 'auto_desk_bucket'>,
+    line: Pick<
+        LinePickerRow,
+        'desk_group' | 'start_time' | 'desk_bucket' | 'auto_desk_bucket'
+    >,
     mappings: DeskBucketMapping[],
     referenceByKey: Record<string, DeskBucketReferenceRow>,
 ): string {
@@ -92,7 +95,11 @@ export function applyLineDeskBucketOverrides(
 ): LinePickerRow[] {
     const groupMapped = lines.map((line) => ({
         ...line,
-        desk_bucket: bucketForMappedLine(line, deskBucketMappings, referenceByKey),
+        desk_bucket: bucketForMappedLine(
+            line,
+            deskBucketMappings,
+            referenceByKey,
+        ),
     }));
 
     return groupMapped.map((line) => ({

@@ -7,10 +7,9 @@ import {
 } from '@/pages/app/bid-tools/preference-rank-shared';
 import {
     STRICT_SHIFT_LABELS,
-    
-    normalizeStrictShiftRank
+    normalizeStrictShiftRank,
 } from '@/pages/app/bid-tools/strict-shift-rank';
-import type {StrictShiftClass} from '@/pages/app/bid-tools/strict-shift-rank';
+import type { StrictShiftClass } from '@/pages/app/bid-tools/strict-shift-rank';
 
 function moveIndex<T>(list: T[], from: number, to: number): T[] {
     if (from === to || from < 0 || to < 0) {
@@ -99,8 +98,8 @@ export function StrictShiftOrderField({
                         Strict shift order
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                        Rank lines by shift bucket before other preferences.
-                        Use the order below to choose which bucket bids first.
+                        Rank lines by shift bucket before other preferences. Use
+                        the order below to choose which bucket bids first.
                     </p>
                     {!compact && (
                         <p className="text-xs text-muted-foreground">

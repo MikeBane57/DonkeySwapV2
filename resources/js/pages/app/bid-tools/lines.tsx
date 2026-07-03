@@ -13,10 +13,9 @@ import {
     formatWeekendBlockMetrics,
     formatWeekendMetrics,
     keyHolidayPrintLabel,
-    
-    weekendMetricsPrintLabel
+    weekendMetricsPrintLabel,
 } from '@/pages/app/bid-tools/holiday-metrics';
-import type {LineMetrics} from '@/pages/app/bid-tools/holiday-metrics';
+import type { LineMetrics } from '@/pages/app/bid-tools/holiday-metrics';
 import { KeyHolidayCell } from '@/pages/app/bid-tools/key-holiday-cell';
 import { LineDeskGroupEditor } from '@/pages/app/bid-tools/line-desk-group-editor';
 import type { BreadcrumbItem } from '@/types';
@@ -272,7 +271,7 @@ export default function BidToolsLines({
                                     </div>
                                     <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
                                         <div>
-                                            <dt className="text-[10px] uppercase text-muted-foreground">
+                                            <dt className="text-[10px] text-muted-foreground uppercase">
                                                 Workdays
                                             </dt>
                                             <dd>
@@ -281,13 +280,13 @@ export default function BidToolsLines({
                                             </dd>
                                         </div>
                                         <div>
-                                            <dt className="text-[10px] uppercase text-muted-foreground">
+                                            <dt className="text-[10px] text-muted-foreground uppercase">
                                                 Hol off
                                             </dt>
                                             <dd>{row.metrics.holidays_off}</dd>
                                         </div>
                                         <div>
-                                            <dt className="text-[10px] uppercase text-muted-foreground">
+                                            <dt className="text-[10px] text-muted-foreground uppercase">
                                                 Xmas
                                             </dt>
                                             <dd>
@@ -300,7 +299,7 @@ export default function BidToolsLines({
                                             </dd>
                                         </div>
                                         <div>
-                                            <dt className="text-[10px] uppercase text-muted-foreground">
+                                            <dt className="text-[10px] text-muted-foreground uppercase">
                                                 T&apos;giving
                                             </dt>
                                             <dd>
@@ -313,7 +312,7 @@ export default function BidToolsLines({
                                             </dd>
                                         </div>
                                         <div>
-                                            <dt className="text-[10px] uppercase text-muted-foreground">
+                                            <dt className="text-[10px] text-muted-foreground uppercase">
                                                 Jul 4
                                             </dt>
                                             <dd>
@@ -326,7 +325,7 @@ export default function BidToolsLines({
                                             </dd>
                                         </div>
                                         <div>
-                                            <dt className="text-[10px] uppercase text-muted-foreground">
+                                            <dt className="text-[10px] text-muted-foreground uppercase">
                                                 F / Sa / Su
                                             </dt>
                                             <dd>

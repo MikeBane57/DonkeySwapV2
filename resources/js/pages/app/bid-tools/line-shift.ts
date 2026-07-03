@@ -1,8 +1,5 @@
-import {
-    deskGroupShift
-    
-} from '@/pages/app/bid-tools/desk-group-shift';
-import type {DeskGroupShift} from '@/pages/app/bid-tools/desk-group-shift';
+import { deskGroupShift } from '@/pages/app/bid-tools/desk-group-shift';
+import type { DeskGroupShift } from '@/pages/app/bid-tools/desk-group-shift';
 
 export type LineShift = DeskGroupShift | 'other';
 

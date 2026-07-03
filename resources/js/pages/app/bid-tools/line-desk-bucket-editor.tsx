@@ -6,11 +6,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import {
-    deskBucketLabel
-    
-} from '@/pages/app/bid-tools/bid-line-picker-toolbar';
-import type {LinePickerRow} from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import { deskBucketLabel } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 
 export type LineDeskBucketOverride = {
     bid_line_id: number;
@@ -24,7 +21,9 @@ export function lineDeskBucketsFromStorage(
         return {};
     }
 
-    return Object.fromEntries(raw.map((entry) => [entry.bid_line_id, entry.bucket]));
+    return Object.fromEntries(
+        raw.map((entry) => [entry.bid_line_id, entry.bucket]),
+    );
 }
 
 export function lineDeskBucketsToStorage(
@@ -75,7 +74,9 @@ export function LineDeskBucketEditor({
     const visibleLines = useMemo(
         () =>
             showManualOnly
-                ? lines.filter((line) => isLineDeskBucketManual(line, lineOverrides))
+                ? lines.filter((line) =>
+                      isLineDeskBucketManual(line, lineOverrides),
+                  )
                 : lines,
         [lines, lineOverrides, showManualOnly],
     );
@@ -103,8 +104,8 @@ export function LineDeskBucketEditor({
                 </label>
             </div>
             <p className="text-xs text-muted-foreground">
-                Set the desk type for each imported line. Defaults to auto-detected
-                values; change any line individually.
+                Set the desk type for each imported line. Defaults to
+                auto-detected values; change any line individually.
             </p>
             <div className="max-h-72 overflow-auto rounded border border-sidebar-border/50">
                 <table className="w-full text-xs">
@@ -147,7 +148,9 @@ export function LineDeskBucketEditor({
                                         <Select
                                             value={effective}
                                             onValueChange={(value) => {
-                                                const next = { ...lineOverrides };
+                                                const next = {
+                                                    ...lineOverrides,
+                                                };
                                                 if (value === autoBucket) {
                                                     delete next[line.id];
                                                 } else {

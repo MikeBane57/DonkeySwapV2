@@ -12,11 +12,12 @@ import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-coll
 import {
     bucketForMappedLine,
     deskMappingKey,
-    updateDeskBucketMapping
-    
-    
+    updateDeskBucketMapping,
 } from '@/pages/app/bid-tools/desk-bucket-mapping-utils';
-import type {DeskBucketMapping, DeskBucketReferenceRow} from '@/pages/app/bid-tools/desk-bucket-mapping-utils';
+import type {
+    DeskBucketMapping,
+    DeskBucketReferenceRow,
+} from '@/pages/app/bid-tools/desk-bucket-mapping-utils';
 import {
     LineDeskBucketEditor,
     lineDeskBucketsFromStorage,
@@ -116,7 +117,7 @@ export function ImportFileMappingSection({
                                     <th className="px-2 py-1 font-medium">
                                         Bucket
                                     </th>
-                                    <th className="px-2 py-1 font-medium text-right">
+                                    <th className="px-2 py-1 text-right font-medium">
                                         Lines
                                     </th>
                                 </tr>
@@ -220,7 +221,4 @@ export function ImportFileMappingSection({
     );
 }
 
-export {
-    lineDeskBucketsFromStorage,
-    lineDeskBucketsToStorage,
-};
+export { lineDeskBucketsFromStorage, lineDeskBucketsToStorage };

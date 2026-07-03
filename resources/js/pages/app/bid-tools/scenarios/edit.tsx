@@ -23,20 +23,18 @@ import {
 } from '@/pages/app/bid-tools/line-desk-bucket-editor';
 import {
     PersonalDatesEditor,
-    personalDatesForSave
-    
+    personalDatesForSave,
 } from '@/pages/app/bid-tools/personal-dates-editor';
-import type {PersonalDateEntry} from '@/pages/app/bid-tools/personal-dates-editor';
+import type { PersonalDateEntry } from '@/pages/app/bid-tools/personal-dates-editor';
 import {
     HolidayRankList,
     PreferenceColumnHeader,
     StartTimeTiebreakPicker,
     normalizeCriteriaOrder,
     normalizeStartTimeTiebreakOrder,
-    preferenceColumnClass
-    
+    preferenceColumnClass,
 } from '@/pages/app/bid-tools/preference-rank-shared';
-import type {StartTimeTiebreakKey} from '@/pages/app/bid-tools/preference-rank-shared';
+import type { StartTimeTiebreakKey } from '@/pages/app/bid-tools/preference-rank-shared';
 import { prepareDeskRankEntries } from '@/pages/app/bid-tools/rank-tier-utils';
 import { ScenarioWorkspace } from '@/pages/app/bid-tools/scenario-workspace';
 import { TieredRankList } from '@/pages/app/bid-tools/tiered-rank-list';
@@ -268,7 +266,12 @@ export default function BidScenarioEdit({
     });
     const [sortMode, setSortMode] = useState<SortMode>(() => {
         const mode = scenario.weights?.sort_mode;
-        if (mode === 'priority' || mode === 'blended' || mode === 'weighted' || mode === 'group_ranked') {
+        if (
+            mode === 'priority' ||
+            mode === 'blended' ||
+            mode === 'weighted' ||
+            mode === 'group_ranked'
+        ) {
             return mode;
         }
 
@@ -350,10 +353,7 @@ export default function BidScenarioEdit({
         [deskCatalog],
     );
     const categoryOrderSummary = useMemo(
-        () =>
-            criteriaOrder
-                .map((id) => CRITERIA_LABELS[id] ?? id)
-                .join(' → '),
+        () => criteriaOrder.map((id) => CRITERIA_LABELS[id] ?? id).join(' → '),
         [criteriaOrder],
     );
     const submit = useCallback(() => {
@@ -588,7 +588,8 @@ export default function BidScenarioEdit({
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="group_ranked">
-                                            Group ranked — G1, G2… then category order
+                                            Group ranked — G1, G2… then category
+                                            order
                                         </SelectItem>
                                         <SelectItem value="blended">
                                             Blended — groups + category order
@@ -809,7 +810,7 @@ export default function BidScenarioEdit({
                                                 <th className="px-2 py-1 font-medium">
                                                     Bucket
                                                 </th>
-                                                <th className="px-2 py-1 font-medium text-right">
+                                                <th className="px-2 py-1 text-right font-medium">
                                                     Lines
                                                 </th>
                                             </tr>
@@ -877,7 +878,9 @@ export default function BidScenarioEdit({
                                                                 </SelectTrigger>
                                                                 <SelectContent>
                                                                     {deskCatalog.map(
-                                                                        (bucket) => (
+                                                                        (
+                                                                            bucket,
+                                                                        ) => (
                                                                             <SelectItem
                                                                                 key={
                                                                                     bucket.key
