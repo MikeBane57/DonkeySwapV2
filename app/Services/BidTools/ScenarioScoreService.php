@@ -45,8 +45,13 @@ final class ScenarioScoreService
      * @param  list<int>  $lineIds
      * @return list<array<string, mixed>>
      */
-    public function scoreLines(BidScenario $scenario, array $lineIds, bool $withMetrics = true): array
-    {
+    public function scoreLines(
+        BidScenario $scenario,
+        array $lineIds,
+        bool $withMetrics = true,
+        ?array $deskBucketMappingsOverride = null,
+        ?array $lineDeskBucketsOverride = null,
+    ): array {
         $scenario->loadMissing('import');
 
         $weights = $scenario->weights ?? [];
@@ -61,8 +66,12 @@ final class ScenarioScoreService
         $bidYear = (int) $scenario->import->bid_year;
         $holidayEntries = $this->normalizeHolidayRank($scenario->holiday_rank, $bidYear);
         $personalEntries = $this->normalizePersonalDates($scenario->personal_dates ?? []);
-        $deskMappings = $this->condensedDesk->normalizeMappings($scenario->desk_bucket_mappings ?? []);
-        $lineDeskBuckets = $this->condensedDesk->normalizeLineBuckets($scenario->line_desk_buckets ?? []);
+        $deskMappings = $this->condensedDesk->normalizeMappings(
+            $deskBucketMappingsOverride ?? $scenario->desk_bucket_mappings ?? [],
+        );
+        $lineDeskBuckets = $this->condensedDesk->normalizeLineBuckets(
+            $lineDeskBucketsOverride ?? $scenario->line_desk_buckets ?? [],
+        );
         $deskKeys = $this->deskKeysForScoring($scenario, $deskMappings, $lineDeskBuckets);
         $deskEntries = $this->deskEntriesForEditor($scenario->desk_rank, $deskKeys);
 

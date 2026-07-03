@@ -16,11 +16,15 @@ final class BidSimulationEngine
     /**
      * @return list<array<string, mixed>>
      */
-    public function recommendForParticipant(BidSimulationParticipant $participant): array
-    {
+    public function recommendForParticipant(
+        BidSimulationParticipant $participant,
+        ?BidSimulation $simulation = null,
+    ): array {
         $participant->loadMissing('scenario.import');
         $scenario = $participant->scenario;
         $minimumDepth = max(1, (int) $participant->seniority_rank);
+
+        $mappingOverrides = $this->mappingOverridesForSimulation($simulation);
 
         $lineIds = BidLine::query()
             ->where('bid_import_id', $scenario->bid_import_id)
@@ -28,7 +32,13 @@ final class BidSimulationEngine
             ->pluck('id')
             ->all();
 
-        $scored = $this->scoreService->scoreLines($scenario, $lineIds);
+        $scored = $this->scoreService->scoreLines(
+            $scenario,
+            $lineIds,
+            withMetrics: true,
+            deskBucketMappingsOverride: $mappingOverrides['desk_bucket_mappings'],
+            lineDeskBucketsOverride: $mappingOverrides['line_desk_buckets'],
+        );
         $lineModels = BidLine::query()
             ->whereIn('id', $lineIds)
             ->get()
@@ -65,6 +75,7 @@ final class BidSimulationEngine
     {
         $simulation->load(['participants.scenario.import', 'import']);
         $participants = $simulation->participants->sortBy('seniority_rank')->values();
+        $mappingOverrides = $this->mappingOverridesForSimulation($simulation);
 
         $allLineIds = BidLine::query()
             ->where('bid_import_id', $simulation->bid_import_id)
@@ -111,6 +122,8 @@ final class BidSimulationEngine
                     $scenario,
                     $allLineIds,
                     withMetrics: false,
+                    deskBucketMappingsOverride: $mappingOverrides['desk_bucket_mappings'],
+                    lineDeskBucketsOverride: $mappingOverrides['line_desk_buckets'],
                 );
             }
 
@@ -152,6 +165,24 @@ final class BidSimulationEngine
         }
 
         return $results;
+    }
+
+    /**
+     * @return array{desk_bucket_mappings: array<int, mixed>, line_desk_buckets: array<int, mixed>}
+     */
+    private function mappingOverridesForSimulation(?BidSimulation $simulation): array
+    {
+        if ($simulation === null) {
+            return [
+                'desk_bucket_mappings' => null,
+                'line_desk_buckets' => null,
+            ];
+        }
+
+        return [
+            'desk_bucket_mappings' => $simulation->desk_bucket_mappings ?? [],
+            'line_desk_buckets' => $simulation->line_desk_buckets ?? [],
+        ];
     }
 
     /**

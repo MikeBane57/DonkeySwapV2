@@ -12,9 +12,11 @@ use App\Models\BidScenario;
 use App\Models\BidSimulation;
 use App\Models\BidSimulationParticipant;
 use App\Services\BidTools\BidLinePickerService;
+use App\Services\BidTools\BidLinePreferenceCatalog;
 use App\Services\BidTools\BidScenarioProfileBuilder;
 use App\Services\BidTools\BidSimulationEngine;
 use App\Services\BidTools\ScenarioScoreService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +29,7 @@ class SimulationController extends Controller
         private readonly BidSimulationEngine $engine,
         private readonly BidScenarioProfileBuilder $profileBuilder,
         private readonly BidLinePickerService $linePicker,
+        private readonly BidLinePreferenceCatalog $preferenceCatalog,
         private readonly ScenarioScoreService $scoreService,
     ) {}
 
@@ -73,7 +76,7 @@ class SimulationController extends Controller
         ]);
 
         return redirect()
-            ->route('bid-tools.simulations.edit', $simulation->id)
+            ->route('bid-tools.simulations.show', $simulation->id)
             ->with('success', 'Simulation created. Add bidders below.');
     }
 
@@ -82,19 +85,10 @@ class SimulationController extends Controller
         $sim = $this->findSimulation($request, $simulation);
         $sim->load(['import', 'participants.scenario']);
 
+        $mappings = $sim->desk_bucket_mappings ?? [];
+        $lineBuckets = $sim->line_desk_buckets ?? [];
+
         return Inertia::render('app/bid-tools/simulations/show', [
-            'simulation' => $this->simulationPayload($sim),
-            'participants' => $sim->participants->map(fn (BidSimulationParticipant $p) => $this->participantPayload($p)),
-            'results' => $sim->last_run_results,
-        ]);
-    }
-
-    public function edit(Request $request, int $simulation): Response
-    {
-        $sim = $this->findSimulation($request, $simulation);
-        $sim->load(['import', 'participants.scenario']);
-
-        return Inertia::render('app/bid-tools/simulations/edit', [
             'simulation' => $this->simulationPayload($sim),
             'profile_defaults' => $this->profileBuilder->defaultsForImport($sim->import),
             'profile_templates' => $this->profileTemplatesForSimulation($request, $sim),
@@ -104,17 +98,40 @@ class SimulationController extends Controller
                     ? $this->profileBuilder->toEditorPayload($p->scenario)
                     : $this->profileBuilder->defaultsForImport($sim->import),
             ]),
-            'lines' => $this->linePicker->rowsForImport($sim->bid_import_id),
+            'desk_catalog' => $this->preferenceCatalog->deskCatalogForImport($sim->bid_import_id),
+            'desk_bucket_reference' => $this->preferenceCatalog->deskBucketReferenceForImport(
+                $sim->bid_import_id,
+                $mappings,
+            ),
+            'lines' => $this->linePicker->rowsForImport(
+                $sim->bid_import_id,
+                deskBucketMappings: $mappings,
+                lineDeskBuckets: $lineBuckets,
+            ),
+            'results' => $sim->last_run_results,
         ]);
+    }
+
+    public function edit(Request $request, int $simulation): RedirectResponse
+    {
+        return redirect()->route('bid-tools.simulations.show', $simulation);
     }
 
     public function update(UpdateBidSimulationRequest $request, int $simulation): RedirectResponse
     {
         $sim = $this->findSimulation($request, $simulation);
-        $sim->update(['name' => $request->validated('name')]);
+        $data = $request->validated();
+
+        $sim->update([
+            'name' => $data['name'],
+            'desk_bucket_mappings' => $data['desk_bucket_mappings'] ?? [],
+            'line_desk_buckets' => $data['line_desk_buckets'] ?? [],
+            'last_run_at' => null,
+            'last_run_results' => null,
+        ]);
 
         return redirect()
-            ->route('bid-tools.simulations.edit', $sim->id)
+            ->route('bid-tools.simulations.show', $sim->id)
             ->with('success', 'Simulation updated.');
     }
 
@@ -152,6 +169,8 @@ class SimulationController extends Controller
                 'user_id' => $request->user()->id,
                 'bid_import_id' => $source->bid_import_id,
                 'name' => $this->duplicateSimulationName($request->user()->id, $source->name),
+                'desk_bucket_mappings' => $source->desk_bucket_mappings ?? [],
+                'line_desk_buckets' => $source->line_desk_buckets ?? [],
             ]);
 
             foreach ($source->participants->sortBy('seniority_rank') as $participant) {
@@ -198,7 +217,7 @@ class SimulationController extends Controller
         });
 
         return redirect()
-            ->route('bid-tools.simulations.edit', $copy->id)
+            ->route('bid-tools.simulations.show', $copy->id)
             ->with('success', 'Simulation duplicated. Adjust the copy as needed.');
     }
 
@@ -232,7 +251,7 @@ class SimulationController extends Controller
         });
 
         return redirect()
-            ->route('bid-tools.simulations.edit', $sim->id)
+            ->route('bid-tools.simulations.show', $sim->id)
             ->with('success', 'Bidder added.');
     }
 
@@ -268,7 +287,7 @@ class SimulationController extends Controller
         });
 
         return redirect()
-            ->route('bid-tools.simulations.edit', $sim->id)
+            ->route('bid-tools.simulations.show', $sim->id)
             ->with('success', 'Bidder updated.');
     }
 
@@ -293,7 +312,7 @@ class SimulationController extends Controller
         });
 
         return redirect()
-            ->route('bid-tools.simulations.edit', $sim->id)
+            ->route('bid-tools.simulations.show', $sim->id)
             ->with('success', 'Bidder removed.');
     }
 
@@ -319,14 +338,21 @@ class SimulationController extends Controller
             ->with('success', 'Simulation complete.');
     }
 
-    public function recommendations(Request $request, int $simulation, int $participant): Response
+    public function recommendations(Request $request, int $simulation, int $participant): Response|JsonResponse
     {
         $sim = $this->findSimulation($request, $simulation);
         $p = $this->findParticipant($sim, $participant);
         $p->load('scenario');
 
-        $rows = $this->engine->recommendForParticipant($p);
+        $rows = $this->engine->recommendForParticipant($p, $sim);
         $minimumDepth = max(1, (int) $p->seniority_rank);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'minimum_depth' => $minimumDepth,
+                'rows' => $rows,
+            ]);
+        }
 
         return Inertia::render('app/bid-tools/simulations/recommendations', [
             'simulation' => $this->simulationPayload($sim),
@@ -364,6 +390,8 @@ class SimulationController extends Controller
             'bid_year' => $sim->import->bid_year,
             'import_title' => $sim->import->title,
             'last_run_at' => $sim->last_run_at?->toIso8601String(),
+            'desk_bucket_mappings' => $sim->desk_bucket_mappings ?? [],
+            'line_desk_buckets' => $sim->line_desk_buckets ?? [],
         ];
     }
 

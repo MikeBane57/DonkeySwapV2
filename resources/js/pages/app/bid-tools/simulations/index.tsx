@@ -91,11 +91,12 @@ export default function BidSimulationsIndex({
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" asChild>
+                                    <Button size="sm" asChild>
                                         <Link
-                                            href={`/app/bid-tools/simulations/${s.id}/edit`}
+                                            href={`/app/bid-tools/simulations/${s.id}`}
                                         >
-                                            Manage
+                                            <Play className="mr-2 h-4 w-4" />
+                                            Open
                                         </Link>
                                     </Button>
                                     <Button
@@ -110,14 +111,6 @@ export default function BidSimulationsIndex({
                                     >
                                         <Copy className="mr-2 h-4 w-4" />
                                         Duplicate
-                                    </Button>
-                                    <Button size="sm" asChild>
-                                        <Link
-                                            href={`/app/bid-tools/simulations/${s.id}`}
-                                        >
-                                            <Play className="mr-2 h-4 w-4" />
-                                            View
-                                        </Link>
                                     </Button>
                                     <Button
                                         variant="ghost"
