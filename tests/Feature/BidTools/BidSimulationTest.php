@@ -426,3 +426,134 @@ test('user can delete simulation and linked bidder profiles', function () {
     expect(BidSimulationParticipant::count())->toBe(0);
     expect(BidScenario::whereKey($scenarioId)->exists())->toBeFalse();
 });
+
+test('user can duplicate a simulation with bidders and preferences', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 3);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Dup sim import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Original sim',
+        'last_run_at' => now(),
+        'last_run_results' => [['participant_id' => 1]],
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Alice',
+        'seniority_rank' => 1,
+        'profile' => sampleBidderProfile(['vacation_bank' => 11]),
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Bob',
+        'seniority_rank' => 2,
+        'skips_bid' => true,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $sourceScenarioIds = BidSimulationParticipant::query()
+        ->where('bid_simulation_id', $simulation->id)
+        ->pluck('bid_scenario_id')
+        ->all();
+
+    $this->actingAs($user)
+        ->post(route('bid-tools.simulations.duplicate', $simulation->id))
+        ->assertRedirect();
+
+    expect(BidSimulation::where('user_id', $user->id)->count())->toBe(2);
+
+    $copy = BidSimulation::query()
+        ->where('user_id', $user->id)
+        ->whereKeyNot($simulation->id)
+        ->first();
+
+    expect($copy)->not->toBeNull();
+    expect($copy->name)->toBe('Original sim (copy)');
+    expect($copy->last_run_at)->toBeNull();
+    expect($copy->last_run_results)->toBeNull();
+
+    $copyParticipants = BidSimulationParticipant::query()
+        ->where('bid_simulation_id', $copy->id)
+        ->orderBy('seniority_rank')
+        ->get();
+
+    expect($copyParticipants)->toHaveCount(2);
+    expect($copyParticipants[0]->display_name)->toBe('Alice');
+    expect($copyParticipants[1]->display_name)->toBe('Bob');
+    expect($copyParticipants[1]->skips_bid)->toBeTrue();
+
+    $copyScenarioIds = $copyParticipants->pluck('bid_scenario_id')->all();
+    expect($copyScenarioIds)->not->toContain($sourceScenarioIds[0]);
+    expect($copyScenarioIds)->not->toContain($sourceScenarioIds[1]);
+
+    $aliceScenario = BidScenario::find($copyParticipants[0]->bid_scenario_id);
+    expect($aliceScenario->vacation_bank)->toBe(11);
+    expect($aliceScenario->name)->toBe('Alice · Original sim (copy)');
+});
+
+test('skipped bidder does not take a line during simulation run', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMultiLineBidCsv($bidYear, 3);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Skip import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Skip test',
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Senior',
+        'seniority_rank' => 1,
+        'skips_bid' => true,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Junior',
+        'seniority_rank' => 2,
+        'profile' => sampleBidderProfile(),
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('bid-tools.simulations.run', $simulation->id))
+        ->assertRedirect(route('bid-tools.simulations.show', $simulation->id));
+
+    $simulation->refresh();
+
+    expect($simulation->last_run_results)->toHaveCount(2);
+    expect($simulation->last_run_results[0]['display_name'])->toBe('Senior');
+    expect($simulation->last_run_results[0]['bid_line_id'])->toBeNull();
+    expect($simulation->last_run_results[0]['skipped'])->toBeTrue();
+    expect($simulation->last_run_results[0]['message'])->toBe('Passed / no bid');
+    expect($simulation->last_run_results[1]['display_name'])->toBe('Junior');
+    expect($simulation->last_run_results[1]['bid_line_id'])->not->toBeNull();
+});

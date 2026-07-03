@@ -83,6 +83,15 @@ final class BidSimulationEngine
         $results = [];
 
         foreach ($participants as $participant) {
+            if ($participant->skips_bid) {
+                $results[] = [
+                    ...$this->emptyResult($participant, 'Passed / no bid'),
+                    'skipped' => true,
+                ];
+
+                continue;
+            }
+
             $scenario = $participant->scenario;
             if ($scenario === null) {
                 $results[] = $this->emptyResult($participant, 'No preference profile assigned');

@@ -1,5 +1,5 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { ChevronDown, Trash2 } from 'lucide-react';
+import { ChevronDown, Copy, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ type Participant = {
     id: number;
     display_name: string;
     seniority_rank: number;
+    skips_bid: boolean;
     minimum_bid_lines: number;
     bid_scenario_id: number;
     profile: BidderProfile;
@@ -65,6 +66,7 @@ function ParticipantEditor({
     const form = useForm({
         display_name: participant.display_name,
         seniority_rank: participant.seniority_rank,
+        skips_bid: participant.skips_bid,
         profile: participant.profile,
     });
 
@@ -122,6 +124,11 @@ function ParticipantEditor({
                     <span className="font-medium">
                         #{participant.seniority_rank} {participant.display_name}
                     </span>
+                    {participant.skips_bid && (
+                        <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                            passes
+                        </span>
+                    )}
                     <span className="ml-2 text-muted-foreground">
                         min {participant.minimum_bid_lines} line
                         {participant.minimum_bid_lines === 1 ? '' : 's'}
@@ -141,6 +148,7 @@ function ParticipantEditor({
                         displayName={form.data.display_name}
                         seniorityRank={form.data.seniority_rank}
                         vacationBank={form.data.profile.vacation_bank}
+                        skipsBid={form.data.skips_bid}
                         onDisplayNameChange={(display_name) =>
                             form.setData('display_name', display_name)
                         }
@@ -155,6 +163,9 @@ function ParticipantEditor({
                                     vacation_bank,
                                 ),
                             )
+                        }
+                        onSkipsBidChange={(skips_bid) =>
+                            form.setData('skips_bid', skips_bid)
                         }
                         displayNameError={form.errors.display_name}
                         seniorityRankError={form.errors.seniority_rank}
@@ -211,13 +222,15 @@ function ParticipantEditor({
                         >
                             Save bidder
                         </Button>
-                        <Button variant="outline" size="sm" asChild>
-                            <Link
-                                href={`/app/bid-tools/simulations/${simulationId}/participants/${participant.id}/recommendations`}
-                            >
-                                Suggested bid order
-                            </Link>
-                        </Button>
+                        {!participant.skips_bid && !form.data.skips_bid && (
+                            <Button variant="outline" size="sm" asChild>
+                                <Link
+                                    href={`/app/bid-tools/simulations/${simulationId}/participants/${participant.id}/recommendations`}
+                                >
+                                    Suggested bid order
+                                </Link>
+                            </Button>
+                        )}
                         <Button
                             type="button"
                             variant="ghost"
@@ -272,6 +285,7 @@ export default function BidSimulationEdit({
     const addForm = useForm({
         display_name: '',
         seniority_rank: participants.length + 1,
+        skips_bid: false,
         profile: emptyBidderProfile(profileDefaults),
     });
 
@@ -349,6 +363,7 @@ export default function BidSimulationEdit({
                     addForm.setData({
                         display_name: '',
                         seniority_rank: participants.length + 2,
+                        skips_bid: false,
                         profile: emptyBidderProfile(profileDefaults),
                     });
                 },
@@ -379,6 +394,19 @@ export default function BidSimulationEdit({
                             >
                                 View simulation
                             </Link>
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            onClick={() =>
+                                router.post(
+                                    `/app/bid-tools/simulations/${simulation.id}/duplicate`,
+                                )
+                            }
+                        >
+                            <Copy className="mr-2 h-4 w-4" />
+                            Duplicate
                         </Button>
                         <Button
                             variant="destructive"
@@ -471,6 +499,7 @@ export default function BidSimulationEdit({
                             displayName={addForm.data.display_name}
                             seniorityRank={addForm.data.seniority_rank}
                             vacationBank={addForm.data.profile.vacation_bank}
+                            skipsBid={addForm.data.skips_bid}
                             onDisplayNameChange={(display_name) =>
                                 addForm.setData('display_name', display_name)
                             }
@@ -485,6 +514,9 @@ export default function BidSimulationEdit({
                                         vacation_bank,
                                     ),
                                 )
+                            }
+                            onSkipsBidChange={(skips_bid) =>
+                                addForm.setData('skips_bid', skips_bid)
                             }
                             displayNameError={addForm.errors.display_name}
                             seniorityRankError={addForm.errors.seniority_rank}

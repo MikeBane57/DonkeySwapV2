@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Play, Plus, Trash2, Users } from 'lucide-react';
+import { Copy, Play, Plus, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
@@ -97,6 +97,19 @@ export default function BidSimulationsIndex({
                                         >
                                             Manage
                                         </Link>
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        type="button"
+                                        onClick={() =>
+                                            router.post(
+                                                `/app/bid-tools/simulations/${s.id}/duplicate`,
+                                            )
+                                        }
+                                    >
+                                        <Copy className="mr-2 h-4 w-4" />
+                                        Duplicate
                                     </Button>
                                     <Button size="sm" asChild>
                                         <Link

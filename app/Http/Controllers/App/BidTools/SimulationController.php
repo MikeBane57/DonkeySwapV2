@@ -14,6 +14,7 @@ use App\Models\BidSimulationParticipant;
 use App\Services\BidTools\BidLinePickerService;
 use App\Services\BidTools\BidScenarioProfileBuilder;
 use App\Services\BidTools\BidSimulationEngine;
+use App\Services\BidTools\ScenarioScoreService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,7 @@ class SimulationController extends Controller
         private readonly BidSimulationEngine $engine,
         private readonly BidScenarioProfileBuilder $profileBuilder,
         private readonly BidLinePickerService $linePicker,
+        private readonly ScenarioScoreService $scoreService,
     ) {}
 
     public function index(Request $request): Response
@@ -140,6 +142,66 @@ class SimulationController extends Controller
             ->with('success', 'Simulation deleted.');
     }
 
+    public function duplicate(Request $request, int $simulation): RedirectResponse
+    {
+        $source = $this->findSimulation($request, $simulation);
+        $source->load(['participants.scenario.vacationRanges']);
+
+        $copy = DB::transaction(function () use ($request, $source) {
+            $simulation = BidSimulation::create([
+                'user_id' => $request->user()->id,
+                'bid_import_id' => $source->bid_import_id,
+                'name' => $this->duplicateSimulationName($request->user()->id, $source->name),
+            ]);
+
+            foreach ($source->participants->sortBy('seniority_rank') as $participant) {
+                $scenario = $participant->scenario;
+                if ($scenario === null) {
+                    continue;
+                }
+
+                $scenario->loadMissing('vacationRanges');
+                $legacyRanges = $scenario->vacationRanges->map(fn ($r) => [
+                    'title' => $r->title ?? '',
+                    'starts_on' => $r->starts_on->format('Y-m-d'),
+                    'ends_on' => $r->ends_on->format('Y-m-d'),
+                ])->all();
+
+                $newScenario = BidScenario::create([
+                    'user_id' => $request->user()->id,
+                    'bid_import_id' => $scenario->bid_import_id,
+                    'name' => "{$participant->display_name} · {$simulation->name}",
+                    'vacation_bank' => $scenario->vacation_bank,
+                    'weights' => $scenario->weights,
+                    'holiday_rank' => $scenario->holiday_rank,
+                    'desk_rank' => $scenario->desk_rank,
+                    'start_time_rank' => $scenario->start_time_rank ?? [],
+                    'personal_dates' => $this->scoreService->personalDatesForEditor(
+                        $scenario->personal_dates ?? [],
+                        $legacyRanges,
+                    ),
+                    'code_overrides' => $scenario->code_overrides ?? [],
+                    'desk_bucket_mappings' => $scenario->desk_bucket_mappings ?? [],
+                    'line_desk_buckets' => $scenario->line_desk_buckets ?? [],
+                ]);
+
+                BidSimulationParticipant::create([
+                    'bid_simulation_id' => $simulation->id,
+                    'display_name' => $participant->display_name,
+                    'seniority_rank' => $participant->seniority_rank,
+                    'skips_bid' => $participant->skips_bid,
+                    'bid_scenario_id' => $newScenario->id,
+                ]);
+            }
+
+            return $simulation;
+        });
+
+        return redirect()
+            ->route('bid-tools.simulations.edit', $copy->id)
+            ->with('success', 'Simulation duplicated. Adjust the copy as needed.');
+    }
+
     public function storeParticipant(
         StoreBidSimulationParticipantRequest $request,
         int $simulation,
@@ -162,6 +224,7 @@ class SimulationController extends Controller
                 'bid_simulation_id' => $sim->id,
                 'display_name' => $displayName,
                 'seniority_rank' => (int) $request->validated('seniority_rank'),
+                'skips_bid' => (bool) $request->validated('skips_bid'),
                 'bid_scenario_id' => $scenario->id,
             ]);
 
@@ -188,6 +251,7 @@ class SimulationController extends Controller
             $p->update([
                 'display_name' => $displayName,
                 'seniority_rank' => (int) $request->validated('seniority_rank'),
+                'skips_bid' => (bool) $request->validated('skips_bid'),
             ]);
 
             if ($p->scenario) {
@@ -314,10 +378,28 @@ class SimulationController extends Controller
             'id' => $p->id,
             'display_name' => $p->display_name,
             'seniority_rank' => $p->seniority_rank,
+            'skips_bid' => (bool) $p->skips_bid,
             'minimum_bid_lines' => max(1, (int) $p->seniority_rank),
             'bid_scenario_id' => $p->bid_scenario_id,
             'scenario_name' => $p->scenario?->name,
         ];
+    }
+
+    private function duplicateSimulationName(int $userId, string $name): string
+    {
+        $base = preg_replace('/ \(\d+\)$/', '', trim($name)) ?: 'Simulation';
+        $candidate = $base.' (copy)';
+        $suffix = 2;
+
+        while (BidSimulation::query()
+            ->where('user_id', $userId)
+            ->where('name', $candidate)
+            ->exists()) {
+            $candidate = $base.' (copy '.$suffix.')';
+            $suffix++;
+        }
+
+        return $candidate;
     }
 
     /**

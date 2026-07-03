@@ -11,6 +11,7 @@ class BidSimulationParticipant extends Model
         'bid_simulation_id',
         'seniority_rank',
         'display_name',
+        'skips_bid',
         'bid_scenario_id',
     ];
 
@@ -18,6 +19,7 @@ class BidSimulationParticipant extends Model
     {
         return [
             'seniority_rank' => 'integer',
+            'skips_bid' => 'boolean',
         ];
     }
 
