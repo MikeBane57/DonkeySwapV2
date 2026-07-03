@@ -39,6 +39,7 @@ class UpdateBidSimulationParticipantRequest extends FormRequest
                     ->where('bid_simulation_id', $simulationId)
                     ->ignore($participantId),
             ],
+            'skips_bid' => ['sometimes', 'boolean'],
         ], $this->bidderProfileRules());
     }
 }

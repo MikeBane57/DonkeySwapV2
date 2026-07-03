@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ListOrdered, Play, Settings, Trash2 } from 'lucide-react';
+import { Copy, ListOrdered, Play, Settings, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
@@ -9,6 +9,7 @@ type Participant = {
     id: number;
     display_name: string;
     seniority_rank: number;
+    skips_bid: boolean;
     minimum_bid_lines: number;
     scenario_name: string | null;
 };
@@ -24,6 +25,7 @@ type ResultRow = {
     preference_rank: number | null;
     total: number | null;
     message: string | null;
+    skipped?: boolean;
 };
 
 export default function BidSimulationShow({
@@ -97,6 +99,19 @@ export default function BidSimulationShow({
                             </Link>
                         </Button>
                         <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            onClick={() =>
+                                router.post(
+                                    `/app/bid-tools/simulations/${simulation.id}/duplicate`,
+                                )
+                            }
+                        >
+                            <Copy className="mr-2 h-4 w-4" />
+                            Duplicate
+                        </Button>
+                        <Button
                             size="sm"
                             type="button"
                             disabled={participants.length === 0 || running}
@@ -157,6 +172,11 @@ export default function BidSimulationShow({
                                         <span className="font-medium">
                                             #{p.seniority_rank} {p.display_name}
                                         </span>
+                                        {p.skips_bid && (
+                                            <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                                                passes
+                                            </span>
+                                        )}
                                         <span className="ml-2 text-muted-foreground">
                                             rank min {p.minimum_bid_lines} line
                                             {p.minimum_bid_lines === 1
@@ -170,13 +190,19 @@ export default function BidSimulationShow({
                                             )}
                                         </span>
                                     </div>
-                                    <Button variant="outline" size="sm" asChild>
-                                        <Link
-                                            href={`/app/bid-tools/simulations/${simulation.id}/participants/${p.id}/recommendations`}
-                                        >
-                                            <ListOrdered className="mr-2 h-4 w-4" />
-                                            Suggested bid order
-                                        </Link>
+                                    <Button variant="outline" size="sm" asChild={!p.skips_bid} disabled={p.skips_bid}>
+                                        {p.skips_bid ? (
+                                            <span className="text-muted-foreground">
+                                                Does not bid
+                                            </span>
+                                        ) : (
+                                            <Link
+                                                href={`/app/bid-tools/simulations/${simulation.id}/participants/${p.id}/recommendations`}
+                                            >
+                                                <ListOrdered className="mr-2 h-4 w-4" />
+                                                Suggested bid order
+                                            </Link>
+                                        )}
                                     </Button>
                                 </li>
                             ))}
@@ -210,7 +236,7 @@ export default function BidSimulationShow({
                                     {results.map((row) => (
                                         <tr
                                             key={row.participant_id}
-                                            className="border-b border-sidebar-border/40"
+                                            className={`border-b border-sidebar-border/40 ${row.skipped ? 'bg-muted/30' : ''}`}
                                         >
                                             <td className="p-2 font-medium">
                                                 {row.seniority_rank}

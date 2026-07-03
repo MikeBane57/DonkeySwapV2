@@ -162,6 +162,7 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::get('/simulations/{simulation}', [BidToolsSimulationController::class, 'show'])->name('simulations.show');
         Route::get('/simulations/{simulation}/edit', [BidToolsSimulationController::class, 'edit'])->name('simulations.edit');
         Route::put('/simulations/{simulation}', [BidToolsSimulationController::class, 'update'])->name('simulations.update');
+        Route::post('/simulations/{simulation}/duplicate', [BidToolsSimulationController::class, 'duplicate'])->name('simulations.duplicate');
         Route::delete('/simulations/{simulation}', [BidToolsSimulationController::class, 'destroy'])->name('simulations.destroy');
         Route::post('/simulations/{simulation}/participants', [BidToolsSimulationController::class, 'storeParticipant'])->name('simulations.participants.store');
         Route::put('/simulations/{simulation}/participants/{participant}', [BidToolsSimulationController::class, 'updateParticipant'])->name('simulations.participants.update');

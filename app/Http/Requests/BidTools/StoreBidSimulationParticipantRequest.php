@@ -34,6 +34,7 @@ class StoreBidSimulationParticipantRequest extends FormRequest
                 Rule::unique('bid_simulation_participants', 'seniority_rank')
                     ->where('bid_simulation_id', $simulationId),
             ],
+            'skips_bid' => ['sometimes', 'boolean'],
         ], $this->bidderProfileRules());
     }
 }

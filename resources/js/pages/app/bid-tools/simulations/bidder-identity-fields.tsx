@@ -1,3 +1,4 @@
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -6,9 +7,11 @@ export function BidderIdentityFields({
     displayName,
     seniorityRank,
     vacationBank,
+    skipsBid = false,
     onDisplayNameChange,
     onSeniorityRankChange,
     onVacationBankChange,
+    onSkipsBidChange,
     displayNameError,
     seniorityRankError,
 }: {
@@ -16,9 +19,11 @@ export function BidderIdentityFields({
     displayName: string;
     seniorityRank: number;
     vacationBank: number;
+    skipsBid?: boolean;
     onDisplayNameChange: (value: string) => void;
     onSeniorityRankChange: (value: number) => void;
     onVacationBankChange: (value: number) => void;
+    onSkipsBidChange?: (value: boolean) => void;
     displayNameError?: string;
     seniorityRankError?: string;
 }) {
@@ -84,6 +89,29 @@ export function BidderIdentityFields({
                     }
                 />
             </div>
+            {onSkipsBidChange && (
+                <div className="flex items-start gap-2">
+                    <Checkbox
+                        id={`${idPrefix}-skips-bid`}
+                        checked={skipsBid}
+                        onCheckedChange={(checked) =>
+                            onSkipsBidChange(checked === true)
+                        }
+                    />
+                    <div className="space-y-1">
+                        <Label
+                            htmlFor={`${idPrefix}-skips-bid`}
+                            className="cursor-pointer font-normal"
+                        >
+                            Passes / does not bid
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                            This person keeps their seniority slot but will not
+                            pick a line when the simulation runs.
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
