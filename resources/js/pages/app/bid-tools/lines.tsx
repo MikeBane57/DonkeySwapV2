@@ -13,9 +13,10 @@ import {
     formatWeekendBlockMetrics,
     formatWeekendMetrics,
     keyHolidayPrintLabel,
-    type LineMetrics,
-    weekendMetricsPrintLabel,
+    
+    weekendMetricsPrintLabel
 } from '@/pages/app/bid-tools/holiday-metrics';
+import type {LineMetrics} from '@/pages/app/bid-tools/holiday-metrics';
 import { KeyHolidayCell } from '@/pages/app/bid-tools/key-holiday-cell';
 import { LineDeskGroupEditor } from '@/pages/app/bid-tools/line-desk-group-editor';
 import type { BreadcrumbItem } from '@/types';

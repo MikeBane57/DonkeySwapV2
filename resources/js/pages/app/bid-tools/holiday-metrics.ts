@@ -110,33 +110,6 @@ export function keyHolidayLabel(group: KeyHolidayGroup | undefined): string {
     return `${group.off}/${group.total}`;
 }
 
-export function keyHolidayContextLines(
-    group: KeyHolidayGroup | undefined,
-): string[] {
-    if (!group) {
-        return [];
-    }
-
-    if (group.dates && group.dates.length > 0) {
-        const lines: string[] = [];
-
-        for (const date of group.dates) {
-            const context = dateOffContextLabel(date);
-            if (!context) {
-                continue;
-            }
-
-            lines.push(`${date.label} with ${context.toLowerCase()}`);
-        }
-
-        return lines;
-    }
-
-    const legacy = keyHolidayLegacyContextLabel(group);
-
-    return legacy ? [legacy] : [];
-}
-
 function keyHolidayLegacyContextLabel(
     group: KeyHolidayGroup,
 ): string | null {
@@ -168,6 +141,33 @@ function keyHolidayLegacyContextLabel(
     }
 
     return parts.join(' · ');
+}
+
+export function keyHolidayContextLines(
+    group: KeyHolidayGroup | undefined,
+): string[] {
+    if (!group) {
+        return [];
+    }
+
+    if (group.dates && group.dates.length > 0) {
+        const lines: string[] = [];
+
+        for (const date of group.dates) {
+            const context = dateOffContextLabel(date);
+            if (!context) {
+                continue;
+            }
+
+            lines.push(`${date.label} with ${context.toLowerCase()}`);
+        }
+
+        return lines;
+    }
+
+    const legacy = keyHolidayLegacyContextLabel(group);
+
+    return legacy ? [legacy] : [];
 }
 
 /** @deprecated Use keyHolidayContextLines */
