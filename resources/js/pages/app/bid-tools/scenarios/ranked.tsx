@@ -295,6 +295,7 @@ export default function BidScenarioRanked({
                             onChange={setRanking}
                             defaultHolidayRank={defaultHolidayRank}
                             deskCatalog={deskCatalog}
+                            bidYear={scenario.import.bid_year}
                         />
                         {saveMessage && (
                             <p className="mt-3 text-xs text-muted-foreground">

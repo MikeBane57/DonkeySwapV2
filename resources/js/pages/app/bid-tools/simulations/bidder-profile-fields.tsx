@@ -232,6 +232,7 @@ export function BidderProfileFields({
     lines,
     hideVacationBank = false,
     hideLinePreview = false,
+    bidYear,
 }: {
     value: BidderProfile;
     onChange: (profile: BidderProfile) => void;
@@ -241,6 +242,7 @@ export function BidderProfileFields({
     lines?: LinePickerRow[];
     hideVacationBank?: boolean;
     hideLinePreview?: boolean;
+    bidYear?: number;
 }) {
     const holidayRank = normalizeRankEntries(
         value.holiday_rank,
@@ -353,6 +355,7 @@ export function BidderProfileFields({
             >
                 <PersonalDatesEditor
                     entries={value.personal_dates}
+                    bidYear={bidYear}
                     onChange={(personal_dates) =>
                         onChange({ ...value, personal_dates })
                     }

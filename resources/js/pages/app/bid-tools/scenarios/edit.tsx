@@ -728,6 +728,7 @@ export default function BidScenarioEdit({
                     >
                         <PersonalDatesEditor
                             entries={personalDates}
+                            bidYear={scenario.import.bid_year}
                             onChange={setPersonalDates}
                         />
                     </BidToolsCollapsibleSection>

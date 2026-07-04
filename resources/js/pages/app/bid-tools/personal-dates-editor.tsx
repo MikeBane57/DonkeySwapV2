@@ -1,5 +1,9 @@
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import {
+    DatePickerPopover,
+    DateRangePickerPopover,
+} from '@/components/date-picker-popover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,8 +26,6 @@ export type PersonalDateEntry = {
     priority: Priority;
 };
 
-const dateInputClass = 'h-8 w-full text-xs [color-scheme:dark] sm:w-[9.5rem]';
-
 function moveIndex<T>(list: T[], from: number, to: number): T[] {
     if (from === to || from < 0 || to < 0) {
         return list;
@@ -36,12 +38,12 @@ function moveIndex<T>(list: T[], from: number, to: number): T[] {
 }
 
 function isRangeEntry(entry: PersonalDateEntry): boolean {
-    return Boolean(entry.starts_on && entry.ends_on);
+    return entry.starts_on !== undefined || entry.ends_on !== undefined;
 }
 
 function entryKey(entry: PersonalDateEntry, index: number): string {
     if (isRangeEntry(entry)) {
-        return `range-${entry.starts_on}-${entry.ends_on}-${index}`;
+        return `range-${entry.starts_on ?? ''}-${entry.ends_on ?? ''}-${index}`;
     }
 
     return `date-${entry.date ?? ''}-${index}`;
@@ -128,9 +130,11 @@ function DraggableRow({
 export function PersonalDatesEditor({
     entries,
     onChange,
+    bidYear,
 }: {
     entries: PersonalDateEntry[];
     onChange: (entries: PersonalDateEntry[]) => void;
+    bidYear?: number;
 }) {
     return (
         <div className="space-y-2">
@@ -173,6 +177,7 @@ export function PersonalDatesEditor({
                 </div>
             </div>
             <p className="text-[11px] text-muted-foreground">
+                Use the calendar pickers to choose dates with the correct year.
                 Single dates score days off. Ranges also count vacation cost
                 against your bank for workdays in the range.
             </p>
@@ -201,28 +206,18 @@ export function PersonalDatesEditor({
                                         onChange(next);
                                     }}
                                 />
-                                <Input
-                                    type="date"
-                                    className={dateInputClass}
-                                    value={entry.starts_on ?? ''}
-                                    onChange={(e) => {
+                                <DateRangePickerPopover
+                                    start={entry.starts_on ?? ''}
+                                    end={entry.ends_on ?? ''}
+                                    bidYear={bidYear}
+                                    placeholder="Pick date range"
+                                    aria-label={`Date range for ${entry.label || 'personal date'}`}
+                                    onChange={(starts_on, ends_on) => {
                                         const next = [...entries];
                                         next[idx] = {
                                             ...next[idx],
-                                            starts_on: e.target.value,
-                                        };
-                                        onChange(next);
-                                    }}
-                                />
-                                <Input
-                                    type="date"
-                                    className={dateInputClass}
-                                    value={entry.ends_on ?? ''}
-                                    onChange={(e) => {
-                                        const next = [...entries];
-                                        next[idx] = {
-                                            ...next[idx],
-                                            ends_on: e.target.value,
+                                            starts_on,
+                                            ends_on,
                                         };
                                         onChange(next);
                                     }}
@@ -230,15 +225,17 @@ export function PersonalDatesEditor({
                             </>
                         ) : (
                             <>
-                                <Input
-                                    type="date"
-                                    className={dateInputClass}
+                                <DatePickerPopover
                                     value={entry.date ?? ''}
-                                    onChange={(e) => {
+                                    bidYear={bidYear}
+                                    placeholder="Pick date"
+                                    aria-label={`Date for ${entry.label || 'personal date'}`}
+                                    className="w-[11rem] shrink-0 text-xs"
+                                    onChange={(date) => {
                                         const next = [...entries];
                                         next[idx] = {
                                             ...next[idx],
-                                            date: e.target.value,
+                                            date,
                                         };
                                         onChange(next);
                                     }}

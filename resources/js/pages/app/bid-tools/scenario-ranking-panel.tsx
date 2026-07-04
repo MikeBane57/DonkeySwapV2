@@ -156,11 +156,13 @@ export function ScenarioRankingPanel({
     onChange,
     defaultHolidayRank,
     deskCatalog,
+    bidYear,
 }: {
     value: ScenarioRankingState;
     onChange: (next: ScenarioRankingState) => void;
     defaultHolidayRank: HolidayEntry[];
     deskCatalog: { key: string; label: string }[];
+    bidYear?: number;
 }) {
     const sortMode = value.weights.sort_mode;
     const deskKeysInUse = useMemo(
@@ -419,6 +421,7 @@ export function ScenarioRankingPanel({
             <section className="space-y-2">
                 <PersonalDatesEditor
                     entries={value.personal_dates}
+                    bidYear={bidYear}
                     onChange={(personal_dates) =>
                         onChange({ ...value, personal_dates })
                     }

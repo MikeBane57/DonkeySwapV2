@@ -258,6 +258,7 @@ function ParticipantEditor({
                         onChange={(profile) => form.setData('profile', profile)}
                         hideVacationBank
                         hideLinePreview
+                        bidYear={bidYear}
                     />
 
                     <p className="text-xs text-muted-foreground">
@@ -789,6 +790,7 @@ export default function BidSimulationShow({
                             }
                             hideVacationBank
                             hideLinePreview
+                            bidYear={simulation.bid_year}
                         />
 
                         <Button type="submit" disabled={addForm.processing}>
