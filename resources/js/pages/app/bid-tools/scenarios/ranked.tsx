@@ -456,6 +456,7 @@ export default function BidScenarioRanked({
 
                             <RankingRulesExplanation
                                 explanation={sortExplanation}
+                                showLineDetails={false}
                             />
                         </>
                     ) : !loading ? (

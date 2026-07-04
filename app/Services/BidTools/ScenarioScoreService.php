@@ -218,6 +218,10 @@ final class ScenarioScoreService
                     'metrics' => $metrics,
                     'group_bucket' => $bucket,
                     'raw_group_bucket' => $deskInfo['group_bucket'],
+                    'preference_matches' => [
+                        'holidays' => $this->holidayPreferenceMatches($holidayEntries, $byDate),
+                        'personal' => $this->personalPreferenceMatches($personalEntries, $byDate),
+                    ],
                 ],
             ];
         }
@@ -1155,6 +1159,166 @@ final class ScenarioScoreService
     }
 
     /**
+     * @param  list<array<string, mixed>>  $holidayEntries
+     * @param  array<string, bool>  $byDate
+     * @return list<array<string, mixed>>
+     */
+    private function holidayPreferenceMatches(array $holidayEntries, array $byDate): array
+    {
+        $out = [];
+        foreach ($holidayEntries as $i => $entry) {
+            $priority = $entry['priority'] ?? 'high';
+            if ($priority === 'ignore') {
+                continue;
+            }
+
+            $date = $entry['date'] ?? null;
+            if (! is_string($date) || $date === '') {
+                continue;
+            }
+
+            $label = (string) ($entry['label'] ?? '');
+            if ($label === '') {
+                $label = $date;
+            }
+
+            $out[] = [
+                'rank' => $i + 1,
+                'label' => $label,
+                'date' => $date,
+                'off' => ($byDate[$date] ?? false) === true,
+                'priority' => $priority,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $personalEntries
+     * @param  array<string, bool>  $byDate
+     * @return list<array<string, mixed>>
+     */
+    private function personalPreferenceMatches(array $personalEntries, array $byDate): array
+    {
+        $out = [];
+        foreach ($personalEntries as $i => $entry) {
+            $priority = $entry['priority'] ?? 'high';
+            if ($priority === 'ignore') {
+                continue;
+            }
+
+            $dates = self::datesCoveredByPersonalEntry($entry);
+            if ($dates === []) {
+                continue;
+            }
+
+            $offDays = 0;
+            foreach ($dates as $date) {
+                if (($byDate[$date] ?? false) === true) {
+                    $offDays++;
+                }
+            }
+
+            $startsOn = (string) ($entry['starts_on'] ?? '');
+            $endsOn = (string) ($entry['ends_on'] ?? '');
+            $isRange = $startsOn !== '' && $endsOn !== '';
+
+            $out[] = [
+                'rank' => $i + 1,
+                'label' => (string) ($entry['label'] ?? ''),
+                'kind' => $isRange ? 'range' : 'date',
+                'date' => $isRange ? null : ($entry['date'] ?? null),
+                'starts_on' => $isRange ? $startsOn : null,
+                'ends_on' => $isRange ? $endsOn : null,
+                'off_days' => $offDays,
+                'total_days' => count($dates),
+                'all_off' => $offDays === count($dates),
+                'priority' => $priority,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $holidayEntries
+     * @return list<array<string, mixed>>
+     */
+    private function holidayEntriesSummary(array $holidayEntries): array
+    {
+        $out = [];
+        foreach ($holidayEntries as $i => $entry) {
+            if (($entry['priority'] ?? 'high') === 'ignore') {
+                continue;
+            }
+
+            $date = $entry['date'] ?? null;
+            if (! is_string($date) || $date === '') {
+                continue;
+            }
+
+            $label = (string) ($entry['label'] ?? '');
+            if ($label === '') {
+                $label = $date;
+            }
+
+            $out[] = [
+                'rank' => $i + 1,
+                'label' => $label,
+                'date' => $date,
+                'priority' => $entry['priority'] ?? 'high',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $personalEntries
+     * @return list<array<string, mixed>>
+     */
+    private function personalEntriesSummary(array $personalEntries): array
+    {
+        $out = [];
+        foreach ($personalEntries as $i => $entry) {
+            if (($entry['priority'] ?? 'high') === 'ignore') {
+                continue;
+            }
+
+            $startsOn = (string) ($entry['starts_on'] ?? '');
+            $endsOn = (string) ($entry['ends_on'] ?? '');
+            if ($startsOn !== '' && $endsOn !== '') {
+                $out[] = [
+                    'rank' => $i + 1,
+                    'label' => (string) ($entry['label'] ?? ''),
+                    'kind' => 'range',
+                    'starts_on' => $startsOn,
+                    'ends_on' => $endsOn,
+                    'priority' => $entry['priority'] ?? 'high',
+                ];
+
+                continue;
+            }
+
+            $date = $entry['date'] ?? null;
+            if (! is_string($date) || $date === '') {
+                continue;
+            }
+
+            $out[] = [
+                'rank' => $i + 1,
+                'label' => (string) ($entry['label'] ?? ''),
+                'kind' => 'date',
+                'date' => $date,
+                'priority' => $entry['priority'] ?? 'high',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * Human-readable explanation of how lines were sorted (for UI debugging).
      *
      * @param  list<array<string, mixed>>  $scoredLines
@@ -1192,6 +1356,9 @@ final class ScenarioScoreService
         $deskTierGroups = $this->deskTierGroupsSummary($deskEntries);
         $criteriaLabels = $this->criteriaLabels($criteriaOrder);
         $steps = $this->sortStepsForMode($sortMode, $criteriaLabels, $startTimeTiebreak);
+        $bidYear = (int) $scenario->import->bid_year;
+        $holidayEntries = $this->normalizeHolidayRank($scenario->holiday_rank, $bidYear);
+        $personalEntries = $this->normalizePersonalDates($scenario->personal_dates ?? []);
 
         $lineDetails = [];
         $previousDeskGroup = null;
@@ -1204,6 +1371,13 @@ final class ScenarioScoreService
                 $bucket,
                 $normalizeBucket,
             ));
+            $metrics = is_array($row['breakdown']['metrics'] ?? null)
+                ? $row['breakdown']['metrics']
+                : [];
+            $preferenceMatches = is_array($row['breakdown']['preference_matches'] ?? null)
+                ? $row['breakdown']['preference_matches']
+                : ['holidays' => [], 'personal' => []];
+
             $lineDetails[] = [
                 'rank' => $rank++,
                 'bid_line_id' => (int) $row['bid_line_id'],
@@ -1221,6 +1395,10 @@ final class ScenarioScoreService
                     (string) ($row['start_time_tiebreak_key'] ?? 'other'),
                 ),
                 'total' => $row['total'] ?? 0,
+                'holidays_off' => (int) ($metrics['holidays_off'] ?? 0),
+                'key_holidays' => $metrics['key_holidays'] ?? null,
+                'holiday_matches' => $preferenceMatches['holidays'] ?? [],
+                'personal_matches' => $preferenceMatches['personal'] ?? [],
             ];
             $previousDeskGroup = $deskGroup;
         }
@@ -1244,6 +1422,10 @@ final class ScenarioScoreService
                 'vacation_penalty' => (float) ($weights['vacation_penalty'] ?? 1),
             ],
             'desk_tier_groups' => $deskTierGroups,
+            'preference_entries' => [
+                'holidays' => $this->holidayEntriesSummary($holidayEntries),
+                'personal' => $this->personalEntriesSummary($personalEntries),
+            ],
             'line_details' => $lineDetails,
         ];
     }

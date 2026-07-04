@@ -668,8 +668,15 @@ export function ParticipantRecommendationsPanel({
                     {!usingManual && (
                         <RankingRulesExplanation
                             explanation={sortExplanation}
-                            showLineDetails={false}
+                            showLineDetails
                             includeInPrint
+                            maxLineDetails={
+                                minimumBidLines + EXTRA_SUGGESTED_LINES
+                            }
+                            minimumDepth={minimumBidLines}
+                            lineDetailIds={displayRows?.map(
+                                (row) => row.bid_line_id,
+                            )}
                         />
                     )}
                     {usingManual && (
@@ -681,71 +688,75 @@ export function ParticipantRecommendationsPanel({
                         </p>
                     )}
 
-                    <div className="print-only overflow-x-auto">
-                        <table className="bid-tools-print-table w-full text-left">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Line</th>
-                                    <th>Bucket</th>
-                                    <th>Start</th>
-                                    <th>Xmas</th>
-                                    <th>T&apos;giv</th>
-                                    <th>Jul 4</th>
-                                    <th>Hol</th>
-                                    <th>Score</th>
-                                    <th>Callouts</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {requiredRows.map((row) => (
-                                    <tr key={row.bid_line_id}>
-                                        <td>{row.rank}</td>
-                                        <td className="font-mono">
-                                            {row.line_num}
-                                        </td>
-                                        <td>{formatDeskBucket(row)}</td>
-                                        <td>{row.start_time ?? '—'}</td>
-                                        <td>
-                                            {row.key_holidays?.christmas
-                                                ?.off ===
-                                            row.key_holidays?.christmas?.total
-                                                ? 'Off'
-                                                : '—'}
-                                        </td>
-                                        <td>
-                                            {row.key_holidays?.thanksgiving
-                                                ?.off ===
-                                            row.key_holidays?.thanksgiving
-                                                ?.total
-                                                ? 'Off'
-                                                : '—'}
-                                        </td>
-                                        <td>
-                                            {row.key_holidays?.july_4?.off ===
-                                            row.key_holidays?.july_4?.total
-                                                ? 'Off'
-                                                : '—'}
-                                        </td>
-                                        <td>{row.holidays_off ?? '—'}</td>
-                                        <td>{row.total}</td>
-                                        <td className="wrap text-xs">
-                                            {row.schedule_callouts &&
-                                            row.schedule_callouts !== '—'
-                                                ? row.schedule_callouts
-                                                : '—'}
-                                        </td>
+                    {usingManual && (
+                        <div className="print-only overflow-x-auto">
+                            <table className="bid-tools-print-table w-full text-left">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Line</th>
+                                        <th>Bucket</th>
+                                        <th>Start</th>
+                                        <th>Xmas</th>
+                                        <th>T&apos;giv</th>
+                                        <th>Jul 4</th>
+                                        <th>Hol</th>
+                                        <th>Score</th>
+                                        <th>Callouts</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        {rows.length > requiredRows.length && (
-                            <p className="bid-tools-print-subtitle mt-2">
-                                +{rows.length - requiredRows.length} additional
-                                ranked lines on screen view
-                            </p>
-                        )}
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {requiredRows.map((row) => (
+                                        <tr key={row.bid_line_id}>
+                                            <td>{row.rank}</td>
+                                            <td className="font-mono">
+                                                {row.line_num}
+                                            </td>
+                                            <td>{formatDeskBucket(row)}</td>
+                                            <td>{row.start_time ?? '—'}</td>
+                                            <td>
+                                                {row.key_holidays?.christmas
+                                                    ?.off ===
+                                                row.key_holidays?.christmas
+                                                    ?.total
+                                                    ? 'Off'
+                                                    : '—'}
+                                            </td>
+                                            <td>
+                                                {row.key_holidays?.thanksgiving
+                                                    ?.off ===
+                                                row.key_holidays?.thanksgiving
+                                                    ?.total
+                                                    ? 'Off'
+                                                    : '—'}
+                                            </td>
+                                            <td>
+                                                {row.key_holidays?.july_4
+                                                    ?.off ===
+                                                row.key_holidays?.july_4?.total
+                                                    ? 'Off'
+                                                    : '—'}
+                                            </td>
+                                            <td>{row.holidays_off ?? '—'}</td>
+                                            <td>{row.total}</td>
+                                            <td className="wrap text-xs">
+                                                {row.schedule_callouts &&
+                                                row.schedule_callouts !== '—'
+                                                    ? row.schedule_callouts
+                                                    : '—'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {rows.length > requiredRows.length && (
+                                <p className="bid-tools-print-subtitle mt-2">
+                                    +{rows.length - requiredRows.length}{' '}
+                                    additional ranked lines on screen view
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     {hiddenRowCount > 0 && (
                         <p className="no-print text-xs text-muted-foreground">
@@ -755,14 +766,16 @@ export function ParticipantRecommendationsPanel({
                         </p>
                     )}
 
-                    <div className="no-print overflow-x-auto rounded-lg border border-sidebar-border/70">
-                        <RecommendationsTable
-                            rows={displayRows ?? []}
-                            showMinimum
-                            editable
-                            onReorder={handleReorder}
-                        />
-                    </div>
+                    {usingManual && (
+                        <div className="no-print overflow-x-auto rounded-lg border border-sidebar-border/70">
+                            <RecommendationsTable
+                                rows={displayRows ?? []}
+                                showMinimum
+                                editable
+                                onReorder={handleReorder}
+                            />
+                        </div>
+                    )}
 
                     <BidToolsPrintStyles />
                 </div>
