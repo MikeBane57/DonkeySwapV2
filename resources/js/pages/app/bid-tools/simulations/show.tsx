@@ -261,9 +261,10 @@ function ParticipantEditor({
                     />
 
                     <p className="text-xs text-muted-foreground">
-                        Desk group changes apply after you click Save bidder.
-                        Drag the bid order below and click Save order to
-                        override the computed ranking for simulation picks.
+                        Click Refresh order to preview the suggested ranking
+                        from your current preferences without saving. Drag the
+                        bid order below and click Save order to override the
+                        computed ranking for simulation picks.
                     </p>
 
                     <ParticipantRecommendationsPanel
@@ -275,6 +276,12 @@ function ParticipantEditor({
                         skipsBid={form.data.skips_bid}
                         simulationName={simulationName}
                         bidYear={bidYear}
+                        draftProfile={sanitizeProfile(
+                            syncProfileVacationBank(
+                                form.data.profile,
+                                form.data.profile.vacation_bank,
+                            ),
+                        )}
                         refreshKey={recommendationsRefreshKey}
                     />
 

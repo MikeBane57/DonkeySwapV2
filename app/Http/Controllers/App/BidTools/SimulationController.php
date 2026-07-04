@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\App\BidTools;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\BidTools\PreviewSimulationRecommendationsRequest;
 use App\Http\Requests\BidTools\StoreBidSimulationParticipantRequest;
 use App\Http\Requests\BidTools\StoreBidSimulationRequest;
 use App\Http\Requests\BidTools\UpdateBidSimulationParticipantLineOrderRequest;
@@ -375,6 +376,47 @@ class SimulationController extends Controller
         $this->clearParticipantScenarioMappings($sim);
         $p->load('scenario');
 
+        return $this->recommendationsResponse($request, $sim, $p);
+    }
+
+    public function previewRecommendations(
+        PreviewSimulationRecommendationsRequest $request,
+        int $simulation,
+        int $participant,
+    ): JsonResponse {
+        $sim = $this->findSimulation($request, $simulation);
+        $p = $this->findParticipant($sim, $participant);
+        $p->load('scenario');
+
+        if ($p->scenario === null) {
+            abort(422, 'Bidder has no preference profile.');
+        }
+
+        $this->clearParticipantScenarioMappings($sim);
+        $p->load('scenario');
+
+        $payload = $this->engine->recommendationPayloadForParticipant(
+            $p,
+            $sim,
+            $request->validated('profile'),
+        );
+        $minimumDepth = max(1, (int) $p->seniority_rank);
+
+        return response()->json([
+            'minimum_depth' => $minimumDepth,
+            'rows' => $payload['rows'],
+            'computed_rows' => $payload['computed_rows'],
+            'order_source' => $payload['order_source'],
+            'manual_line_order' => $payload['manual_line_order'],
+            'sort_explanation' => $payload['sort_explanation'],
+        ]);
+    }
+
+    private function recommendationsResponse(
+        Request $request,
+        BidSimulation $sim,
+        BidSimulationParticipant $p,
+    ): Response|JsonResponse {
         $payload = $this->engine->recommendationPayloadForParticipant($p, $sim);
         $minimumDepth = max(1, (int) $p->seniority_rank);
 

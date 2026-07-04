@@ -1,4 +1,4 @@
-import { GripVertical } from 'lucide-react';
+import { GripVertical, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { getCsrfToken } from '@/lib/csrf';
@@ -8,6 +8,7 @@ import type { KeyHolidayGroup } from '@/pages/app/bid-tools/holiday-metrics';
 import { KeyHolidayCell } from '@/pages/app/bid-tools/key-holiday-cell';
 import { RankingRulesExplanation } from '@/pages/app/bid-tools/ranking-rules-explanation';
 import type { SortExplanation } from '@/pages/app/bid-tools/ranking-rules-explanation';
+import type { BidderProfile } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 
 type RecRow = {
     rank: number;
@@ -57,7 +58,7 @@ async function readErrorMessage(response: Response): Promise<string> {
         // ignore JSON parse errors
     }
 
-    return `Could not save bid order (${response.status}).`;
+    return `Request failed (${response.status}).`;
 }
 
 function moveIndex<T>(list: T[], from: number, to: number): T[] {
@@ -284,6 +285,7 @@ export function ParticipantRecommendationsPanel({
     skipsBid,
     simulationName,
     bidYear,
+    draftProfile,
     refreshKey = 0,
 }: {
     simulationId: number;
@@ -294,6 +296,7 @@ export function ParticipantRecommendationsPanel({
     skipsBid: boolean;
     simulationName: string;
     bidYear: number;
+    draftProfile: BidderProfile;
     refreshKey?: number;
 }) {
     const [rows, setRows] = useState<RecRow[] | null>(null);
@@ -301,6 +304,7 @@ export function ParticipantRecommendationsPanel({
         useState<SortExplanation | null>(null);
     const [orderSource, setOrderSource] = useState<OrderSource>('computed');
     const [loading, setLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loaded, setLoaded] = useState(false);
@@ -309,6 +313,7 @@ export function ParticipantRecommendationsPanel({
 
     const lineOrderUrl = `/app/bid-tools/simulations/${simulationId}/participants/${participantId}/line-order`;
     const recommendationsUrl = `/app/bid-tools/simulations/${simulationId}/participants/${participantId}/recommendations`;
+    const previewRecommendationsUrl = `${recommendationsUrl}/preview`;
 
     const applyResponse = (data: RecommendationsPayload) => {
         applyPayload(data, {
@@ -368,6 +373,40 @@ export function ParticipantRecommendationsPanel({
             .finally(() => {
                 setLoading(false);
             });
+    };
+
+    const refreshFromDraft = async () => {
+        setRefreshing(true);
+        setError(null);
+
+        try {
+            const response = await fetch(previewRecommendationsUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-XSRF-TOKEN': getCsrfToken(),
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ profile: draftProfile }),
+            });
+
+            if (!response.ok) {
+                throw new Error(await readErrorMessage(response));
+            }
+
+            applyResponse((await response.json()) as RecommendationsPayload);
+            setLoaded(true);
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : 'Could not refresh bid order.',
+            );
+        } finally {
+            setRefreshing(false);
+        }
     };
 
     useEffect(() => {
@@ -485,6 +524,11 @@ export function ParticipantRecommendationsPanel({
                     Loading bid order…
                 </p>
             )}
+            {refreshing && (
+                <p className="text-sm text-muted-foreground">
+                    Refreshing suggested order…
+                </p>
+            )}
             {error && <p className="text-sm text-destructive">{error}</p>}
             {rows && rows.length > 0 && (
                 <div id={printId} className="bid-tools-print space-y-4">
@@ -500,9 +544,10 @@ export function ParticipantRecommendationsPanel({
                                     <>
                                         Ranked from preferences (showing
                                         required lines plus{' '}
-                                        {EXTRA_SUGGESTED_LINES} extra). Drag
-                                        rows if you know what they are actually
-                                        bidding, then click Save order.
+                                        {EXTRA_SUGGESTED_LINES} extra). Use
+                                        Refresh order after editing preferences,
+                                        or drag rows if you know what they are
+                                        actually bidding, then click Save order.
                                     </>
                                 )}{' '}
                                 Must rank at least {minimumBidLines} line
@@ -510,6 +555,26 @@ export function ParticipantRecommendationsPanel({
                                 {minimumBidLines}).
                             </p>
                             <div className="flex flex-wrap gap-2">
+                                {!dirty && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        type="button"
+                                        disabled={
+                                            loading || refreshing || saving
+                                        }
+                                        onClick={() => void refreshFromDraft()}
+                                    >
+                                        <RefreshCw
+                                            className={`mr-1 h-4 w-4 ${
+                                                refreshing ? 'animate-spin' : ''
+                                            }`}
+                                        />
+                                        {refreshing
+                                            ? 'Refreshing…'
+                                            : 'Refresh order'}
+                                    </Button>
+                                )}
                                 {dirty && (
                                     <>
                                         <Button

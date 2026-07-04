@@ -170,6 +170,7 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::delete('/simulations/{simulation}/participants/{participant}', [BidToolsSimulationController::class, 'destroyParticipant'])->name('simulations.participants.destroy');
         Route::post('/simulations/{simulation}/run', [BidToolsSimulationController::class, 'run'])->name('simulations.run');
         Route::get('/simulations/{simulation}/participants/{participant}/recommendations', [BidToolsSimulationController::class, 'recommendations'])->name('simulations.participants.recommendations');
+        Route::post('/simulations/{simulation}/participants/{participant}/recommendations/preview', [BidToolsSimulationController::class, 'previewRecommendations'])->name('simulations.participants.recommendations.preview');
         Route::put('/simulations/{simulation}/participants/{participant}/line-order', [BidToolsSimulationController::class, 'updateParticipantLineOrder'])->name('simulations.participants.line-order');
     });
 

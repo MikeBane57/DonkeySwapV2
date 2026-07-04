@@ -13,6 +13,7 @@ final class BidSimulationEngine
         private readonly ScenarioScoreService $scoreService,
         private readonly LineRowFormatter $rowFormatter,
         private readonly ManualLineOrderService $manualLineOrder,
+        private readonly BidScenarioProfileBuilder $profileBuilder,
     ) {}
 
     /**
@@ -37,6 +38,7 @@ final class BidSimulationEngine
     public function recommendationPayloadForParticipant(
         BidSimulationParticipant $participant,
         ?BidSimulation $simulation = null,
+        ?array $draftProfile = null,
     ): array {
         $participant->loadMissing('scenario.import');
         $scenario = $participant->scenario;
@@ -62,8 +64,24 @@ final class BidSimulationEngine
             $line->setRelation('import', $scenario->import);
         }
 
+        $scoringScenario = $scenario;
+        if ($draftProfile !== null) {
+            $draft = $this->profileBuilder->prepareDraftForScoring(
+                $scenario->import,
+                $draftProfile,
+                $mappingOverrides['desk_bucket_mappings'] ?? [],
+                $mappingOverrides['line_desk_buckets'] ?? [],
+            );
+            $scoringScenario = clone $scenario;
+            foreach (['vacation_bank', 'weights', 'holiday_rank', 'desk_rank', 'personal_dates'] as $key) {
+                if (array_key_exists($key, $draft)) {
+                    $scoringScenario->setAttribute($key, $draft[$key]);
+                }
+            }
+        }
+
         $scored = $this->scoreService->scoreLines(
-            $scenario,
+            $scoringScenario,
             $lineIds,
             withMetrics: true,
             deskBucketMappingsOverride: $mappingOverrides['desk_bucket_mappings'],
@@ -72,8 +90,11 @@ final class BidSimulationEngine
             ignoreScenarioImportMapping: $usesSimulationMapping,
         );
 
-        $manualOrder = $scenario->manual_line_order;
-        $usesManualOrder = is_array($manualOrder) && $manualOrder !== [];
+        $previewingDraft = $draftProfile !== null;
+        $manualOrder = $previewingDraft ? null : $scenario->manual_line_order;
+        $usesManualOrder = ! $previewingDraft
+            && is_array($manualOrder)
+            && $manualOrder !== [];
         $orderedScored = $usesManualOrder
             ? $this->manualLineOrder->apply($scored, $manualOrder)
             : $scored;
@@ -94,7 +115,7 @@ final class BidSimulationEngine
             'order_source' => $usesManualOrder ? 'manual' : 'computed',
             'manual_line_order' => $usesManualOrder ? array_values($manualOrder) : null,
             'sort_explanation' => $this->scoreService->buildSortExplanation(
-                $scenario,
+                $scoringScenario,
                 $scored,
                 $mappingOverrides['desk_bucket_mappings'],
                 $mappingOverrides['line_desk_buckets'],

@@ -1055,6 +1055,92 @@ test('saving bidder desk rank keeps DS7 in group one when simulation maps DS ear
     expect($payload['sort_explanation']['desk_tier_groups'][0]['buckets'])->toContain('DS7');
 });
 
+test('preview recommendations recalculates from unsaved profile draft', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeMinimalBidCsv($bidYear, '1', 'DS');
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'lines.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Preview draft import',
+    )['import'];
+
+    @unlink($path);
+
+    $simulation = BidSimulation::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Preview draft test',
+        'desk_bucket_mappings' => [
+            ['desk_group' => 'DS', 'start_time' => '06:00', 'bucket' => 'DS7'],
+        ],
+    ]);
+
+    $this->actingAs($user)->post(route('bid-tools.simulations.participants.store', $simulation->id), [
+        'display_name' => 'Alice',
+        'seniority_rank' => 1,
+        'profile' => sampleBidderProfile([
+            'desk_rank' => [
+                ['key' => 'DG', 'priority' => 'high', 'tier' => 1],
+                ['key' => 'DS7', 'priority' => 'low', 'tier' => 2],
+                ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
+            ],
+        ]),
+    ]);
+
+    $participant = BidSimulationParticipant::query()
+        ->where('bid_simulation_id', $simulation->id)
+        ->firstOrFail();
+
+    $savedPayload = $this->actingAs($user)
+        ->getJson(route('bid-tools.simulations.participants.recommendations', [
+            $simulation->id,
+            $participant->id,
+        ]))
+        ->assertOk()
+        ->json();
+
+    expect($savedPayload['sort_explanation']['desk_tier_groups'][0]['buckets'])->toContain('DG');
+    expect($savedPayload['sort_explanation']['desk_tier_groups'][0]['buckets'])->not->toContain('DS7');
+
+    $previewPayload = $this->actingAs($user)
+        ->postJson(route('bid-tools.simulations.participants.recommendations.preview', [
+            $simulation->id,
+            $participant->id,
+        ]), [
+            'profile' => sampleBidderProfile([
+                'desk_rank' => [
+                    ['key' => 'DS7', 'priority' => 'high', 'tier' => 1],
+                    ['key' => 'DG', 'priority' => 'low', 'tier' => 2],
+                    ['key' => 'DR', 'priority' => 'high', 'tier' => 2],
+                ],
+            ]),
+        ])
+        ->assertOk()
+        ->json();
+
+    expect($previewPayload['order_source'])->toBe('computed');
+    expect($previewPayload['sort_explanation']['desk_tier_groups'][0]['buckets'])->toContain('DS7');
+    expect($previewPayload['sort_explanation']['desk_tier_groups'][0]['buckets'])->not->toContain('DG');
+
+    $savedAgain = $this->actingAs($user)
+        ->getJson(route('bid-tools.simulations.participants.recommendations', [
+            $simulation->id,
+            $participant->id,
+        ]))
+        ->assertOk()
+        ->json();
+
+    expect($savedAgain['sort_explanation']['desk_tier_groups'][0]['buckets'])->toContain('DG');
+    expect($savedAgain['sort_explanation']['desk_tier_groups'][0]['buckets'])->not->toContain('DS7');
+});
+
 test('saving simulation mapping clears stale per-bidder scenario mappings', function () {
     config(['features.bid_tools' => true]);
 
