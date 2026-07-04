@@ -1,6 +1,7 @@
 import { CalendarDays } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { DayPicker, type DateRange } from 'react-day-picker';
+import { DayPicker } from 'react-day-picker';
+import type { DateRange } from 'react-day-picker';
 
 import { Button } from '@/components/ui/button';
 import {
