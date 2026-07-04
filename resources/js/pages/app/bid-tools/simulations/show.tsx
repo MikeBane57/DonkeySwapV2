@@ -1,6 +1,6 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { ChevronDown, Copy, Play, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,6 +25,13 @@ import {
 } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 import type { BidderProfile } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 import { ParticipantRecommendationsPanel } from '@/pages/app/bid-tools/simulations/participant-recommendations-panel';
+import {
+    SIMULATION_COMPLETE_MESSAGE,
+    SIMULATION_ERROR_MESSAGE,
+    SIMULATION_RUN_MESSAGES,
+    SimulationRunOverlay,
+} from '@/pages/app/bid-tools/simulations/simulation-run-overlay';
+import type { SimulationRunStatus } from '@/pages/app/bid-tools/simulations/simulation-run-overlay';
 import { ProfileSourcePicker } from '@/pages/app/bid-tools/simulations/profile-source-picker';
 import type {
     ProfileSource,
@@ -323,7 +330,18 @@ export default function BidSimulationShow({
     results: ResultRow[] | null;
 }) {
     const page = usePage<{ flash?: { success?: string; error?: string } }>();
-    const [running, setRunning] = useState(false);
+    const [runOverlay, setRunOverlay] = useState<{
+        visible: boolean;
+        progress: number;
+        message: string;
+        status: SimulationRunStatus;
+    }>({
+        visible: false,
+        progress: 0,
+        message: SIMULATION_RUN_MESSAGES[0],
+        status: 'running',
+    });
+    const messageIndexRef = useRef(0);
     const [profileSource, setProfileSource] = useState<ProfileSource>('new');
     const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(
         null,
@@ -358,6 +376,45 @@ export default function BidSimulationShow({
         addForm.setData('seniority_rank', participants.length + 1);
     }, [participants.length]);
 
+    useEffect(() => {
+        if (!runOverlay.visible || runOverlay.status !== 'running') {
+            return;
+        }
+
+        const messageInterval = window.setInterval(() => {
+            messageIndexRef.current =
+                (messageIndexRef.current + 1) % SIMULATION_RUN_MESSAGES.length;
+            setRunOverlay((prev) => ({
+                ...prev,
+                message: SIMULATION_RUN_MESSAGES[messageIndexRef.current],
+            }));
+        }, 2800);
+
+        const progressInterval = window.setInterval(() => {
+            setRunOverlay((prev) => ({
+                ...prev,
+                progress: Math.min(prev.progress + 2 + Math.random() * 7, 94),
+            }));
+        }, 400);
+
+        return () => {
+            window.clearInterval(messageInterval);
+            window.clearInterval(progressInterval);
+        };
+    }, [runOverlay.visible, runOverlay.status]);
+
+    const hideRunOverlay = (delayMs: number) => {
+        window.setTimeout(() => {
+            setRunOverlay({
+                visible: false,
+                progress: 0,
+                message: SIMULATION_RUN_MESSAGES[0],
+                status: 'running',
+            });
+            messageIndexRef.current = 0;
+        }, delayMs);
+    };
+
     const saveSimulation = (e: React.FormEvent) => {
         e.preventDefault();
         simForm.setData({
@@ -371,13 +428,52 @@ export default function BidSimulationShow({
     };
 
     const runSimulation = () => {
-        setRunning(true);
+        messageIndexRef.current = 0;
+        setRunOverlay({
+            visible: true,
+            progress: 8,
+            message: SIMULATION_RUN_MESSAGES[0],
+            status: 'running',
+        });
+
         router.post(
             `/app/bid-tools/simulations/${simulation.id}/run`,
             {},
             {
                 preserveScroll: true,
-                onFinish: () => setRunning(false),
+                onSuccess: () => {
+                    setRunOverlay((prev) => ({
+                        ...prev,
+                        progress: 100,
+                        message: SIMULATION_COMPLETE_MESSAGE,
+                        status: 'complete',
+                    }));
+                },
+                onError: () => {
+                    setRunOverlay((prev) => ({
+                        ...prev,
+                        progress: 100,
+                        message: SIMULATION_ERROR_MESSAGE,
+                        status: 'error',
+                    }));
+                },
+                onFinish: () => {
+                    setRunOverlay((prev) => {
+                        const final =
+                            prev.status === 'running'
+                                ? {
+                                      ...prev,
+                                      progress: 100,
+                                      message: SIMULATION_ERROR_MESSAGE,
+                                      status: 'error' as const,
+                                  }
+                                : prev;
+                        const delay = final.status === 'complete' ? 1800 : 2600;
+                        hideRunOverlay(delay);
+
+                        return final;
+                    });
+                },
             },
         );
     };
@@ -467,6 +563,12 @@ export default function BidSimulationShow({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={simulation.name} />
+            <SimulationRunOverlay
+                visible={runOverlay.visible}
+                progress={runOverlay.progress}
+                message={runOverlay.message}
+                status={runOverlay.status}
+            />
             <div className="mx-auto max-w-5xl space-y-6 p-4 pb-12">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
@@ -493,7 +595,9 @@ export default function BidSimulationShow({
                         <Button
                             size="sm"
                             type="button"
-                            disabled={participants.length === 0 || running}
+                            disabled={
+                                participants.length === 0 || runOverlay.visible
+                            }
                             onClick={runSimulation}
                         >
                             <Play className="mr-2 h-4 w-4" />
