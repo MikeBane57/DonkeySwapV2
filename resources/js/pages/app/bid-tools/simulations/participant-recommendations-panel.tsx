@@ -1,6 +1,7 @@
 import { GripVertical } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { getCsrfToken } from '@/lib/csrf';
 import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
 import type { KeyHolidayGroup } from '@/pages/app/bid-tools/holiday-metrics';
@@ -37,12 +38,26 @@ type RecommendationsPayload = {
     sort_explanation: SortExplanation;
 };
 
-function csrfToken(): string {
-    return (
-        document
-            .querySelector('meta[name="csrf-token"]')
-            ?.getAttribute('content') ?? ''
-    );
+async function readErrorMessage(response: Response): Promise<string> {
+    try {
+        const data = (await response.json()) as {
+            message?: string;
+            errors?: Record<string, string[]>;
+        };
+        if (data.message) {
+            return data.message;
+        }
+        if (data.errors) {
+            const first = Object.values(data.errors)[0]?.[0];
+            if (first) {
+                return first;
+            }
+        }
+    } catch {
+        // ignore JSON parse errors
+    }
+
+    return `Could not save bid order (${response.status}).`;
 }
 
 function moveIndex<T>(list: T[], from: number, to: number): T[] {
@@ -377,14 +392,14 @@ export function ParticipantRecommendationsPanel({
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': csrfToken(),
+                    'X-XSRF-TOKEN': getCsrfToken(),
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify({ line_order: lineOrder }),
             });
 
             if (!response.ok) {
-                throw new Error('Could not save bid order.');
+                throw new Error(await readErrorMessage(response));
             }
 
             applyResponse((await response.json()) as RecommendationsPayload);
