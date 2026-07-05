@@ -495,6 +495,8 @@ test('participant manual line order overrides computed recommendations and simul
 
     $results = app(BidSimulationEngine::class)->run($simulation->fresh()->load(['participants.scenario.import', 'import']));
     expect($results[0]['bid_line_id'])->toBe($manualOrder[0]);
+    expect($results[0]['uses_manual_bid_order'])->toBeTrue();
+    expect($results[0]['rotation'])->toBe('A');
 
     $this->actingAs($user)
         ->putJson(route('bid-tools.simulations.participants.line-order', [

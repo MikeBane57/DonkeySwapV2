@@ -25,6 +25,7 @@ import {
 } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 import type { BidderProfile } from '@/pages/app/bid-tools/simulations/bidder-profile-fields';
 import { ParticipantRecommendationsPanel } from '@/pages/app/bid-tools/simulations/participant-recommendations-panel';
+import { ManualBidOrderDot } from '@/pages/app/bid-tools/simulations/manual-bid-order-dot';
 import {
     SIMULATION_COMPLETE_MESSAGE,
     SIMULATION_ERROR_MESSAGE,
@@ -57,9 +58,11 @@ type ResultRow = {
     line_num: string | null;
     desk_group: string | null;
     start_time: string | null;
+    rotation: string | null;
     preference_rank: number | null;
     total: number | null;
     message: string | null;
+    uses_manual_bid_order?: boolean;
     skipped?: boolean;
 };
 
@@ -807,15 +810,20 @@ export default function BidSimulationShow({
                     >
                         <p className="text-sm text-muted-foreground">
                             Each bidder picks their top available line in
-                            seniority order.
+                            seniority order.{' '}
+                            <span className="inline-flex items-center gap-1">
+                                <ManualBidOrderDot />
+                                <span>manual bid order</span>
+                            </span>
                         </p>
                         <div className="overflow-x-auto rounded-lg border border-sidebar-border/70">
-                            <table className="w-full min-w-[640px] text-left text-sm">
+                            <table className="w-full min-w-[720px] text-left text-sm">
                                 <thead>
                                     <tr className="border-b bg-muted/50">
                                         <th className="p-2">#</th>
                                         <th className="p-2">Bidder</th>
                                         <th className="p-2">Gets line</th>
+                                        <th className="p-2">Rotation</th>
                                         <th className="p-2">Group</th>
                                         <th className="p-2">Start</th>
                                         <th className="p-2">Pref #</th>
@@ -832,7 +840,12 @@ export default function BidSimulationShow({
                                                 {row.seniority_rank}
                                             </td>
                                             <td className="p-2">
-                                                {row.display_name}
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    {row.uses_manual_bid_order && (
+                                                        <ManualBidOrderDot />
+                                                    )}
+                                                    {row.display_name}
+                                                </span>
                                             </td>
                                             <td className="p-2 font-mono text-xs">
                                                 {row.line_num ?? (
@@ -840,6 +853,9 @@ export default function BidSimulationShow({
                                                         {row.message ?? '—'}
                                                     </span>
                                                 )}
+                                            </td>
+                                            <td className="p-2 text-xs">
+                                                {row.rotation ?? '—'}
                                             </td>
                                             <td className="p-2">
                                                 {row.desk_group ?? '—'}

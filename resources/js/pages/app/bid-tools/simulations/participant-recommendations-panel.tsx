@@ -19,6 +19,7 @@ type RecRow = {
     desk_group: string | null;
     desk_bucket?: string | null;
     start_time: string | null;
+    rotation: string | null;
     holidays_off: number | null;
     key_holidays: {
         christmas?: KeyHolidayGroup;
@@ -144,6 +145,7 @@ function DraggableLineRow({
             <td className="p-2 font-mono text-xs">{row.line_num}</td>
             <td className="p-2">{formatDeskBucket(row)}</td>
             <td className="p-2 text-xs">{row.start_time ?? '—'}</td>
+            <td className="p-2 text-xs">{row.rotation ?? '—'}</td>
             <td className="p-2 text-xs">
                 <KeyHolidayCell group={row.key_holidays?.christmas} />
             </td>
@@ -189,6 +191,7 @@ function RecommendationsTable({
                     <th className="p-2">Line</th>
                     <th className="p-2">Bucket</th>
                     <th className="p-2">Start</th>
+                    <th className="p-2">Rotation</th>
                     <th className="p-2">Xmas</th>
                     <th className="p-2">T&apos;giving</th>
                     <th className="p-2">Jul 4</th>
@@ -224,6 +227,9 @@ function RecommendationsTable({
                             <td className="p-2">{formatDeskBucket(row)}</td>
                             <td className="p-2 text-xs">
                                 {row.start_time ?? '—'}
+                            </td>
+                            <td className="p-2 text-xs">
+                                {row.rotation ?? '—'}
                             </td>
                             <td className="p-2 text-xs">
                                 <KeyHolidayCell
@@ -689,6 +695,7 @@ export function ParticipantRecommendationsPanel({
                                     <th>Line</th>
                                     <th>Bucket</th>
                                     <th>Start</th>
+                                    <th>Rotation</th>
                                     <th>Xmas</th>
                                     <th>T&apos;giv</th>
                                     <th>Jul 4</th>
@@ -706,6 +713,7 @@ export function ParticipantRecommendationsPanel({
                                         </td>
                                         <td>{formatDeskBucket(row)}</td>
                                         <td>{row.start_time ?? '—'}</td>
+                                        <td>{row.rotation ?? '—'}</td>
                                         <td>
                                             {row.key_holidays?.christmas
                                                 ?.off ===

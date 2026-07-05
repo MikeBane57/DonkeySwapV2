@@ -150,6 +150,7 @@ final class BidSimulationEngine
                 'desk_group' => $formatted['desk_group'] ?? null,
                 'desk_bucket' => (string) ($row['breakdown']['group_bucket'] ?? ''),
                 'start_time' => $formatted['start_time'] ?? null,
+                'rotation' => $formatted['rotation'] ?? null,
                 'holidays_off' => $formatted['metrics']['holidays_off'] ?? null,
                 'key_holidays' => $formatted['metrics']['key_holidays'] ?? [],
                 'schedule_callouts' => $formatted['schedule_callouts'] ?? '—',
@@ -194,8 +195,14 @@ final class BidSimulationEngine
 
         foreach ($participants as $participant) {
             if ($participant->skips_bid) {
+                $manualOrder = $participant->scenario?->manual_line_order;
+                $usesManualBidOrder = is_array($manualOrder) && $manualOrder !== [];
                 $results[] = [
-                    ...$this->emptyResult($participant, 'Passed / no bid'),
+                    ...$this->emptyResult(
+                        $participant,
+                        'Passed / no bid',
+                        $usesManualBidOrder,
+                    ),
                     'skipped' => true,
                 ];
 
@@ -209,8 +216,15 @@ final class BidSimulationEngine
                 continue;
             }
 
+            $usesManualBidOrder = is_array($scenario->manual_line_order)
+                && $scenario->manual_line_order !== [];
+
             if ($allLineIds === []) {
-                $results[] = $this->emptyResult($participant, 'No lines remaining');
+                $results[] = $this->emptyResult(
+                    $participant,
+                    'No lines remaining',
+                    $usesManualBidOrder,
+                );
 
                 continue;
             }
@@ -230,7 +244,7 @@ final class BidSimulationEngine
 
             $fullRanking = $rankingsByScenarioId[$scenarioId];
             $manualOrder = $scenario->manual_line_order;
-            if (is_array($manualOrder) && $manualOrder !== []) {
+            if ($usesManualBidOrder) {
                 $fullRanking = $this->manualLineOrder->apply($fullRanking, $manualOrder);
             }
 
@@ -247,7 +261,11 @@ final class BidSimulationEngine
             }
 
             if ($pick === null) {
-                $results[] = $this->emptyResult($participant, 'No available line in ranking');
+                $results[] = $this->emptyResult(
+                    $participant,
+                    'No available line in ranking',
+                    $usesManualBidOrder,
+                );
 
                 continue;
             }
@@ -264,8 +282,10 @@ final class BidSimulationEngine
                 'line_num' => $pick['line_num'],
                 'desk_group' => $line?->desk_group,
                 'start_time' => $line?->start_time,
+                'rotation' => $line?->rotation,
                 'preference_rank' => $preferenceRank,
                 'total' => $pick['total'],
+                'uses_manual_bid_order' => $usesManualBidOrder,
                 'message' => null,
             ];
         }
@@ -294,8 +314,11 @@ final class BidSimulationEngine
     /**
      * @return array<string, mixed>
      */
-    private function emptyResult(BidSimulationParticipant $participant, string $message): array
-    {
+    private function emptyResult(
+        BidSimulationParticipant $participant,
+        string $message,
+        bool $usesManualBidOrder = false,
+    ): array {
         return [
             'participant_id' => $participant->id,
             'display_name' => $participant->display_name,
@@ -304,8 +327,10 @@ final class BidSimulationEngine
             'line_num' => null,
             'desk_group' => null,
             'start_time' => null,
+            'rotation' => null,
             'preference_rank' => null,
             'total' => null,
+            'uses_manual_bid_order' => $usesManualBidOrder,
             'message' => $message,
         ];
     }
