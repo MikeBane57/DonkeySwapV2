@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\Api\SwapPostController;
 use App\Http\Controllers\Api\TimeOffRangeController;
 use App\Http\Controllers\App\AvailableController;
+use App\Http\Controllers\App\BidTools\BuddyBidController as BidToolsBuddyBidController;
 use App\Http\Controllers\App\BidTools\HubController as BidToolsHubController;
 use App\Http\Controllers\App\BidTools\LineBrowserController;
 use App\Http\Controllers\App\BidTools\RankedController as BidToolsRankedController;
@@ -172,6 +173,15 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::get('/simulations/{simulation}/participants/{participant}/recommendations', [BidToolsSimulationController::class, 'recommendations'])->name('simulations.participants.recommendations');
         Route::post('/simulations/{simulation}/participants/{participant}/recommendations/preview', [BidToolsSimulationController::class, 'previewRecommendations'])->name('simulations.participants.recommendations.preview');
         Route::put('/simulations/{simulation}/participants/{participant}/line-order', [BidToolsSimulationController::class, 'updateParticipantLineOrder'])->name('simulations.participants.line-order');
+
+        Route::get('/buddy-bids', [BidToolsBuddyBidController::class, 'index'])->name('buddy-bids.index');
+        Route::get('/buddy-bids/create', [BidToolsBuddyBidController::class, 'create'])->name('buddy-bids.create');
+        Route::post('/buddy-bids', [BidToolsBuddyBidController::class, 'store'])->name('buddy-bids.store');
+        Route::get('/buddy-bids/{buddyBid}', [BidToolsBuddyBidController::class, 'show'])->name('buddy-bids.show');
+        Route::put('/buddy-bids/{buddyBid}', [BidToolsBuddyBidController::class, 'update'])->name('buddy-bids.update');
+        Route::put('/buddy-bids/{buddyBid}/participants', [BidToolsBuddyBidController::class, 'updateParticipants'])->name('buddy-bids.participants.update');
+        Route::put('/buddy-bids/{buddyBid}/assignments', [BidToolsBuddyBidController::class, 'updateAssignments'])->name('buddy-bids.assignments.update');
+        Route::delete('/buddy-bids/{buddyBid}', [BidToolsBuddyBidController::class, 'destroy'])->name('buddy-bids.destroy');
     });
 
     // Admin panel (admin role required)

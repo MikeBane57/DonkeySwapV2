@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BidImport;
 use App\Models\BidScenario;
 use App\Models\BidSimulation;
+use App\Models\BuddyBidPlan;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -55,6 +56,19 @@ class HubController extends Controller
                 'last_run_at' => $s->last_run_at?->toIso8601String(),
             ]);
 
+        $buddyBids = BuddyBidPlan::query()
+            ->where('user_id', $user->id)
+            ->with('import:id,bid_year')
+            ->orderByDesc('updated_at')
+            ->limit(10)
+            ->get()
+            ->map(fn (BuddyBidPlan $p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'bid_year' => $p->import->bid_year,
+                'updated_at' => $p->updated_at->toIso8601String(),
+            ]);
+
         return Inertia::render('app/bid-tools/index', [
             'currentImports' => $currentByYear->map(fn (BidImport $i) => [
                 'id' => $i->id,
@@ -68,6 +82,7 @@ class HubController extends Controller
             ]),
             'scenarios' => $scenarios,
             'simulations' => $simulations,
+            'buddyBids' => $buddyBids,
         ]);
     }
 }

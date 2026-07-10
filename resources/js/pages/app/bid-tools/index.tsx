@@ -7,6 +7,7 @@ import {
     Plus,
     Table,
     TriangleAlert,
+    Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
@@ -43,14 +44,23 @@ type SimulationRow = {
     last_run_at: string | null;
 };
 
+type BuddyBidRow = {
+    id: number;
+    name: string;
+    bid_year: number;
+    updated_at: string;
+};
+
 export default function BidToolsIndex({
     currentImports,
     scenarios,
     simulations = [],
+    buddyBids = [],
 }: {
     currentImports: CurrentImport[];
     scenarios: ScenarioRow[];
     simulations?: SimulationRow[];
+    buddyBids?: BuddyBidRow[];
 }) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -268,6 +278,64 @@ export default function BidToolsIndex({
                                 <Button variant="ghost" size="sm" asChild>
                                     <Link href="/app/bid-tools/simulations">
                                         View all simulations
+                                    </Link>
+                                </Button>
+                            </li>
+                        </ul>
+                    )}
+                </section>
+
+                <section className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h2 className="text-sm font-medium text-muted-foreground">
+                            Buddy bids
+                        </h2>
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href="/app/bid-tools/buddy-bids/create">
+                                <Plus className="mr-2 h-4 w-4" />
+                                New buddy plan
+                            </Link>
+                        </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                        Two-buddy year planning: overlay lines, assign doubles
+                        on overlap days, and track balance.
+                    </p>
+                    {buddyBids.length === 0 ? (
+                        <Button variant="secondary" size="sm" asChild>
+                            <Link href="/app/bid-tools/buddy-bids">
+                                Open buddy bids
+                            </Link>
+                        </Button>
+                    ) : (
+                        <ul className="space-y-2">
+                            {buddyBids.map((plan) => (
+                                <li
+                                    key={plan.id}
+                                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sidebar-border/70 p-3"
+                                >
+                                    <div>
+                                        <span className="font-medium">
+                                            {plan.name}
+                                        </span>
+                                        <span className="ml-2 text-sm text-muted-foreground">
+                                            bid {plan.bid_year}
+                                        </span>
+                                    </div>
+                                    <Button variant="outline" size="sm" asChild>
+                                        <Link
+                                            href={`/app/bid-tools/buddy-bids/${plan.id}`}
+                                        >
+                                            <Users className="mr-2 h-4 w-4" />
+                                            Open
+                                        </Link>
+                                    </Button>
+                                </li>
+                            ))}
+                            <li>
+                                <Button variant="ghost" size="sm" asChild>
+                                    <Link href="/app/bid-tools/buddy-bids">
+                                        View all buddy plans
                                     </Link>
                                 </Button>
                             </li>
