@@ -298,8 +298,8 @@ export default function BidToolsIndex({
                         </Button>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                        Two-buddy year planning: overlay lines, assign doubles on
-                        overlap days, and track balance.
+                        Two-buddy year planning: overlay lines, assign doubles
+                        on overlap days, and track balance.
                     </p>
                     {buddyBids.length === 0 ? (
                         <Button variant="secondary" size="sm" asChild>

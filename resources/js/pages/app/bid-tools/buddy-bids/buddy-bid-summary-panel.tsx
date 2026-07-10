@@ -1,7 +1,7 @@
+import type { BuddyDayStatus } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
 import {
     BUDDY_STATUS_CLASSES,
     BUDDY_STATUS_LABELS,
-    type BuddyDayStatus,
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
 
 type SummaryRow = {
@@ -39,13 +39,13 @@ export function BuddyBidSummaryPanel({
                 <table className="w-full min-w-[36rem] text-left text-xs">
                     <thead>
                         <tr className="border-b text-muted-foreground">
-                            <th className="pb-2 pr-3 font-medium">Buddy</th>
-                            <th className="pb-2 pr-3 font-medium">Doubles</th>
-                            <th className="pb-2 pr-3 font-medium">Singles</th>
-                            <th className="pb-2 pr-3 font-medium">Buddy off</th>
-                            <th className="pb-2 pr-3 font-medium">Vacation</th>
-                            <th className="pb-2 pr-3 font-medium">Pulls</th>
-                            <th className="pb-2 pr-3 font-medium">Line off</th>
+                            <th className="pr-3 pb-2 font-medium">Buddy</th>
+                            <th className="pr-3 pb-2 font-medium">Doubles</th>
+                            <th className="pr-3 pb-2 font-medium">Singles</th>
+                            <th className="pr-3 pb-2 font-medium">Buddy off</th>
+                            <th className="pr-3 pb-2 font-medium">Vacation</th>
+                            <th className="pr-3 pb-2 font-medium">Pulls</th>
+                            <th className="pr-3 pb-2 font-medium">Line off</th>
                             <th className="pb-2 font-medium">Unassigned</th>
                         </tr>
                     </thead>

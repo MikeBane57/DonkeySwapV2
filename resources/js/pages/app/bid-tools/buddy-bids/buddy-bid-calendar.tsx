@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import type { BuddyDayStatus } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
 import {
     BUDDY_STATUS_CLASSES,
     BUDDY_STATUS_LABELS,
-    type BuddyDayStatus,
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
 
 type ParticipantCell = {
@@ -45,10 +45,7 @@ export function BuddyBidCalendar({
     participants: CalendarParticipant[];
     linesCanDouble: boolean;
     shiftPairing: string | null;
-    onAssignOverlap: (
-        date: string,
-        doubleParticipantId: number | null,
-    ) => void;
+    onAssignOverlap: (date: string, doubleParticipantId: number | null) => void;
 }) {
     const [monthIndex, setMonthIndex] = useState(0);
     const month = months[monthIndex];
@@ -165,11 +162,9 @@ export function BuddyBidCalendar({
                                 {month.days.map((day) => {
                                     const cell = day.participants.find(
                                         (p) =>
-                                            p.participant_id ===
-                                            participant.id,
+                                            p.participant_id === participant.id,
                                     );
-                                    const status =
-                                        cell?.status ?? 'line_off';
+                                    const status = cell?.status ?? 'line_off';
 
                                     return (
                                         <td

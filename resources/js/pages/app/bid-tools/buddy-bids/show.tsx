@@ -105,9 +105,12 @@ export default function BuddyBidsShow({
 
     const saveParticipants = (e: React.FormEvent) => {
         e.preventDefault();
-        participantForm.put(`/app/bid-tools/buddy-bids/${plan.id}/participants`, {
-            preserveScroll: true,
-        });
+        participantForm.put(
+            `/app/bid-tools/buddy-bids/${plan.id}/participants`,
+            {
+                preserveScroll: true,
+            },
+        );
     };
 
     const assignOverlap = useCallback(
@@ -178,9 +181,7 @@ export default function BuddyBidsShow({
                                     className="space-y-3 rounded-md border border-sidebar-border/50 bg-muted/10 p-3"
                                 >
                                     <div className="space-y-2">
-                                        <Label
-                                            htmlFor={`name-${index}`}
-                                        >
+                                        <Label htmlFor={`name-${index}`}>
                                             Buddy {index + 1} name
                                         </Label>
                                         <Input
@@ -237,9 +238,7 @@ export default function BuddyBidsShow({
                                                 {lines.map((line) => (
                                                     <SelectItem
                                                         key={line.id}
-                                                        value={String(
-                                                            line.id,
-                                                        )}
+                                                        value={String(line.id)}
                                                     >
                                                         {line.line_num}{' '}
                                                         {line.desk_group}{' '}
