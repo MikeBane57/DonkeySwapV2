@@ -177,11 +177,11 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::get('/buddy-bids', [BidToolsBuddyBidController::class, 'index'])->name('buddy-bids.index');
         Route::get('/buddy-bids/create', [BidToolsBuddyBidController::class, 'create'])->name('buddy-bids.create');
         Route::post('/buddy-bids', [BidToolsBuddyBidController::class, 'store'])->name('buddy-bids.store');
-        Route::get('/buddy-bids/{buddyBid}', [BidToolsBuddyBidController::class, 'show'])->name('buddy-bids.show');
-        Route::put('/buddy-bids/{buddyBid}', [BidToolsBuddyBidController::class, 'update'])->name('buddy-bids.update');
-        Route::put('/buddy-bids/{buddyBid}/participants', [BidToolsBuddyBidController::class, 'updateParticipants'])->name('buddy-bids.participants.update');
-        Route::put('/buddy-bids/{buddyBid}/assignments', [BidToolsBuddyBidController::class, 'updateAssignments'])->name('buddy-bids.assignments.update');
-        Route::delete('/buddy-bids/{buddyBid}', [BidToolsBuddyBidController::class, 'destroy'])->name('buddy-bids.destroy');
+        Route::get('/buddy-bids/{buddyBid}', [BidToolsBuddyBidController::class, 'show'])->name('buddy-bids.show')->whereNumber('buddyBid');
+        Route::put('/buddy-bids/{buddyBid}', [BidToolsBuddyBidController::class, 'update'])->name('buddy-bids.update')->whereNumber('buddyBid');
+        Route::put('/buddy-bids/{buddyBid}/participants', [BidToolsBuddyBidController::class, 'updateParticipants'])->name('buddy-bids.participants.update')->whereNumber('buddyBid');
+        Route::put('/buddy-bids/{buddyBid}/assignments', [BidToolsBuddyBidController::class, 'updateAssignments'])->name('buddy-bids.assignments.update')->whereNumber('buddyBid');
+        Route::delete('/buddy-bids/{buddyBid}', [BidToolsBuddyBidController::class, 'destroy'])->name('buddy-bids.destroy')->whereNumber('buddyBid');
     });
 
     // Admin panel (admin role required)
