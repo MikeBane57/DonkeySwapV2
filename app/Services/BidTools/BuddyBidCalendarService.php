@@ -16,6 +16,8 @@ final class BuddyBidCalendarService
 
     public const STATUS_PULL = 'pull';
 
+    public const STATUS_TRAINING = 'training';
+
     public const STATUS_SINGLE = 'single';
 
     public const STATUS_DOUBLE = 'double';
@@ -69,6 +71,7 @@ final class BuddyBidCalendarService
      *     buddy_offs: int,
      *     vacation_on_work: int,
      *     pulls_on_work: int,
+     *     training_on_work: int,
      *     line_offs: int,
      *     overlap_pending: int,
      *   }>,
@@ -135,6 +138,7 @@ final class BuddyBidCalendarService
                 'buddy_offs' => 0,
                 'vacation_on_work' => 0,
                 'pulls_on_work' => 0,
+                'training_on_work' => 0,
                 'line_offs' => 0,
                 'overlap_pending' => 0,
             ];
@@ -161,7 +165,7 @@ final class BuddyBidCalendarService
             foreach ($participants as $p) {
                 /** @var BidLineDay|null $day */
                 $day = $dayMaps[$p->id][$dateKey] ?? null;
-                $lineWorks[$p->id] = $day !== null && ! $day->is_off;
+                $lineWorks[$p->id] = $this->isWorkDayForDoubles($day);
             }
 
             $bothWork = $participants->count() === 2
@@ -271,6 +275,10 @@ final class BuddyBidCalendarService
             return self::STATUS_PULL;
         }
 
+        if ($this->isTrainingDay($day)) {
+            return self::STATUS_TRAINING;
+        }
+
         if ($isCompatibleOverlap) {
             if ($doubleParticipantId === $participant->id) {
                 return self::STATUS_DOUBLE;
@@ -286,6 +294,22 @@ final class BuddyBidCalendarService
         return self::STATUS_SINGLE;
     }
 
+    private function isTrainingDay(?BidLineDay $day): bool
+    {
+        if ($day === null || $day->is_off) {
+            return false;
+        }
+
+        $code = $day->normalized_code;
+
+        return $code !== null && in_array(strtoupper($code), ['TAM', 'TPM'], true);
+    }
+
+    private function isWorkDayForDoubles(?BidLineDay $day): bool
+    {
+        return $day !== null && ! $day->is_off && ! $this->isTrainingDay($day);
+    }
+
     /**
      * @param  array<string, int|string>  $counter
      */
@@ -297,6 +321,7 @@ final class BuddyBidCalendarService
             self::STATUS_BUDDY_OFF => $counter['buddy_offs']++,
             self::STATUS_VACATION => $day && ! $day->is_off ? $counter['vacation_on_work']++ : null,
             self::STATUS_PULL => $day && ! $day->is_off ? $counter['pulls_on_work']++ : null,
+            self::STATUS_TRAINING => $day && ! $day->is_off ? $counter['training_on_work']++ : null,
             self::STATUS_LINE_OFF => $counter['line_offs']++,
             self::STATUS_OVERLAP_PENDING => $counter['overlap_pending']++,
             default => null,
@@ -321,8 +346,8 @@ final class BuddyBidCalendarService
 
         $doublesDelta = abs((int) $a['doubles'] - (int) $b['doubles']);
 
-        $aAdjusted = (int) $a['singles'] + (int) $a['vacation_on_work'] + (int) $a['pulls_on_work'];
-        $bAdjusted = (int) $b['singles'] + (int) $b['vacation_on_work'] + (int) $b['pulls_on_work'];
+        $aAdjusted = (int) $a['singles'] + (int) $a['vacation_on_work'] + (int) $a['pulls_on_work'] + (int) $a['training_on_work'];
+        $bAdjusted = (int) $b['singles'] + (int) $b['vacation_on_work'] + (int) $b['pulls_on_work'] + (int) $b['training_on_work'];
         $singlesAdjustedDelta = $aAdjusted - $bAdjusted;
 
         return [

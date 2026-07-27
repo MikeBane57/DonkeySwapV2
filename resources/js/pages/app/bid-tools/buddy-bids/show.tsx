@@ -61,6 +61,7 @@ type CalendarPayload = {
         buddy_offs: number;
         vacation_on_work: number;
         pulls_on_work: number;
+        training_on_work: number;
         line_offs: number;
         overlap_pending: number;
     }[];

@@ -2,6 +2,7 @@
 
 use App\Models\BidLine;
 use App\Models\BuddyBidDayAssignment;
+use App\Models\BuddyBidParticipant;
 use App\Models\BuddyBidPlan;
 use App\Models\User;
 use App\Services\BidTools\BidLineCsvImportService;
@@ -24,6 +25,35 @@ function writeBuddyBidOverlapCsv(int $bidYear): string
         $row = [$num, $group, $start, 'A'];
         foreach ($range->eachDate() as $d) {
             $row[] = $group;
+        }
+        $row[] = '0';
+        fputcsv($fh, $row);
+    }
+
+    fclose($fh);
+
+    return $path;
+}
+
+function writeBuddyBidTrainingDayCsv(int $bidYear): string
+{
+    $range = BidYearRange::fromBidYear($bidYear);
+    $path = tempnam(sys_get_temp_dir(), 'buddybid').'.csv';
+    $fh = fopen($path, 'wb');
+    $headers = ['Line Num', 'Group', 'Start Time', 'Rotation'];
+    foreach ($range->eachDate() as $d) {
+        $headers[] = $d->format('j-M-y');
+    }
+    $headers[] = 'workdays';
+    fputcsv($fh, $headers);
+
+    $trainingDate = $range->eachDate()[0]->format('j-M-y');
+
+    foreach ([['601', 'DG', '0600'], ['602', 'AG', '1500']] as [$num, $group, $start]) {
+        $row = [$num, $group, $start, 'A'];
+        foreach ($range->eachDate() as $d) {
+            $cell = $d->format('j-M-y') === $trainingDate && $num === '601' ? 'TAM' : $group;
+            $row[] = $cell;
         }
         $row[] = '0';
         fputcsv($fh, $row);
@@ -149,6 +179,62 @@ test('user can create buddy bid plan and assign overlap doubles', function () {
 
     expect($after['summary'][0]['doubles'])->toBe(1)
         ->and($after['summary'][1]['buddy_offs'])->toBe(1);
+});
+
+test('training days are excluded from double overlap and shown like pulls', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeBuddyBidTrainingDayCsv($bidYear);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'buddy-training.csv',
+        $user->id,
+        $bidYear,
+        null,
+        'Buddy training import',
+    )['import'];
+
+    @unlink($path);
+
+    $lines = BidLine::query()->where('bid_import_id', $import->id)->orderBy('line_num')->get();
+
+    $plan = BuddyBidPlan::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Training test',
+    ]);
+
+    foreach ([
+        ['slot' => 1, 'display_name' => 'Smith'],
+        ['slot' => 2, 'display_name' => 'Jones'],
+    ] as $participant) {
+        BuddyBidParticipant::create([
+            'buddy_bid_plan_id' => $plan->id,
+            'slot' => $participant['slot'],
+            'display_name' => $participant['display_name'],
+            'bid_line_id' => $lines[$participant['slot'] - 1]->id,
+            'profile' => app(BuddyBidCalendarService::class)->defaultProfile(),
+        ]);
+    }
+
+    $plan->refresh()->load('participants.line', 'import');
+    $calendar = app(BuddyBidCalendarService::class)->build($plan);
+
+    $trainingDay = collect($calendar['months'])
+        ->flatMap(fn (array $month) => $month['days'])
+        ->first(fn (array $day) => collect($day['participants'])->contains(
+            fn (array $cell) => $cell['status'] === 'training',
+        ));
+
+    expect($trainingDay)->not->toBeNull()
+        ->and($trainingDay['is_compatible_overlap'])->toBeFalse();
+
+    $trainingCell = collect($trainingDay['participants'])->firstWhere('status', 'training');
+    expect($trainingCell)->not->toBeNull()
+        ->and($calendar['summary'][0]['training_on_work'])->toBe(1);
 });
 
 test('buddy bids routes are gated by feature flag', function () {
