@@ -33,4 +33,9 @@ class BuddyBidPlan extends Model
     {
         return $this->hasMany(BuddyBidDayAssignment::class);
     }
+
+    public function snapshots(): HasMany
+    {
+        return $this->hasMany(BuddyBidPlanSnapshot::class)->orderByDesc('created_at');
+    }
 }

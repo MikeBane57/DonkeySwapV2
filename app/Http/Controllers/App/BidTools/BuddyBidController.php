@@ -4,6 +4,7 @@ namespace App\Http\Controllers\App\BidTools;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BidTools\StoreBuddyBidPlanRequest;
+use App\Http\Requests\BidTools\StoreBuddyBidSnapshotRequest;
 use App\Http\Requests\BidTools\UpdateBuddyBidAssignmentsRequest;
 use App\Http\Requests\BidTools\UpdateBuddyBidParticipantsRequest;
 use App\Http\Requests\BidTools\UpdateBuddyBidPlanRequest;
@@ -11,8 +12,10 @@ use App\Models\BidImport;
 use App\Models\BuddyBidDayAssignment;
 use App\Models\BuddyBidParticipant;
 use App\Models\BuddyBidPlan;
+use App\Models\BuddyBidPlanSnapshot;
 use App\Services\BidTools\BidLinePickerService;
 use App\Services\BidTools\BuddyBidCalendarService;
+use App\Services\BidTools\BuddyBidSnapshotService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,6 +27,7 @@ class BuddyBidController extends Controller
     public function __construct(
         private readonly BuddyBidCalendarService $calendar,
         private readonly BidLinePickerService $linePicker,
+        private readonly BuddyBidSnapshotService $snapshots,
     ) {}
 
     public function index(Request $request): Response
@@ -87,7 +91,7 @@ class BuddyBidController extends Controller
     public function show(Request $request, int $buddyBid): Response
     {
         $plan = $this->findPlan($request, $buddyBid);
-        $plan->load(['import', 'participants.line']);
+        $plan->load(['import', 'participants.line', 'snapshots']);
 
         $calendar = $this->calendar->build($plan);
 
@@ -100,6 +104,12 @@ class BuddyBidController extends Controller
             ],
             'calendar' => $calendar,
             'lines' => $this->linePicker->rowsForImport($plan->bid_import_id),
+            'snapshots' => $plan->snapshots->map(fn (BuddyBidPlanSnapshot $snapshot) => [
+                'id' => $snapshot->id,
+                'name' => $snapshot->name,
+                'created_at' => $snapshot->created_at->toIso8601String(),
+                'balance' => $snapshot->balance,
+            ]),
         ]);
     }
 
@@ -186,6 +196,68 @@ class BuddyBidController extends Controller
         return redirect()
             ->route('bid-tools.buddy-bids.show', $plan->id)
             ->with('success', 'Overlap assignments saved.');
+    }
+
+    public function resetAssignments(Request $request, int $buddyBid): RedirectResponse|JsonResponse
+    {
+        $plan = $this->findPlan($request, $buddyBid);
+        $this->snapshots->resetAssignments($plan);
+
+        if ($request->wantsJson()) {
+            return response()->json(['reset' => true]);
+        }
+
+        return redirect()
+            ->route('bid-tools.buddy-bids.show', $plan->id)
+            ->with('success', 'Overlap assignments cleared.');
+    }
+
+    public function storeSnapshot(
+        StoreBuddyBidSnapshotRequest $request,
+        int $buddyBid,
+    ): RedirectResponse {
+        $plan = $this->findPlan($request, $buddyBid);
+        $this->snapshots->createSnapshot($plan, $request->validated('name'));
+
+        return redirect()
+            ->route('bid-tools.buddy-bids.show', $plan->id)
+            ->with('success', 'Saved snapshot for review.');
+    }
+
+    public function destroySnapshot(
+        Request $request,
+        int $buddyBid,
+        int $snapshot,
+    ): RedirectResponse {
+        $plan = $this->findPlan($request, $buddyBid);
+
+        BuddyBidPlanSnapshot::query()
+            ->where('buddy_bid_plan_id', $plan->id)
+            ->whereKey($snapshot)
+            ->delete();
+
+        return redirect()
+            ->route('bid-tools.buddy-bids.show', $plan->id)
+            ->with('success', 'Snapshot deleted.');
+    }
+
+    public function restoreSnapshot(
+        Request $request,
+        int $buddyBid,
+        int $snapshot,
+    ): RedirectResponse {
+        $plan = $this->findPlan($request, $buddyBid);
+
+        $record = BuddyBidPlanSnapshot::query()
+            ->where('buddy_bid_plan_id', $plan->id)
+            ->whereKey($snapshot)
+            ->firstOrFail();
+
+        $this->snapshots->restoreSnapshot($plan, $record);
+
+        return redirect()
+            ->route('bid-tools.buddy-bids.show', $plan->id)
+            ->with('success', 'Plan restored from snapshot.');
     }
 
     public function destroy(Request $request, int $buddyBid): RedirectResponse

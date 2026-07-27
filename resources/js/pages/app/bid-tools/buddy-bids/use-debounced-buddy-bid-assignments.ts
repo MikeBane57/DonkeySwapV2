@@ -151,6 +151,42 @@ export function useDebouncedBuddyBidAssignments({
         [scheduleSave],
     );
 
+    const resetAssignments = useCallback(async () => {
+        clearSaveTimer();
+        setSaveState('saving');
+        setSaveError(null);
+
+        try {
+            const response = await fetch(
+                `/app/bid-tools/buddy-bids/${planId}/assignments`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': getCsrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                },
+            );
+
+            if (!response.ok) {
+                throw new Error(`Reset failed (${response.status})`);
+            }
+
+            const cleared = Object.fromEntries(
+                Object.keys(assignmentsRef.current).map((date) => [date, null]),
+            );
+
+            setAssignments(cleared);
+            setDirtyDates(new Set());
+            setSaveState('saved');
+        } catch (error) {
+            logClientError('buddy-bids.assignments.reset', error);
+            setSaveError('Could not reset overlap assignments. Try again.');
+            setSaveState('error');
+        }
+    }, [clearSaveTimer, planId]);
+
     useEffect(() => {
         if (dirtyDates.size === 0) {
             return;
@@ -178,6 +214,7 @@ export function useDebouncedBuddyBidAssignments({
         assignments,
         assignOverlap,
         applyRotationAssignments,
+        resetAssignments,
         saveNow,
         hasUnsavedChanges,
         saveState,
