@@ -12,6 +12,7 @@ type SummaryRow = {
     buddy_offs: number;
     vacation_on_work: number;
     pulls_on_work: number;
+    training_on_work: number;
     line_offs: number;
     overlap_pending: number;
 };
@@ -45,6 +46,7 @@ export function BuddyBidSummaryPanel({
                             <th className="pr-3 pb-2 font-medium">Buddy off</th>
                             <th className="pr-3 pb-2 font-medium">Vacation</th>
                             <th className="pr-3 pb-2 font-medium">Pulls</th>
+                            <th className="pr-3 pb-2 font-medium">Training</th>
                             <th className="pr-3 pb-2 font-medium">Line off</th>
                             <th className="pb-2 font-medium">Unassigned</th>
                         </tr>
@@ -72,6 +74,9 @@ export function BuddyBidSummaryPanel({
                                 </td>
                                 <td className="py-2 pr-3 font-mono">
                                     {row.pulls_on_work}
+                                </td>
+                                <td className="py-2 pr-3 font-mono">
+                                    {row.training_on_work}
                                 </td>
                                 <td className="py-2 pr-3 font-mono">
                                     {row.line_offs}
@@ -103,7 +108,9 @@ export function BuddyBidSummaryPanel({
                     }
                 >
                     Singles + time off delta: {balance.singles_adjusted_delta}
-                    {singlesBalanced ? ' (balanced)' : ' (check vacation/pull)'}
+                    {singlesBalanced
+                        ? ' (balanced)'
+                        : ' (check vacation/pull/training)'}
                 </span>
                 {balance.unassigned_overlaps > 0 && (
                     <span className="text-amber-700 dark:text-amber-300">
