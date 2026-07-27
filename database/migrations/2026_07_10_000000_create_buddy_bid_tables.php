@@ -8,35 +8,47 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('buddy_bid_plans', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
-            $table->foreignId('bid_import_id')->constrained('bid_imports')->cascadeOnDelete();
-            $table->string('name', 120);
-            $table->timestamps();
-        });
+        if (! Schema::hasTable('buddy_bid_plans')) {
+            Schema::create('buddy_bid_plans', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+                $table->foreignId('bid_import_id')->constrained('bid_imports')->cascadeOnDelete();
+                $table->string('name', 120);
+                $table->timestamps();
+            });
+        }
 
-        Schema::create('buddy_bid_participants', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('buddy_bid_plan_id')->constrained('buddy_bid_plans')->cascadeOnDelete();
-            $table->unsignedTinyInteger('slot')->comment('1 = user A, 2 = user B');
-            $table->string('display_name', 120);
-            $table->foreignId('bid_line_id')->nullable()->constrained('bid_lines')->nullOnDelete();
-            $table->json('profile')->nullable();
-            $table->timestamps();
+        if (! Schema::hasTable('buddy_bid_participants')) {
+            Schema::create('buddy_bid_participants', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('buddy_bid_plan_id')->constrained('buddy_bid_plans')->cascadeOnDelete();
+                $table->unsignedTinyInteger('slot')->comment('1 = user A, 2 = user B');
+                $table->string('display_name', 120);
+                $table->foreignId('bid_line_id')->nullable()->constrained('bid_lines')->nullOnDelete();
+                $table->json('profile')->nullable();
+                $table->timestamps();
 
-            $table->unique(['buddy_bid_plan_id', 'slot']);
-        });
+                $table->unique(['buddy_bid_plan_id', 'slot'], 'buddy_bid_participants_plan_slot_uq');
+            });
+        }
 
-        Schema::create('buddy_bid_day_assignments', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('buddy_bid_plan_id')->constrained('buddy_bid_plans')->cascadeOnDelete();
-            $table->date('assignment_date');
-            $table->foreignId('double_participant_id')->nullable()->constrained('buddy_bid_participants')->nullOnDelete();
-            $table->timestamps();
+        if (! Schema::hasTable('buddy_bid_day_assignments')) {
+            Schema::create('buddy_bid_day_assignments', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('buddy_bid_plan_id')->constrained('buddy_bid_plans')->cascadeOnDelete();
+                $table->date('assignment_date');
+                $table->foreignId('double_participant_id')
+                    ->nullable()
+                    ->constrained('buddy_bid_participants')
+                    ->nullOnDelete();
+                $table->timestamps();
 
-            $table->unique(['buddy_bid_plan_id', 'assignment_date']);
-        });
+                $table->unique(
+                    ['buddy_bid_plan_id', 'assignment_date'],
+                    'buddy_bid_day_assignments_plan_date_uq',
+                );
+            });
+        }
     }
 
     public function down(): void

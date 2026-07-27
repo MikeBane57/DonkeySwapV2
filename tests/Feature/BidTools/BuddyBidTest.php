@@ -34,6 +34,28 @@ function writeBuddyBidOverlapCsv(int $bidYear): string
     return $path;
 }
 
+test('buddy bids create page loads', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('bid-tools.buddy-bids.create'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('app/bid-tools/buddy-bids/create'));
+});
+
+test('buddy bids create path is not captured by show route', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get('/app/bid-tools/buddy-bids/create')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('app/bid-tools/buddy-bids/create'));
+});
+
 test('user can create buddy bid plan and assign overlap doubles', function () {
     config(['features.bid_tools' => true]);
 
