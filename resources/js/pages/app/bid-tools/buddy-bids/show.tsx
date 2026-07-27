@@ -1,5 +1,11 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import { useCallback } from 'react';
+import { BuddyBidCalendar } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-calendar';
+import { BuddyBidSummaryPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-summary-panel';
+import { BUDDY_BID_AUTO_SAVE_MS } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
+import { DateListEditor } from '@/pages/app/bid-tools/buddy-bids/date-list-editor';
+import { useDebouncedBuddyBidAssignments } from '@/pages/app/bid-tools/buddy-bids/use-debounced-buddy-bid-assignments';
+import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import type { BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,11 +17,6 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
-import { BuddyBidCalendar } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-calendar';
-import { BuddyBidSummaryPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-summary-panel';
-import { DateListEditor } from '@/pages/app/bid-tools/buddy-bids/date-list-editor';
-import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
-import type { BreadcrumbItem } from '@/types';
 
 type ParticipantProfile = {
     vacation_dates: string[];
@@ -104,6 +105,44 @@ export default function BuddyBidsShow({
         })),
     });
 
+    const {
+        displayCalendar,
+        assignOverlap,
+        saveNow,
+        hasUnsavedChanges,
+        saveState,
+        saveError,
+        unsavedCount,
+    } = useDebouncedBuddyBidAssignments({
+        planId: plan.id,
+        calendar,
+    });
+
+    const saveStatusMessage = (() => {
+        if (saveError) {
+            return saveError;
+        }
+
+        if (saveState === 'saving') {
+            return 'Saving overlap assignments…';
+        }
+
+        if (saveState === 'saved' && !hasUnsavedChanges) {
+            return 'Overlap assignments saved.';
+        }
+
+        if (hasUnsavedChanges) {
+            const minutes = Math.round(BUDDY_BID_AUTO_SAVE_MS / 60_000);
+            return `${unsavedCount} unsaved overlap change${unsavedCount === 1 ? '' : 's'}. Auto-saving in about ${minutes} minute${minutes === 1 ? '' : 's'} after you stop clicking.`;
+        }
+
+        return 'Overlap assignments save automatically after you stop making changes.';
+    })();
+
+    const linesReady = participantForm.data.participants.every(
+        (p) => p.bid_line_id > 0,
+    );
+
     const saveParticipants = (e: React.FormEvent) => {
         e.preventDefault();
         participantForm.put(
@@ -113,28 +152,6 @@ export default function BuddyBidsShow({
             },
         );
     };
-
-    const assignOverlap = useCallback(
-        (date: string, doubleParticipantId: number | null) => {
-            router.put(
-                `/app/bid-tools/buddy-bids/${plan.id}/assignments`,
-                {
-                    assignments: [
-                        {
-                            date,
-                            double_participant_id: doubleParticipantId,
-                        },
-                    ],
-                },
-                { preserveScroll: true },
-            );
-        },
-        [plan.id],
-    );
-
-    const linesReady = participantForm.data.participants.every(
-        (p) => p.bid_line_id > 0,
-    );
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -313,15 +330,37 @@ export default function BuddyBidsShow({
 
                 {linesReady ? (
                     <>
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sidebar-border/70 bg-muted/10 px-4 py-3 text-sm">
+                            <p
+                                className={
+                                    saveError
+                                        ? 'text-destructive'
+                                        : 'text-muted-foreground'
+                                }
+                            >
+                                {saveStatusMessage}
+                            </p>
+                            {hasUnsavedChanges && (
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={saveState === 'saving'}
+                                    onClick={() => void saveNow()}
+                                >
+                                    Save overlaps now
+                                </Button>
+                            )}
+                        </div>
                         <BuddyBidSummaryPanel
-                            summary={calendar.summary}
-                            balance={calendar.balance}
+                            summary={displayCalendar.summary}
+                            balance={displayCalendar.balance}
                         />
                         <BuddyBidCalendar
-                            months={calendar.months}
-                            participants={calendar.participants}
-                            linesCanDouble={calendar.lines_can_double}
-                            shiftPairing={calendar.shift_pairing}
+                            months={displayCalendar.months}
+                            participants={displayCalendar.participants}
+                            linesCanDouble={displayCalendar.lines_can_double}
+                            shiftPairing={displayCalendar.shift_pairing}
                             onAssignOverlap={assignOverlap}
                         />
                     </>
