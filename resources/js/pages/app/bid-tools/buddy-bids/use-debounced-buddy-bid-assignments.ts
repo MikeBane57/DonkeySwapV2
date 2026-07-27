@@ -129,7 +129,8 @@ export function useDebouncedBuddyBidAssignments({
     const applyRotationAssignments = useCallback(
         (nextAssignments: Record<string, number | null>) => {
             const changedDates = Object.keys(nextAssignments).filter(
-                (date) => nextAssignments[date] !== assignmentsRef.current[date],
+                (date) =>
+                    nextAssignments[date] !== assignmentsRef.current[date],
             );
 
             if (changedDates.length === 0) {

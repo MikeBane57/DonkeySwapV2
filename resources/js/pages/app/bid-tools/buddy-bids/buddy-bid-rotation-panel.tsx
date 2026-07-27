@@ -62,10 +62,7 @@ export function BuddyBidRotationPanel({
         normalizedPattern.length === 5 &&
         /^[ABS]+$/.test(normalizedPattern.toUpperCase());
 
-    const workWeekCount = groupWorkWeeks(
-        calendar,
-        workWeekReferenceId,
-    ).length;
+    const workWeekCount = groupWorkWeeks(calendar, workWeekReferenceId).length;
 
     const preview = useMemo(() => {
         if (!patternValid) {
@@ -92,13 +89,7 @@ export function BuddyBidRotationPanel({
         return Object.keys(next).filter(
             (date) => next[date] !== currentAssignments[date],
         ).length;
-    }, [
-        calendar,
-        config,
-        currentAssignments,
-        normalizedPattern,
-        patternValid,
-    ]);
+    }, [calendar, config, currentAssignments, normalizedPattern, patternValid]);
 
     const applyPreset = (id: (typeof ROTATION_PRESETS)[number]['id']) => {
         const preset = ROTATION_PRESETS.find((item) => item.id === id);
@@ -117,8 +108,8 @@ export function BuddyBidRotationPanel({
 
     const leaderName =
         week1Leader === 'a'
-            ? participants[0]?.display_name ?? 'Buddy 1'
-            : participants[1]?.display_name ?? 'Buddy 2';
+            ? (participants[0]?.display_name ?? 'Buddy 1')
+            : (participants[1]?.display_name ?? 'Buddy 2');
 
     const participantName = (participantId: number | null) => {
         if (participantId === null) {
@@ -137,8 +128,8 @@ export function BuddyBidRotationPanel({
                 <h2 className="text-sm font-medium">Apply rotation pattern</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
                     Map a 5-day work-week pattern onto overlap days. A and B are
-                    doubles for the chosen week-1 leader; S skips a slot. Vacation,
-                    pull, and training days are skipped automatically.
+                    doubles for the chosen week-1 leader; S skips a slot.
+                    Vacation, pull, and training days are skipped automatically.
                 </p>
             </div>
 
@@ -166,8 +157,9 @@ export function BuddyBidRotationPanel({
                     </Select>
                     <p className="text-xs text-muted-foreground">
                         {
-                            ROTATION_PRESETS.find((item) => item.id === presetId)
-                                ?.description
+                            ROTATION_PRESETS.find(
+                                (item) => item.id === presetId,
+                            )?.description
                         }
                     </p>
                 </div>
@@ -296,7 +288,7 @@ export function BuddyBidRotationPanel({
 
             {preview.length > 0 && (
                 <div className="space-y-2">
-                    <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                         Preview (first {preview.length} work weeks)
                     </h3>
                     <div className="overflow-x-auto">

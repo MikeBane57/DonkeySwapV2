@@ -33,12 +33,7 @@ export type RotationPreviewWeek = {
     assignments: RotationAssignment[];
 };
 
-const BLOCKED_STATUSES = new Set([
-    'vacation',
-    'pull',
-    'training',
-    'line_off',
-]);
+const BLOCKED_STATUSES = new Set(['vacation', 'pull', 'training', 'line_off']);
 
 export function parsePattern(input: string): PatternToken[] {
     const tokens: PatternToken[] = [];
@@ -136,9 +131,7 @@ export function isAssignableOverlapDay(
         return false;
     }
 
-    return day.participants.every(
-        (cell) => !BLOCKED_STATUSES.has(cell.status),
-    );
+    return day.participants.every((cell) => !BLOCKED_STATUSES.has(cell.status));
 }
 
 function participantIds(calendar: BuddyBidCalendarView): [number, number] {
@@ -231,11 +224,7 @@ export function previewRotation(
 
     return weeks.slice(0, weekLimit).map((week) => ({
         weekIndex: week.index + 1,
-        pattern: patternForWeek(
-            config.pattern,
-            week.index,
-            config.alternation,
-        ),
+        pattern: patternForWeek(config.pattern, week.index, config.alternation),
         assignments: weekAssignments(calendar, week, config, days),
     }));
 }
@@ -314,6 +303,7 @@ export const ROTATION_PRESETS = [
         label: 'Custom',
         pattern: '',
         alternation: 'repeat' as const,
-        description: 'Enter your own A / B / S pattern (5 characters per work week)',
+        description:
+            'Enter your own A / B / S pattern (5 characters per work week)',
     },
 ] as const;
