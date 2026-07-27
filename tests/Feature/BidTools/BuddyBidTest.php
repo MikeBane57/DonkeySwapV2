@@ -328,3 +328,133 @@ test('user cannot access another users buddy bid plan', function () {
         ->get(route('bid-tools.buddy-bids.show', $plan->id))
         ->assertNotFound();
 });
+
+test('user can reset overlap assignments and save snapshots for comparison', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeBuddyBidOverlapCsv($bidYear);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'buddy-lines.csv',
+        $user->id,
+        $bidYear,
+    )['import'];
+
+    @unlink($path);
+
+    $lines = BidLine::query()->where('bid_import_id', $import->id)->orderBy('line_num')->get();
+
+    $plan = BuddyBidPlan::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Snapshot test',
+    ]);
+
+    $participants = [];
+    foreach ([
+        ['slot' => 1, 'display_name' => 'Smith'],
+        ['slot' => 2, 'display_name' => 'Jones'],
+    ] as $index => $participant) {
+        $participants[] = BuddyBidParticipant::create([
+            'buddy_bid_plan_id' => $plan->id,
+            'slot' => $participant['slot'],
+            'display_name' => $participant['display_name'],
+            'bid_line_id' => $lines[$index]->id,
+            'profile' => app(BuddyBidCalendarService::class)->defaultProfile(),
+        ]);
+    }
+
+    $calendar = app(BuddyBidCalendarService::class)->build($plan->refresh()->load('participants.line', 'import'));
+    $overlapDays = collect($calendar['months'])
+        ->flatMap(fn (array $month) => $month['days'])
+        ->filter(fn (array $day) => $day['is_compatible_overlap'])
+        ->values();
+
+    $firstOverlap = $overlapDays->first();
+    $secondOverlap = $overlapDays->skip(1)->first();
+
+    $this->actingAs($user)
+        ->put(route('bid-tools.buddy-bids.assignments.update', $plan->id), [
+            'assignments' => [
+                [
+                    'date' => $firstOverlap['date'],
+                    'double_participant_id' => $participants[0]->id,
+                ],
+                [
+                    'date' => $secondOverlap['date'],
+                    'double_participant_id' => $participants[1]->id,
+                ],
+            ],
+        ])
+        ->assertRedirect();
+
+    expect(BuddyBidDayAssignment::query()->where('buddy_bid_plan_id', $plan->id)->count())->toBe(2);
+
+    $this->actingAs($user)
+        ->post(route('bid-tools.buddy-bids.snapshots.store', $plan->id), [
+            'name' => 'Option A',
+        ])
+        ->assertRedirect(route('bid-tools.buddy-bids.show', $plan->id));
+
+    $snapshot = $plan->snapshots()->first();
+    expect($snapshot)->not->toBeNull()
+        ->and($snapshot->name)->toBe('Option A')
+        ->and($snapshot->assignments)->toHaveKey($firstOverlap['date']);
+
+    $this->actingAs($user)
+        ->deleteJson(route('bid-tools.buddy-bids.assignments.reset', $plan->id))
+        ->assertOk()
+        ->assertJson(['reset' => true]);
+
+    expect(BuddyBidDayAssignment::query()->where('buddy_bid_plan_id', $plan->id)->count())->toBe(0);
+
+    $this->actingAs($user)
+        ->put(route('bid-tools.buddy-bids.assignments.update', $plan->id), [
+            'assignments' => [
+                [
+                    'date' => $firstOverlap['date'],
+                    'double_participant_id' => $participants[1]->id,
+                ],
+            ],
+        ])
+        ->assertRedirect();
+
+    $this->actingAs($user)
+        ->post(route('bid-tools.buddy-bids.snapshots.store', $plan->id), [
+            'name' => 'Option B',
+        ])
+        ->assertRedirect();
+
+    $secondSnapshot = $plan->snapshots()->orderByDesc('id')->first();
+
+    $this->actingAs($user)
+        ->post(route('bid-tools.buddy-bids.compare.run', $plan->id), [
+            'include_current' => true,
+            'snapshot_ids' => [$snapshot->id, $secondSnapshot->id],
+        ])
+        ->assertRedirect(route('bid-tools.buddy-bids.compare.show', $plan->id));
+
+    $this->actingAs($user)
+        ->get(route('bid-tools.buddy-bids.compare.show', $plan->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('app/bid-tools/buddy-bids/compare')
+            ->has('comparison.versions', 3)
+            ->has('comparison.pairwise_diffs'));
+
+    $this->actingAs($user)
+        ->post(route('bid-tools.buddy-bids.snapshots.restore', [
+            'buddyBid' => $plan->id,
+            'snapshot' => $snapshot->id,
+        ]))
+        ->assertRedirect(route('bid-tools.buddy-bids.show', $plan->id));
+
+    expect(BuddyBidDayAssignment::query()
+        ->where('buddy_bid_plan_id', $plan->id)
+        ->where('double_participant_id', $participants[0]->id)
+        ->whereDate('assignment_date', $firstOverlap['date'])
+        ->exists())->toBeTrue();
+});

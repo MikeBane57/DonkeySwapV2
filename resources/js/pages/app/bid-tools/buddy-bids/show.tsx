@@ -1,6 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { BuddyBidCalendar } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-calendar';
 import { BuddyBidRotationPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-rotation-panel';
+import { BuddyBidSnapshotsPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-snapshots-panel';
 import { BuddyBidSummaryPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-summary-panel';
 import { BUDDY_BID_AUTO_SAVE_MS } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
 import { DateListEditor } from '@/pages/app/bid-tools/buddy-bids/date-list-editor';
@@ -74,10 +75,22 @@ type CalendarPayload = {
     };
 };
 
+type SnapshotRow = {
+    id: number;
+    name: string;
+    created_at: string;
+    balance: {
+        doubles_delta: number;
+        singles_adjusted_delta: number;
+        unassigned_overlaps: number;
+    };
+};
+
 export default function BuddyBidsShow({
     plan,
     calendar,
     lines,
+    snapshots,
 }: {
     plan: {
         id: number;
@@ -87,6 +100,7 @@ export default function BuddyBidsShow({
     };
     calendar: CalendarPayload;
     lines: LinePickerRow[];
+    snapshots: SnapshotRow[];
 }) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Bid tools', href: '/app/bid-tools' },
@@ -111,6 +125,7 @@ export default function BuddyBidsShow({
         assignments,
         assignOverlap,
         applyRotationAssignments,
+        resetAssignments,
         saveNow,
         hasUnsavedChanges,
         saveState,
@@ -354,7 +369,30 @@ export default function BuddyBidsShow({
                                     Save overlaps now
                                 </Button>
                             )}
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={saveState === 'saving'}
+                                onClick={() => {
+                                    if (
+                                        window.confirm(
+                                            'Clear all overlap assignments? Buddies, lines, and vacation/pull dates stay the same.',
+                                        )
+                                    ) {
+                                        void resetAssignments();
+                                    }
+                                }}
+                            >
+                                Reset overlaps
+                            </Button>
                         </div>
+                        <BuddyBidSnapshotsPanel
+                            planId={plan.id}
+                            snapshots={snapshots}
+                            hasUnsavedChanges={hasUnsavedChanges}
+                            onSaveBeforeSnapshot={saveNow}
+                        />
                         <BuddyBidSummaryPanel
                             summary={displayCalendar.summary}
                             balance={displayCalendar.balance}

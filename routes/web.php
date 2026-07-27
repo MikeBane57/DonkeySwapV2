@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\Api\SwapPostController;
 use App\Http\Controllers\Api\TimeOffRangeController;
 use App\Http\Controllers\App\AvailableController;
+use App\Http\Controllers\App\BidTools\BuddyBidCompareController as BidToolsBuddyBidCompareController;
 use App\Http\Controllers\App\BidTools\BuddyBidController as BidToolsBuddyBidController;
 use App\Http\Controllers\App\BidTools\HubController as BidToolsHubController;
 use App\Http\Controllers\App\BidTools\LineBrowserController;
@@ -181,6 +182,12 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::put('/buddy-bids/{buddyBid}', [BidToolsBuddyBidController::class, 'update'])->name('buddy-bids.update')->whereNumber('buddyBid');
         Route::put('/buddy-bids/{buddyBid}/participants', [BidToolsBuddyBidController::class, 'updateParticipants'])->name('buddy-bids.participants.update')->whereNumber('buddyBid');
         Route::put('/buddy-bids/{buddyBid}/assignments', [BidToolsBuddyBidController::class, 'updateAssignments'])->name('buddy-bids.assignments.update')->whereNumber('buddyBid');
+        Route::delete('/buddy-bids/{buddyBid}/assignments', [BidToolsBuddyBidController::class, 'resetAssignments'])->name('buddy-bids.assignments.reset')->whereNumber('buddyBid');
+        Route::post('/buddy-bids/{buddyBid}/snapshots', [BidToolsBuddyBidController::class, 'storeSnapshot'])->name('buddy-bids.snapshots.store')->whereNumber('buddyBid');
+        Route::delete('/buddy-bids/{buddyBid}/snapshots/{snapshot}', [BidToolsBuddyBidController::class, 'destroySnapshot'])->name('buddy-bids.snapshots.destroy')->whereNumber(['buddyBid', 'snapshot']);
+        Route::post('/buddy-bids/{buddyBid}/snapshots/{snapshot}/restore', [BidToolsBuddyBidController::class, 'restoreSnapshot'])->name('buddy-bids.snapshots.restore')->whereNumber(['buddyBid', 'snapshot']);
+        Route::get('/buddy-bids/{buddyBid}/compare', [BidToolsBuddyBidCompareController::class, 'show'])->name('buddy-bids.compare.show')->whereNumber('buddyBid');
+        Route::post('/buddy-bids/{buddyBid}/compare', [BidToolsBuddyBidCompareController::class, 'compare'])->name('buddy-bids.compare.run')->whereNumber('buddyBid');
         Route::delete('/buddy-bids/{buddyBid}', [BidToolsBuddyBidController::class, 'destroy'])->name('buddy-bids.destroy')->whereNumber('buddyBid');
     });
 
