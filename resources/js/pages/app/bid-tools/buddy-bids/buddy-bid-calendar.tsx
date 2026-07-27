@@ -1,6 +1,4 @@
-import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useMemo } from 'react';
 import type { BuddyDayStatus } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
 import {
     BUDDY_STATUS_CLASSES,
@@ -34,101 +32,45 @@ type CalendarParticipant = {
     display_name: string;
 };
 
-export function BuddyBidCalendar({
-    months,
-    participants,
-    linesCanDouble,
-    shiftPairing,
-    onAssignOverlap,
-}: {
-    months: CalendarMonth[];
-    participants: CalendarParticipant[];
-    linesCanDouble: boolean;
-    shiftPairing: string | null;
-    onAssignOverlap: (date: string, doubleParticipantId: number | null) => void;
-}) {
-    const [monthIndex, setMonthIndex] = useState(0);
-    const month = months[monthIndex];
-
-    const participantOrder = useMemo(
-        () => [...participants].sort((a, b) => a.slot - b.slot),
-        [participants],
-    );
-
-    if (!month) {
-        return (
-            <p className="text-sm text-muted-foreground">
-                No calendar data for this bid year.
-            </p>
-        );
+function cycleDoubleAssignment(
+    day: CalendarDay,
+    participantIds: number[],
+    onAssignOverlap: (date: string, doubleParticipantId: number | null) => void,
+) {
+    if (!day.is_compatible_overlap) {
+        return;
     }
 
-    const cycleAssignment = (day: CalendarDay) => {
-        if (!day.is_compatible_overlap) {
-            return;
-        }
+    const current = day.double_participant_id;
 
-        const ids = participantOrder.map((p) => p.id);
-        const current = day.double_participant_id;
+    if (current === null) {
+        onAssignOverlap(day.date, participantIds[0] ?? null);
+        return;
+    }
 
-        if (current === null) {
-            onAssignOverlap(day.date, ids[0] ?? null);
-            return;
-        }
+    const currentIndex = participantIds.indexOf(current);
+    if (currentIndex === participantIds.length - 1) {
+        onAssignOverlap(day.date, null);
+        return;
+    }
 
-        const currentIndex = ids.indexOf(current);
-        if (currentIndex === ids.length - 1) {
-            onAssignOverlap(day.date, null);
-            return;
-        }
+    onAssignOverlap(day.date, participantIds[currentIndex + 1] ?? null);
+}
 
-        onAssignOverlap(day.date, ids[currentIndex + 1] ?? null);
-    };
+function BuddyBidMonthTable({
+    month,
+    participantOrder,
+    onAssignOverlap,
+}: {
+    month: CalendarMonth;
+    participantOrder: CalendarParticipant[];
+    onAssignOverlap: (date: string, doubleParticipantId: number | null) => void;
+}) {
+    const participantIds = participantOrder.map((p) => p.id);
 
     return (
-        <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        disabled={monthIndex <= 0}
-                        onClick={() => setMonthIndex((i) => Math.max(0, i - 1))}
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <span className="min-w-[10rem] text-center text-sm font-medium">
-                        {month.label}
-                    </span>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        disabled={monthIndex >= months.length - 1}
-                        onClick={() =>
-                            setMonthIndex((i) =>
-                                Math.min(months.length - 1, i + 1),
-                            )
-                        }
-                    >
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                    {linesCanDouble
-                        ? `Compatible shift pairing: ${shiftPairing ?? 'yes'}`
-                        : 'Selected lines cannot form legal doubles (need different start-time buckets, e.g. AM + PM).'}
-                </p>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-                Click highlighted overlap days to cycle: User A double → User B
-                double → clear.
-            </p>
-
+        <section className="space-y-2">
+            <h3 className="text-sm font-medium">{month.label}</h3>
             <div className="overflow-x-auto rounded-lg border border-sidebar-border/70">
                 <table className="w-full min-w-[48rem] border-collapse text-[10px]">
                     <thead>
@@ -180,7 +122,11 @@ export function BuddyBidCalendar({
                                                         : 'cursor-default'
                                                 }`}
                                                 onClick={() =>
-                                                    cycleAssignment(day)
+                                                    cycleDoubleAssignment(
+                                                        day,
+                                                        participantIds,
+                                                        onAssignOverlap,
+                                                    )
                                                 }
                                             >
                                                 {status === 'line_off'
@@ -196,6 +142,60 @@ export function BuddyBidCalendar({
                         ))}
                     </tbody>
                 </table>
+            </div>
+        </section>
+    );
+}
+
+export function BuddyBidCalendar({
+    months,
+    participants,
+    linesCanDouble,
+    shiftPairing,
+    onAssignOverlap,
+}: {
+    months: CalendarMonth[];
+    participants: CalendarParticipant[];
+    linesCanDouble: boolean;
+    shiftPairing: string | null;
+    onAssignOverlap: (date: string, doubleParticipantId: number | null) => void;
+}) {
+    const participantOrder = useMemo(
+        () => [...participants].sort((a, b) => a.slot - b.slot),
+        [participants],
+    );
+
+    if (months.length === 0) {
+        return (
+            <p className="text-sm text-muted-foreground">
+                No calendar data for this bid year.
+            </p>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">
+                    {linesCanDouble
+                        ? `Compatible shift pairing: ${shiftPairing ?? 'yes'}`
+                        : 'Selected lines cannot form legal doubles (need different start-time buckets, e.g. AM + PM).'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                    Click highlighted overlap days to cycle: User A double →
+                    User B double → clear.
+                </p>
+            </div>
+
+            <div className="space-y-8">
+                {months.map((month) => (
+                    <BuddyBidMonthTable
+                        key={month.key}
+                        month={month}
+                        participantOrder={participantOrder}
+                        onAssignOverlap={onAssignOverlap}
+                    />
+                ))}
             </div>
         </div>
     );
