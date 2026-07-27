@@ -126,6 +126,31 @@ export function useDebouncedBuddyBidAssignments({
         [scheduleSave],
     );
 
+    const applyRotationAssignments = useCallback(
+        (nextAssignments: Record<string, number | null>) => {
+            const changedDates = Object.keys(nextAssignments).filter(
+                (date) =>
+                    nextAssignments[date] !== assignmentsRef.current[date],
+            );
+
+            if (changedDates.length === 0) {
+                return;
+            }
+
+            setAssignments(nextAssignments);
+            setDirtyDates((current) => {
+                const next = new Set(current);
+                for (const date of changedDates) {
+                    next.add(date);
+                }
+                return next;
+            });
+            setSaveError(null);
+            scheduleSave();
+        },
+        [scheduleSave],
+    );
+
     useEffect(() => {
         if (dirtyDates.size === 0) {
             return;
@@ -150,7 +175,9 @@ export function useDebouncedBuddyBidAssignments({
 
     return {
         displayCalendar,
+        assignments,
         assignOverlap,
+        applyRotationAssignments,
         saveNow,
         hasUnsavedChanges,
         saveState,

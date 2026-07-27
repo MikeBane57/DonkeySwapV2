@@ -1,5 +1,6 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { BuddyBidCalendar } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-calendar';
+import { BuddyBidRotationPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-rotation-panel';
 import { BuddyBidSummaryPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-summary-panel';
 import { BUDDY_BID_AUTO_SAVE_MS } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
 import { DateListEditor } from '@/pages/app/bid-tools/buddy-bids/date-list-editor';
@@ -107,7 +108,9 @@ export default function BuddyBidsShow({
 
     const {
         displayCalendar,
+        assignments,
         assignOverlap,
+        applyRotationAssignments,
         saveNow,
         hasUnsavedChanges,
         saveState,
@@ -355,6 +358,11 @@ export default function BuddyBidsShow({
                         <BuddyBidSummaryPanel
                             summary={displayCalendar.summary}
                             balance={displayCalendar.balance}
+                        />
+                        <BuddyBidRotationPanel
+                            calendar={displayCalendar}
+                            currentAssignments={assignments}
+                            onApply={applyRotationAssignments}
                         />
                         <BuddyBidCalendar
                             months={displayCalendar.months}
