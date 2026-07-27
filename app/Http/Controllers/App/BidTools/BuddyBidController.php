@@ -13,6 +13,7 @@ use App\Models\BuddyBidParticipant;
 use App\Models\BuddyBidPlan;
 use App\Services\BidTools\BidLinePickerService;
 use App\Services\BidTools\BuddyBidCalendarService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -148,7 +149,7 @@ class BuddyBidController extends Controller
     public function updateAssignments(
         UpdateBuddyBidAssignmentsRequest $request,
         int $buddyBid,
-    ): RedirectResponse {
+    ): RedirectResponse|JsonResponse {
         $plan = $this->findPlan($request, $buddyBid);
         $participantIds = $plan->participants()->pluck('id')->all();
 
@@ -176,6 +177,10 @@ class BuddyBidController extends Controller
                     'double_participant_id' => $doubleId,
                 ],
             );
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json(['saved' => true]);
         }
 
         return redirect()
