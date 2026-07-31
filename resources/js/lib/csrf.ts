@@ -4,5 +4,10 @@
  */
 export function getCsrfToken(): string {
     const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : '';
+    if (match) {
+        return decodeURIComponent(match[1]);
+    }
+
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta?.getAttribute('content') ?? '';
 }
