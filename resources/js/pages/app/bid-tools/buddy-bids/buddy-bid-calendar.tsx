@@ -61,18 +61,44 @@ function BuddyBidMonthTable({
     month,
     participantOrder,
     onAssignOverlap,
+    readOnly = false,
+    printLayout = false,
 }: {
     month: CalendarMonth;
     participantOrder: CalendarParticipant[];
-    onAssignOverlap: (date: string, doubleParticipantId: number | null) => void;
+    onAssignOverlap?: (
+        date: string,
+        doubleParticipantId: number | null,
+    ) => void;
+    readOnly?: boolean;
+    printLayout?: boolean;
 }) {
     const participantIds = participantOrder.map((p) => p.id);
+    const tableClass = printLayout
+        ? 'bid-tools-print-table buddy-bid-print-calendar w-full border-collapse'
+        : 'w-full min-w-[48rem] border-collapse text-[10px]';
 
     return (
-        <section className="space-y-2">
-            <h3 className="text-sm font-medium">{month.label}</h3>
-            <div className="overflow-x-auto rounded-lg border border-sidebar-border/70">
-                <table className="w-full min-w-[48rem] border-collapse text-[10px]">
+        <section
+            className={printLayout ? 'buddy-bid-print-month' : 'space-y-2'}
+        >
+            <h3
+                className={
+                    printLayout
+                        ? 'buddy-bid-print-month-title text-[7pt] font-semibold'
+                        : 'text-sm font-medium'
+                }
+            >
+                {month.label}
+            </h3>
+            <div
+                className={
+                    printLayout
+                        ? ''
+                        : 'overflow-x-auto rounded-lg border border-sidebar-border/70'
+                }
+            >
+                <table className={tableClass}>
                     <thead>
                         <tr className="border-b bg-muted/30">
                             <th className="sticky left-0 z-10 bg-muted/30 px-2 py-1 text-left font-medium">
@@ -107,6 +133,28 @@ function BuddyBidMonthTable({
                                             p.participant_id === participant.id,
                                     );
                                     const status = cell?.status ?? 'line_off';
+                                    const label =
+                                        status === 'line_off'
+                                            ? '·'
+                                            : BUDDY_STATUS_LABELS[
+                                                  status
+                                              ].charAt(0);
+
+                                    if (readOnly) {
+                                        return (
+                                            <td
+                                                key={`${participant.id}-${day.date}`}
+                                                className="p-0.5 text-center"
+                                            >
+                                                <span
+                                                    title={`${day.date}: ${BUDDY_STATUS_LABELS[status]}`}
+                                                    className={`buddy-bid-status-cell inline-flex h-5 w-full min-w-[1.1rem] items-center justify-center rounded px-0.5 ${BUDDY_STATUS_CLASSES[status]}`}
+                                                >
+                                                    {label}
+                                                </span>
+                                            </td>
+                                        );
+                                    }
 
                                     return (
                                         <td
@@ -125,15 +173,11 @@ function BuddyBidMonthTable({
                                                     cycleDoubleAssignment(
                                                         day,
                                                         participantIds,
-                                                        onAssignOverlap,
+                                                        onAssignOverlap!,
                                                     )
                                                 }
                                             >
-                                                {status === 'line_off'
-                                                    ? '·'
-                                                    : BUDDY_STATUS_LABELS[
-                                                          status
-                                                      ].charAt(0)}
+                                                {label}
                                             </button>
                                         </td>
                                     );
@@ -153,12 +197,19 @@ export function BuddyBidCalendar({
     linesCanDouble,
     shiftPairing,
     onAssignOverlap,
+    readOnly = false,
+    printLayout = false,
 }: {
     months: CalendarMonth[];
     participants: CalendarParticipant[];
     linesCanDouble: boolean;
     shiftPairing: string | null;
-    onAssignOverlap: (date: string, doubleParticipantId: number | null) => void;
+    onAssignOverlap?: (
+        date: string,
+        doubleParticipantId: number | null,
+    ) => void;
+    readOnly?: boolean;
+    printLayout?: boolean;
 }) {
     const participantOrder = useMemo(
         () => [...participants].sort((a, b) => a.slot - b.slot),
@@ -174,26 +225,34 @@ export function BuddyBidCalendar({
     }
 
     return (
-        <div className="space-y-6">
-            <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">
-                    {linesCanDouble
-                        ? `Compatible shift pairing: ${shiftPairing ?? 'yes'}`
-                        : 'Selected lines cannot form legal doubles (need different start-time buckets, e.g. AM + PM).'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                    Click highlighted overlap days to cycle: User A double →
-                    User B double → clear.
-                </p>
-            </div>
+        <div
+            className={
+                printLayout ? 'buddy-bid-print-calendar-stack' : 'space-y-6'
+            }
+        >
+            {!readOnly && (
+                <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                        {linesCanDouble
+                            ? `Compatible shift pairing: ${shiftPairing ?? 'yes'}`
+                            : 'Selected lines cannot form legal doubles (need different start-time buckets, e.g. AM + PM).'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                        Click highlighted overlap days to cycle: User A double →
+                        User B double → clear.
+                    </p>
+                </div>
+            )}
 
-            <div className="space-y-8">
+            <div className={printLayout ? '' : 'space-y-8'}>
                 {months.map((month) => (
                     <BuddyBidMonthTable
                         key={month.key}
                         month={month}
                         participantOrder={participantOrder}
                         onAssignOverlap={onAssignOverlap}
+                        readOnly={readOnly}
+                        printLayout={printLayout}
                     />
                 ))}
             </div>
