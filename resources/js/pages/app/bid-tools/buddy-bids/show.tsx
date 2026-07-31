@@ -1,4 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
+import { Printer } from 'lucide-react';
 import { BuddyBidCalendar } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-calendar';
 import { BuddyBidRotationPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-rotation-panel';
 import { BuddyBidSnapshotsPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-snapshots-panel';
@@ -7,7 +8,12 @@ import { BUDDY_BID_AUTO_SAVE_MS } from '@/pages/app/bid-tools/buddy-bids/buddy-b
 import { DateListEditor } from '@/pages/app/bid-tools/buddy-bids/date-list-editor';
 import { useDebouncedBuddyBidAssignments } from '@/pages/app/bid-tools/buddy-bids/use-debounced-buddy-bid-assignments';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
-import type { BreadcrumbItem } from '@/types';
+import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
+import {
+    BUDDY_STATUS_CLASSES,
+    BUDDY_STATUS_LABELS,
+} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
+import type { BuddyDayStatus } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +25,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 type ParticipantProfile = {
     vacation_dates: string[];
@@ -171,11 +178,30 @@ export default function BuddyBidsShow({
         );
     };
 
+    const printedAt = new Date().toLocaleString();
+    const participantLineSummary = displayCalendar.participants
+        .map((participant) => {
+            const parts = [
+                participant.display_name,
+                participant.line_num,
+                participant.desk_group,
+                participant.start_time,
+            ].filter(Boolean);
+
+            return parts.join(' · ');
+        })
+        .join(' | ');
+
+    const exportCalendar = () => {
+        window.print();
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={plan.name} />
-            <div className="mx-auto max-w-6xl space-y-6 p-4 pb-12">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+            <BidToolsPrintStyles />
+            <div className="bid-tools-print mx-auto max-w-6xl space-y-6 p-4 pb-12">
+                <div className="no-print flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h1 className="text-2xl font-semibold tracking-tight">
                             {plan.name}
@@ -184,29 +210,42 @@ export default function BuddyBidsShow({
                             Bid {plan.bid_year} · two-buddy double planning
                         </p>
                     </div>
-                    <Button
-                        variant="destructive"
-                        size="sm"
-                        type="button"
-                        onClick={() => {
-                            if (
-                                window.confirm(
-                                    'Delete this buddy bid plan? This cannot be undone.',
-                                )
-                            ) {
-                                router.delete(
-                                    `/app/bid-tools/buddy-bids/${plan.id}`,
-                                );
-                            }
-                        }}
-                    >
-                        Delete plan
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                        {linesReady && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                type="button"
+                                onClick={exportCalendar}
+                            >
+                                <Printer className="mr-2 h-4 w-4" />
+                                Export calendar
+                            </Button>
+                        )}
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            type="button"
+                            onClick={() => {
+                                if (
+                                    window.confirm(
+                                        'Delete this buddy bid plan? This cannot be undone.',
+                                    )
+                                ) {
+                                    router.delete(
+                                        `/app/bid-tools/buddy-bids/${plan.id}`,
+                                    );
+                                }
+                            }}
+                        >
+                            Delete plan
+                        </Button>
+                    </div>
                 </div>
 
                 <form
                     onSubmit={saveParticipants}
-                    className="space-y-4 rounded-lg border border-sidebar-border/70 p-4"
+                    className="no-print space-y-4 rounded-lg border border-sidebar-border/70 p-4"
                 >
                     <h2 className="text-sm font-medium">Buddies & lines</h2>
                     <div className="grid gap-4 lg:grid-cols-2">
@@ -348,7 +387,7 @@ export default function BuddyBidsShow({
 
                 {linesReady ? (
                     <>
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sidebar-border/70 bg-muted/10 px-4 py-3 text-sm">
+                        <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sidebar-border/70 bg-muted/10 px-4 py-3 text-sm">
                             <p
                                 className={
                                     saveError
@@ -387,31 +426,122 @@ export default function BuddyBidsShow({
                                 Reset overlaps
                             </Button>
                         </div>
-                        <BuddyBidSnapshotsPanel
-                            planId={plan.id}
-                            snapshots={snapshots}
-                            hasUnsavedChanges={hasUnsavedChanges}
-                            onSaveBeforeSnapshot={saveNow}
-                        />
-                        <BuddyBidSummaryPanel
-                            summary={displayCalendar.summary}
-                            balance={displayCalendar.balance}
-                        />
-                        <BuddyBidRotationPanel
-                            calendar={displayCalendar}
-                            currentAssignments={assignments}
-                            onApply={applyRotationAssignments}
-                        />
-                        <BuddyBidCalendar
-                            months={displayCalendar.months}
-                            participants={displayCalendar.participants}
-                            linesCanDouble={displayCalendar.lines_can_double}
-                            shiftPairing={displayCalendar.shift_pairing}
-                            onAssignOverlap={assignOverlap}
-                        />
+                        <div className="no-print">
+                            <BuddyBidSnapshotsPanel
+                                planId={plan.id}
+                                snapshots={snapshots}
+                                hasUnsavedChanges={hasUnsavedChanges}
+                                onSaveBeforeSnapshot={saveNow}
+                            />
+                        </div>
+                        <div className="no-print space-y-4">
+                            <BuddyBidSummaryPanel
+                                summary={displayCalendar.summary}
+                                balance={displayCalendar.balance}
+                            />
+                            <BuddyBidRotationPanel
+                                calendar={displayCalendar}
+                                currentAssignments={assignments}
+                                onApply={applyRotationAssignments}
+                            />
+                            <BuddyBidCalendar
+                                months={displayCalendar.months}
+                                participants={displayCalendar.participants}
+                                linesCanDouble={
+                                    displayCalendar.lines_can_double
+                                }
+                                shiftPairing={displayCalendar.shift_pairing}
+                                onAssignOverlap={assignOverlap}
+                            />
+                        </div>
+
+                        <div className="print-only space-y-3">
+                            <h2 className="bid-tools-print-title">
+                                {plan.name}
+                            </h2>
+                            <p className="bid-tools-print-subtitle">
+                                Bid {plan.bid_year} · buddy double calendar
+                            </p>
+                            <p className="bid-tools-print-subtitle wrap">
+                                {participantLineSummary}
+                            </p>
+                            <p className="bid-tools-print-subtitle">
+                                {displayCalendar.lines_can_double
+                                    ? `Shift pairing: ${displayCalendar.shift_pairing ?? 'compatible'}`
+                                    : 'Lines cannot form legal doubles'}
+                            </p>
+                            <p className="bid-tools-print-subtitle">
+                                Printed {printedAt}
+                            </p>
+                            <table className="bid-tools-print-table w-full text-left">
+                                <thead>
+                                    <tr>
+                                        <th>Buddy</th>
+                                        <th>Dbl</th>
+                                        <th>Sgl</th>
+                                        <th>B-off</th>
+                                        <th>Vac</th>
+                                        <th>Pull</th>
+                                        <th>Train</th>
+                                        <th>Off</th>
+                                        <th>Unasgn</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {displayCalendar.summary.map((row) => (
+                                        <tr key={row.participant_id}>
+                                            <td className="wrap">
+                                                {row.display_name}
+                                            </td>
+                                            <td>{row.doubles}</td>
+                                            <td>{row.singles}</td>
+                                            <td>{row.buddy_offs}</td>
+                                            <td>{row.vacation_on_work}</td>
+                                            <td>{row.pulls_on_work}</td>
+                                            <td>{row.training_on_work}</td>
+                                            <td>{row.line_offs}</td>
+                                            <td>{row.overlap_pending}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            <p className="bid-tools-print-subtitle">
+                                Doubles Δ{' '}
+                                {displayCalendar.balance.doubles_delta}· Singles
+                                + time off Δ{' '}
+                                {displayCalendar.balance.singles_adjusted_delta}
+                                · Unassigned overlaps{' '}
+                                {displayCalendar.balance.unassigned_overlaps}
+                            </p>
+                            <BuddyBidCalendar
+                                months={displayCalendar.months}
+                                participants={displayCalendar.participants}
+                                linesCanDouble={
+                                    displayCalendar.lines_can_double
+                                }
+                                shiftPairing={displayCalendar.shift_pairing}
+                                readOnly
+                                printLayout
+                            />
+                            <div className="flex flex-wrap gap-1 text-[6pt]">
+                                {(
+                                    Object.keys(
+                                        BUDDY_STATUS_LABELS,
+                                    ) as BuddyDayStatus[]
+                                ).map((status) => (
+                                    <span
+                                        key={status}
+                                        className={`rounded px-1 py-0.5 ${BUDDY_STATUS_CLASSES[status]}`}
+                                    >
+                                        {BUDDY_STATUS_LABELS[status].charAt(0)}=
+                                        {BUDDY_STATUS_LABELS[status]}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
                     </>
                 ) : (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="no-print text-sm text-muted-foreground">
                         Select a line for each buddy and save to open the
                         calendar.
                     </p>

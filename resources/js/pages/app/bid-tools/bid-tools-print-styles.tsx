@@ -96,6 +96,27 @@ export function BidToolsPrintStyles() {
                     font-size: 6pt;
                     line-height: 1.05;
                 }
+
+                .buddy-bid-print-month {
+                    break-inside: avoid;
+                    margin-bottom: 6px;
+                }
+
+                .buddy-bid-print-month-title {
+                    margin: 0 0 2px;
+                    line-height: 1.1;
+                }
+
+                .buddy-bid-print-calendar-stack {
+                    display: block;
+                }
+
+                .buddy-bid-status-cell {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                    font-size: 6pt;
+                    font-weight: 600;
+                }
             }
 
             @media screen {
