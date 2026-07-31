@@ -69,7 +69,7 @@ export function useDebouncedBuddyBidAssignments({
                     headers: {
                         'Content-Type': 'application/json',
                         Accept: 'application/json',
-                        'X-CSRF-TOKEN': getCsrfToken(),
+                        'X-XSRF-TOKEN': getCsrfToken(),
                         'X-Requested-With': 'XMLHttpRequest',
                     },
                     body: JSON.stringify({
@@ -83,6 +83,10 @@ export function useDebouncedBuddyBidAssignments({
             );
 
             if (!response.ok) {
+                if (response.status === 419) {
+                    throw new Error('Session expired (419)');
+                }
+
                 throw new Error(`Save failed (${response.status})`);
             }
 
@@ -96,7 +100,11 @@ export function useDebouncedBuddyBidAssignments({
             setSaveState('saved');
         } catch (error) {
             logClientError('buddy-bids.assignments.save', error);
-            setSaveError('Could not save overlap assignments. Try again.');
+            const message =
+                error instanceof Error && error.message.includes('419')
+                    ? 'Session expired. Refresh the page and try again.'
+                    : 'Could not save overlap assignments. Try again.';
+            setSaveError(message);
             setSaveState('error');
         }
     }, [clearSaveTimer, planId]);
@@ -163,7 +171,7 @@ export function useDebouncedBuddyBidAssignments({
                     method: 'DELETE',
                     headers: {
                         Accept: 'application/json',
-                        'X-CSRF-TOKEN': getCsrfToken(),
+                        'X-XSRF-TOKEN': getCsrfToken(),
                         'X-Requested-With': 'XMLHttpRequest',
                     },
                 },
