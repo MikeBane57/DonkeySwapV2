@@ -33,12 +33,7 @@ export type RotationPreviewWeek = {
     assignments: RotationAssignment[];
 };
 
-const BLOCKED_STATUSES = new Set([
-    'vacation',
-    'pull',
-    'training',
-    'line_off',
-]);
+const BLOCKED_STATUSES = new Set(['vacation', 'pull', 'training', 'line_off']);
 
 const TRAINING_CODES = new Set(['TAM', 'TPM']);
 
