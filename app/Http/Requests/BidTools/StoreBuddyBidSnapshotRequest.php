@@ -20,4 +20,11 @@ class StoreBuddyBidSnapshotRequest extends FormRequest
             'name' => ['required', 'string', 'max:120'],
         ];
     }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'name' => trim((string) $this->input('name', '')),
+        ]);
+    }
 }
