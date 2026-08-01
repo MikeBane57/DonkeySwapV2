@@ -35,6 +35,29 @@ export type RotationPreviewWeek = {
 
 const BLOCKED_STATUSES = new Set(['vacation', 'pull', 'training', 'line_off']);
 
+const TRAINING_CODES = new Set(['TAM', 'TPM']);
+
+export function isAssignableOverlapDay(
+    day: BuddyBidCalendarView['months'][number]['days'][number],
+): boolean {
+    if (!day.is_compatible_overlap) {
+        return false;
+    }
+
+    return day.participants.every((cell) => {
+        if (BLOCKED_STATUSES.has(cell.status)) {
+            return false;
+        }
+
+        const code = cell.code?.toUpperCase();
+        if (code && TRAINING_CODES.has(code)) {
+            return false;
+        }
+
+        return true;
+    });
+}
+
 export function parsePattern(input: string): PatternToken[] {
     const tokens: PatternToken[] = [];
 
@@ -124,16 +147,6 @@ export function patternForWeek(
     return split23Pattern(baseTokens).join('');
 }
 
-export function isAssignableOverlapDay(
-    day: BuddyBidCalendarView['months'][number]['days'][number],
-): boolean {
-    if (!day.is_compatible_overlap) {
-        return false;
-    }
-
-    return day.participants.every((cell) => !BLOCKED_STATUSES.has(cell.status));
-}
-
 function participantIds(calendar: BuddyBidCalendarView): [number, number] {
     const sorted = [...calendar.participants].sort((a, b) => a.slot - b.slot);
 
@@ -174,29 +187,32 @@ function weekAssignments(
     );
     const tokens = parsePattern(weekPattern);
     const assignments: RotationAssignment[] = [];
+    let tokenIndex = 0;
 
-    week.workDates.forEach((date, index) => {
+    for (const date of week.workDates) {
         const day = days.get(date);
-        const token = tokens[index] ?? null;
 
-        if (!day || token === null) {
+        if (!day || !isAssignableOverlapDay(day)) {
             assignments.push({
                 date,
                 doubleParticipantId: null,
-                token,
+                token: null,
             });
 
-            return;
+            continue;
         }
 
-        if (token === 'S' || !isAssignableOverlapDay(day)) {
+        const token = tokens[tokenIndex] ?? null;
+        tokenIndex += 1;
+
+        if (token === null || token === 'S') {
             assignments.push({
                 date,
                 doubleParticipantId: null,
                 token,
             });
 
-            return;
+            continue;
         }
 
         assignments.push({
@@ -209,7 +225,7 @@ function weekAssignments(
             ),
             token,
         });
-    });
+    }
 
     return assignments;
 }
@@ -304,6 +320,6 @@ export const ROTATION_PRESETS = [
         pattern: '',
         alternation: 'repeat' as const,
         description:
-            'Enter your own A / B / S pattern (5 characters per work week)',
+            'Enter your own A / B / S pattern (5 slots per overlap sequence)',
     },
 ] as const;
