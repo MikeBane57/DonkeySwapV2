@@ -127,9 +127,10 @@ export function BuddyBidRotationPanel({
             <div>
                 <h2 className="text-sm font-medium">Apply rotation pattern</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                    Map a 5-day work-week pattern onto overlap days. A and B are
-                    doubles for the chosen week-1 leader; S skips a slot.
-                    Vacation, pull, and training days are skipped automatically.
+                    Map a 5-character pattern onto overlap days within each
+                    work week. Training, vacation, pull, and non-overlap days
+                    are skipped without consuming a pattern slot. A and B are
+                    doubles for the week-1 leader; S skips an overlap slot.
                 </p>
             </div>
 
