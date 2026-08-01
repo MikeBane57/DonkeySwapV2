@@ -1,4 +1,5 @@
-import { Link, router, useForm } from '@inertiajs/react';
+import { Link, router, useForm, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +15,11 @@ type SnapshotRow = {
     };
 };
 
+type PageFlash = {
+    success?: string | null;
+    error?: string | null;
+};
+
 export function BuddyBidSnapshotsPanel({
     planId,
     snapshots,
@@ -23,23 +29,61 @@ export function BuddyBidSnapshotsPanel({
     planId: number;
     snapshots: SnapshotRow[];
     hasUnsavedChanges: boolean;
-    onSaveBeforeSnapshot?: () => Promise<void>;
+    onSaveBeforeSnapshot?: () => Promise<boolean>;
 }) {
+    const { flash } = usePage<{ flash?: PageFlash }>().props;
+    const [localMessage, setLocalMessage] = useState<string | null>(null);
+    const [localError, setLocalError] = useState<string | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+
     const snapshotForm = useForm({
         name: '',
     });
 
-    const saveSnapshot = async (event: React.FormEvent) => {
-        event.preventDefault();
-
-        if (hasUnsavedChanges && onSaveBeforeSnapshot) {
-            await onSaveBeforeSnapshot();
+    const saveSnapshot = async () => {
+        const name = snapshotForm.data.name.trim();
+        if (!name) {
+            return;
         }
 
-        snapshotForm.post(`/app/bid-tools/buddy-bids/${planId}/snapshots`, {
-            preserveScroll: true,
-            onSuccess: () => snapshotForm.setData('name', ''),
-        });
+        setLocalMessage(null);
+        setLocalError(null);
+
+        if (hasUnsavedChanges && onSaveBeforeSnapshot) {
+            setIsSaving(true);
+            const overlapsSaved = await onSaveBeforeSnapshot();
+            if (!overlapsSaved) {
+                setLocalError(
+                    'Could not save overlap assignments. Fix that first, then save the snapshot.',
+                );
+                setIsSaving(false);
+                return;
+            }
+        }
+
+        setIsSaving(true);
+
+        router.post(
+            `/app/bid-tools/buddy-bids/${planId}/snapshots`,
+            { name },
+            {
+                preserveScroll: true,
+                only: ['snapshots', 'flash', 'calendar'],
+                onSuccess: () => {
+                    snapshotForm.setData('name', '');
+                    setLocalMessage('Snapshot saved.');
+                },
+                onError: (errors) => {
+                    const firstError = Object.values(errors)[0];
+                    setLocalError(
+                        typeof firstError === 'string'
+                            ? firstError
+                            : 'Could not save snapshot. Try again.',
+                    );
+                },
+                onFinish: () => setIsSaving(false),
+            },
+        );
     };
 
     const restoreSnapshot = (snapshotId: number, snapshotName: string) => {
@@ -54,7 +98,10 @@ export function BuddyBidSnapshotsPanel({
         router.post(
             `/app/bid-tools/buddy-bids/${planId}/snapshots/${snapshotId}/restore`,
             {},
-            { preserveScroll: true },
+            {
+                preserveScroll: true,
+                only: ['snapshots', 'flash', 'calendar'],
+            },
         );
     };
 
@@ -69,9 +116,18 @@ export function BuddyBidSnapshotsPanel({
 
         router.delete(
             `/app/bid-tools/buddy-bids/${planId}/snapshots/${snapshotId}`,
-            { preserveScroll: true },
+            {
+                preserveScroll: true,
+                only: ['snapshots', 'flash'],
+            },
         );
     };
+
+    const statusMessage =
+        localError ??
+        localMessage ??
+        flash?.success ??
+        (flash?.error ? String(flash.error) : null);
 
     return (
         <div className="space-y-4 rounded-lg border border-sidebar-border/70 p-4">
@@ -91,10 +147,7 @@ export function BuddyBidSnapshotsPanel({
                 </Button>
             </div>
 
-            <form
-                onSubmit={(event) => void saveSnapshot(event)}
-                className="flex flex-wrap items-end gap-3"
-            >
+            <div className="flex flex-wrap items-end gap-3">
                 <div className="min-w-[12rem] flex-1 space-y-2">
                     <Label htmlFor="snapshot-name">Snapshot name</Label>
                     <Input
@@ -108,15 +161,29 @@ export function BuddyBidSnapshotsPanel({
                     />
                 </div>
                 <Button
-                    type="submit"
+                    type="button"
                     disabled={
-                        snapshotForm.processing ||
-                        snapshotForm.data.name.trim() === ''
+                        isSaving ||
+                        snapshotForm.data.name.trim() === '' ||
+                        snapshotForm.processing
+                    }
+                    onClick={() => void saveSnapshot()}
+                >
+                    {isSaving ? 'Saving…' : 'Save snapshot'}
+                </Button>
+            </div>
+
+            {statusMessage && (
+                <p
+                    className={
+                        localError || flash?.error
+                            ? 'text-xs text-destructive'
+                            : 'text-xs text-emerald-700 dark:text-emerald-300'
                     }
                 >
-                    Save snapshot
-                </Button>
-            </form>
+                    {statusMessage}
+                </p>
+            )}
 
             {hasUnsavedChanges && (
                 <p className="text-xs text-amber-700 dark:text-amber-300">

@@ -51,10 +51,10 @@ export function useDebouncedBuddyBidAssignments({
         }
     }, []);
 
-    const saveNow = useCallback(async () => {
+    const saveNow = useCallback(async (): Promise<boolean> => {
         const datesToSave = Array.from(dirtyDatesRef.current);
         if (datesToSave.length === 0) {
-            return;
+            return true;
         }
 
         clearSaveTimer();
@@ -98,6 +98,7 @@ export function useDebouncedBuddyBidAssignments({
                 return next;
             });
             setSaveState('saved');
+            return true;
         } catch (error) {
             logClientError('buddy-bids.assignments.save', error);
             const message =
@@ -106,6 +107,7 @@ export function useDebouncedBuddyBidAssignments({
                     : 'Could not save overlap assignments. Try again.';
             setSaveError(message);
             setSaveState('error');
+            return false;
         }
     }, [clearSaveTimer, planId]);
 
