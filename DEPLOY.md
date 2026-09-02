@@ -1,6 +1,11 @@
-# Deploy to Bluehost (GitHub Actions)
+# Deploy to production (GitHub Actions)
 
-This project is set up to deploy to Bluehost automatically when you push to the `main` branch on GitHub. Follow the steps below to finish setup.
+This project deploys automatically when you push to the `main` branch. GitHub Actions builds the frontend, uploads `public/build/` via **FTP**, then **SSH** runs `git pull`, composer, and migrations.
+
+**HostGator fresh setup:** see **[docs/HOSTGATOR-SETUP.md](docs/HOSTGATOR-SETUP.md)**.  
+**Secrets reference:** **[SECRETS-CHECKLIST.md](SECRETS-CHECKLIST.md)**.
+
+The sections below still describe the general cPanel flow (originally written for Bluehost; HostGator steps are the same).
 
 ---
 

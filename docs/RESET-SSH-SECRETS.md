@@ -2,6 +2,8 @@
 
 Use this when the "Deploy on server" step fails with `ssh: unable to authenticate`. It walks you through generating a new key and setting every SSH-related secret from scratch.
 
+Works for **HostGator**, Bluehost, and other cPanel hosts. For a full fresh HostGator install, see **[HOSTGATOR-SETUP.md](HOSTGATOR-SETUP.md)**.
+
 ---
 
 ## Part 1: Generate a new SSH key pair (on your PC)
@@ -27,7 +29,7 @@ Use this when the "Deploy on server" step fails with `ssh: unable to authenticat
 
 ---
 
-## Part 2: Add the public key to Bluehost
+## Part 2: Add the public key to HostGator (or Bluehost)
 
 1. Show the **public** key so you can copy it:
 
@@ -37,7 +39,7 @@ Use this when the "Deploy on server" step fails with `ssh: unable to authenticat
 
    Copy the **entire line** (starts with `ssh-ed25519`, ends with `github-actions-deploy`).
 
-2. In **Bluehost**: log in → **cPanel** → **Security** → **SSH Access**.
+2. In **HostGator** (or Bluehost): log in → **cPanel** → **Security** → **SSH Access**.
 
 3. Open **Manage SSH Keys** (or **Import Key**).
 
@@ -89,13 +91,12 @@ Use this when the "Deploy on server" step fails with `ssh: unable to authenticat
 
 ### Finding `SERVER_APP_PATH`
 
-- In Bluehost **File Manager**, go to the folder that contains:
+- In cPanel **File Manager**, go to the folder that contains:
   - `artisan`
   - `composer.json`
   - `public` (folder)
-- The full path to that folder is `SERVER_APP_PATH`. In cPanel the path often looks like:
+- The full path to that folder is `SERVER_APP_PATH`. On HostGator/Bluehost it often looks like:
   - `/home/yourcpanelusername/public_html/DonkeySwapV2`
-  - or similar (replace with your actual username and folder name).
 
 ---
 
@@ -118,7 +119,7 @@ Use this when the "Deploy on server" step fails with `ssh: unable to authenticat
 ## Checklist
 
 - [ ] New key pair generated (`donkeyswapv2_deploy` + `.pub`)
-- [ ] Public key imported and **authorized** in Bluehost SSH Access
+- [ ] Public key imported and **authorized** in HostGator/Bluehost SSH Access
 - [ ] `SSH_HOST` = SSH hostname (no path, no protocol)
 - [ ] `SSH_USER` = cPanel username
 - [ ] `SSH_PRIVATE_KEY` = full private key (begin/end lines included)

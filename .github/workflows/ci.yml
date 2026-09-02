@@ -145,12 +145,26 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
             set -e
-            PHP=/opt/cpanel/ea-php84/root/usr/bin/php
-            COMPOSER=/opt/cpanel/composer/bin/composer
+            if [ -n "${{ secrets.PHP_BIN }}" ]; then
+              PHP="${{ secrets.PHP_BIN }}"
+            elif [ -x /opt/cpanel/ea-php84/root/usr/bin/php ]; then
+              PHP=/opt/cpanel/ea-php84/root/usr/bin/php
+            elif command -v ea-php84 >/dev/null 2>&1; then
+              PHP=ea-php84
+            else
+              PHP=php
+            fi
+            if [ -n "${{ secrets.COMPOSER_BIN }}" ]; then
+              COMPOSER="${{ secrets.COMPOSER_BIN }}"
+            elif [ -x /opt/cpanel/composer/bin/composer ]; then
+              COMPOSER=/opt/cpanel/composer/bin/composer
+            else
+              COMPOSER=composer
+            fi
             cd ${{ secrets.SERVER_APP_PATH }}
             echo "==> git pull"
             git pull origin main
-            echo "==> composer install"
+            echo "==> composer install (PHP=$PHP)"
             $PHP $COMPOSER install --no-dev --optimize-autoloader --no-interaction
             echo "==> migrate"
             $PHP artisan migrate --force
