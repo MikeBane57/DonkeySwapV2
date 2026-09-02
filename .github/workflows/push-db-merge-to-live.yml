@@ -83,7 +83,16 @@ jobs:
               echo "::error::mysql_merge.sql missing on server after FTP. Check FTP_REMOTE_DIR matches app root (same as main deploy)."
               exit 1
             fi
-            if ! /opt/cpanel/ea-php84/root/usr/bin/php artisan db:import-merge; then
+            if [ -n "${{ secrets.PHP_BIN }}" ]; then
+              PHP="${{ secrets.PHP_BIN }}"
+            elif [ -x /opt/cpanel/ea-php84/root/usr/bin/php ]; then
+              PHP=/opt/cpanel/ea-php84/root/usr/bin/php
+            elif command -v ea-php84 >/dev/null 2>&1; then
+              PHP=ea-php84
+            else
+              PHP=php
+            fi
+            if ! $PHP artisan db:import-merge; then
               echo "::error::Import failed — mysql_merge.sql left on server for debugging."
               exit 1
             fi
