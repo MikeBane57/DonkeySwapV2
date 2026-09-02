@@ -19,7 +19,8 @@ return new class extends Migration
             $table->timestamp('changed_at');
             $table->timestamps();
 
-            $table->index(['looking_for_work_post_id', 'changed_at']);
+            // MySQL 5.7 identifier limit is 64 chars; Laravel's auto name is too long.
+            $table->index(['looking_for_work_post_id', 'changed_at'], 'lfw_post_hist_post_changed_idx');
         });
     }
 
