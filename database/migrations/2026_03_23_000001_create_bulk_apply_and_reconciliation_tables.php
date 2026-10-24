@@ -44,7 +44,8 @@ return new class extends Migration
                 $table->string('user_action', 20)->nullable(); // accepted|rejected|kept|removed
                 $table->text('reason')->nullable();
                 $table->timestamps();
-                $table->index(['schedule_reconciliation_id', 'type']);
+                // MySQL 5.7 identifier limit is 64 chars; Laravel's auto name is too long.
+                $table->index(['schedule_reconciliation_id', 'type'], 'sched_recon_items_recon_type_idx');
             });
         }
 

@@ -29,7 +29,8 @@ return new class extends Migration
                 $table->foreignId('bid_scenario_id')->constrained('bid_scenarios')->cascadeOnDelete();
                 $table->timestamps();
 
-                $table->unique(['bid_simulation_id', 'seniority_rank']);
+                // MySQL 5.7 identifier limit is 64 chars; Laravel's auto name is too long.
+                $table->unique(['bid_simulation_id', 'seniority_rank'], 'bid_sim_participants_sim_rank_uq');
             });
         }
     }
