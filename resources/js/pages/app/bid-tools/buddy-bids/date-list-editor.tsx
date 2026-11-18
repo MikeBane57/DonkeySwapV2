@@ -28,8 +28,6 @@ export function DateListEditor({
     onChange: (dates: string[]) => void;
 }) {
     const [pickerValue, setPickerValue] = useState('');
-    const [rangeStart, setRangeStart] = useState('');
-    const [rangeEnd, setRangeEnd] = useState('');
 
     const addDate = (date: string) => {
         if (!date || dates.includes(date)) {
@@ -41,28 +39,11 @@ export function DateListEditor({
     };
 
     const addRange = (start: string, end: string) => {
-        if (!start || !end) {
-            setRangeStart('');
-            setRangeEnd('');
-            return;
-        }
-
-        const awaitingEnd =
-            start === end && rangeStart === '' && rangeEnd === '';
-
-        if (awaitingEnd) {
-            setRangeStart(start);
-            setRangeEnd(end);
-            return;
-        }
-
         const expanded = expandYmdRange(start, end);
         if (expanded.length === 0) {
             return;
         }
         onChange(mergeSortedUniqueDates(dates, expanded));
-        setRangeStart('');
-        setRangeEnd('');
     };
 
     const removeDate = (date: string) => {
@@ -75,19 +56,13 @@ export function DateListEditor({
             <p className="text-xs text-muted-foreground">{description}</p>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <DateRangePickerPopover
-                    start={rangeStart}
-                    end={rangeEnd}
+                    start=""
+                    end=""
                     bidYear={bidYear}
                     placeholder="Add date range"
                     aria-label={`${label} range`}
                     className="w-full sm:w-auto"
-                    onChange={addRange}
-                    onOpenChange={(open) => {
-                        if (!open) {
-                            setRangeStart('');
-                            setRangeEnd('');
-                        }
-                    }}
+                    onAdd={addRange}
                 />
                 <DatePickerPopover
                     id={`${idPrefix}-date-add`}

@@ -326,7 +326,7 @@ export default function BuddyBidsShow({
                                     <DateListEditor
                                         idPrefix={`vacation-${index}`}
                                         label="Awarded vacation"
-                                        description="Pick a start and end on the calendar to add every day in the range, or add single days."
+                                        description="Open the calendar, pick start and end, then Add range — or use one day for exceptions."
                                         bidYear={plan.bid_year}
                                         dates={
                                             participant.profile.vacation_dates
@@ -352,7 +352,7 @@ export default function BuddyBidsShow({
                                     <DateListEditor
                                         idPrefix={`pull-${index}`}
                                         label="Pull days"
-                                        description="Pick a range or single days pulled off the line (treated like time off)."
+                                        description="Same range calendar for pull days (treated like time off)."
                                         bidYear={plan.bid_year}
                                         dates={participant.profile.pull_dates}
                                         onChange={(dates) => {
