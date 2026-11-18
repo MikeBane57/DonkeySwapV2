@@ -6,16 +6,13 @@ The deploy workflow needs these **repository secrets** (Settings → Secrets and
 
 ---
 
-## FTP (used to upload `public/build/` to the server)
+## Frontend build (CI deploy)
+
+The **CI** workflow uploads `public/build/` over **SSH/SCP** into `SERVER_APP_PATH/public/build/` (same folder as `git pull`). FTP secrets are no longer required for deploy.
 
 | Secret | What to put | Where to get it (Bluehost cPanel) |
 |--------|-------------|-----------------------------------|
-| **FTP_SERVER** | FTP hostname | **FTP** or **FTP Accounts** → Server/host (e.g. `ftp.donkeyswapv2.mikebane.com` or the hostname shown; sometimes same as domain) |
-| **FTP_USERNAME** | FTP login name | **FTP Accounts** → the username you use to log in via FTP (often your cPanel username or a dedicated FTP user) |
-| **FTP_PASSWORD** | FTP password | The password for that FTP user |
-| **FTP_REMOTE_DIR** | **Absolute path to the app root on the server** (no trailing slash). The workflow uploads into `FTP_REMOTE_DIR/public/build/`. | Where the app lives. Examples: `/home/yourcpanel/public_html/DonkeySwapV2` or `/public_html/donkeyswapv2`. **Not** the `public` folder—the folder that contains `artisan`, `composer.json`, and the `public` directory. |
-
-**Common FTP mistake:** `FTP_REMOTE_DIR` must be the **app root** (parent of `public/`). If you set it to the `public` folder, the upload would go to `public/public/build/` and the site would not see the new files.
+| **FTP_SERVER**, **FTP_USERNAME**, **FTP_PASSWORD**, **FTP_REMOTE_DIR** | (optional) Legacy manual FTP only | Not used by CI deploy anymore. Fix wrong-path issues by relying on `SERVER_APP_PATH` instead. |
 
 ---
 
@@ -35,7 +32,7 @@ The deploy workflow needs these **repository secrets** (Settings → Secrets and
 
 ## Quick verification
 
-1. **GitHub:** Repo → **Settings** → **Secrets and variables** → **Actions**. You should see: `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`, `FTP_REMOTE_DIR`, `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `SERVER_APP_PATH` (and optionally `SSH_PORT`).
+1. **GitHub:** Repo → **Settings** → **Secrets and variables** → **Actions**. You should see: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `SERVER_APP_PATH` (and optionally `SSH_PORT`, `PHP_BIN`, `COMPOSER_BIN`).
 2. **FTP path:** If your site is at `https://donkeyswapv2.mikebane.com` and the document root is set to `.../public`, then the app root is the parent of that `public` folder. `FTP_REMOTE_DIR` and `SERVER_APP_PATH` = that parent path (e.g. `/home/xxx/public_html/DonkeySwapV2`).
 3. **SSH:** From your own machine, try `ssh SSH_USER@SSH_HOST "cd SERVER_APP_PATH && pwd && ls -la"` (using the same values you put in secrets). If that works, the workflow can run the same commands.
 

@@ -100,10 +100,6 @@ jobs:
       - name: Verify deploy secrets are set
         run: |
           missing=""
-          [ -z "${{ secrets.FTP_SERVER }}" ] && missing="$missing FTP_SERVER"
-          [ -z "${{ secrets.FTP_USERNAME }}" ] && missing="$missing FTP_USERNAME"
-          [ -z "${{ secrets.FTP_PASSWORD }}" ] && missing="$missing FTP_PASSWORD"
-          [ -z "${{ secrets.FTP_REMOTE_DIR }}" ] && missing="$missing FTP_REMOTE_DIR"
           [ -z "${{ secrets.SSH_HOST }}" ] && missing="$missing SSH_HOST"
           [ -z "${{ secrets.SSH_USER }}" ] && missing="$missing SSH_USER"
           [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ] && missing="$missing SSH_PRIVATE_KEY"
@@ -124,19 +120,20 @@ jobs:
           name: frontend-build
           path: public/build/
 
-      - name: Upload public/build via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./public/build/
-          server-dir: ${{ secrets.FTP_REMOTE_DIR }}/public/build/
-          protocol: ftp
-          port: 21
-          timeout: 60000
+      - name: Archive frontend build
+        run: tar -czf frontend-build.tar.gz -C public build
 
-      - name: Deploy on server (git pull + composer + migrate + optimize)
+      - name: Upload frontend build archive
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: frontend-build.tar.gz
+          target: /tmp/
+
+      - name: Deploy on server (git pull, build install, migrate, optimize)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -163,9 +160,17 @@ jobs:
             else
               COMPOSER=composer
             fi
-            cd ${{ secrets.SERVER_APP_PATH }}
+            APP="${{ secrets.SERVER_APP_PATH }}"
+            cd "$APP"
             echo "==> git pull"
             git pull origin main
+            echo "==> install frontend build into public/build"
+            rm -rf public/build
+            mkdir -p public/build
+            tar -xzf /tmp/frontend-build.tar.gz -C public
+            rm -f /tmp/frontend-build.tar.gz
+            echo "==> live build version.json"
+            cat public/build/version.json
             echo "==> composer install (PHP=$PHP, COMPOSER=$COMPOSER)"
             $PHP $COMPOSER install --no-dev --optimize-autoloader --no-interaction
             echo "==> migrate"
