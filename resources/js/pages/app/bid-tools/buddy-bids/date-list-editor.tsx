@@ -8,7 +8,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 
-function mergeSortedUniqueDates(existing: string[], toAdd: string[]): string[] {
+export function mergeSortedUniqueDates(
+    existing: string[],
+    toAdd: string[],
+): string[] {
     return [...new Set([...existing, ...toAdd])].sort();
 }
 
@@ -19,6 +22,7 @@ export function DateListEditor({
     dates,
     bidYear,
     onChange,
+    transferAction,
 }: {
     idPrefix: string;
     label: string;
@@ -26,6 +30,11 @@ export function DateListEditor({
     dates: string[];
     bidYear: number;
     onChange: (dates: string[]) => void;
+    transferAction?: {
+        label: string;
+        ariaLabel: string;
+        onTransfer: (date: string) => void;
+    };
 }) {
     const [pickerValue, setPickerValue] = useState('');
 
@@ -84,16 +93,35 @@ export function DateListEditor({
                             key={date}
                             className="flex items-center justify-between gap-2 text-xs"
                         >
-                            <span className="font-mono">{date}</span>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => removeDate(date)}
-                            >
-                                <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            <span className="min-w-0 truncate font-mono">
+                                {date}
+                            </span>
+                            <div className="flex shrink-0 items-center gap-0.5">
+                                {transferAction && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-1.5 text-[10px]"
+                                        aria-label={`${transferAction.ariaLabel} ${date}`}
+                                        onClick={() =>
+                                            transferAction.onTransfer(date)
+                                        }
+                                    >
+                                        {transferAction.label}
+                                    </Button>
+                                )}
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    aria-label={`Remove ${date}`}
+                                    onClick={() => removeDate(date)}
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                            </div>
                         </li>
                     ))}
                 </ul>
