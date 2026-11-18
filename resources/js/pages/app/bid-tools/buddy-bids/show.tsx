@@ -5,7 +5,10 @@ import { BuddyBidRotationPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bi
 import { BuddyBidSnapshotsPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-snapshots-panel';
 import { BuddyBidSummaryPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-summary-panel';
 import { BUDDY_BID_AUTO_SAVE_MS } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
-import { DateListEditor } from '@/pages/app/bid-tools/buddy-bids/date-list-editor';
+import {
+    DateListEditor,
+    mergeSortedUniqueDates,
+} from '@/pages/app/bid-tools/buddy-bids/date-list-editor';
 import { useDebouncedBuddyBidAssignments } from '@/pages/app/bid-tools/buddy-bids/use-debounced-buddy-bid-assignments';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
@@ -168,6 +171,23 @@ export default function BuddyBidsShow({
         (p) => p.bid_line_id > 0,
     );
 
+    type ProfileDateList = keyof ParticipantProfile;
+
+    const moveProfileDate = (
+        participantIndex: number,
+        date: string,
+        from: ProfileDateList,
+        to: ProfileDateList,
+    ) => {
+        const next = [...participantForm.data.participants];
+        const current = next[participantIndex];
+        const profile = { ...current.profile };
+        profile[from] = profile[from].filter((d) => d !== date);
+        profile[to] = mergeSortedUniqueDates(profile[to], [date]);
+        next[participantIndex] = { ...current, profile };
+        participantForm.setData('participants', next);
+    };
+
     const saveParticipants = (e: React.FormEvent) => {
         e.preventDefault();
         participantForm.put(
@@ -326,7 +346,7 @@ export default function BuddyBidsShow({
                                     <DateListEditor
                                         idPrefix={`vacation-${index}`}
                                         label="Awarded vacation"
-                                        description="Open the calendar, pick start and end, then Add range — or use one day for exceptions."
+                                        description="Add ranges or single days. Use To pull on a row to reclassify as a pull day."
                                         bidYear={plan.bid_year}
                                         dates={
                                             participant.profile.vacation_dates
@@ -348,11 +368,22 @@ export default function BuddyBidsShow({
                                                 next,
                                             );
                                         }}
+                                        transferAction={{
+                                            label: 'To pull',
+                                            ariaLabel: 'Move to pull days',
+                                            onTransfer: (date) =>
+                                                moveProfileDate(
+                                                    index,
+                                                    date,
+                                                    'vacation_dates',
+                                                    'pull_dates',
+                                                ),
+                                        }}
                                     />
                                     <DateListEditor
                                         idPrefix={`pull-${index}`}
                                         label="Pull days"
-                                        description="Same range calendar for pull days (treated like time off)."
+                                        description="Pull days count like time off. Use To vacation to reclassify a row."
                                         bidYear={plan.bid_year}
                                         dates={participant.profile.pull_dates}
                                         onChange={(dates) => {
@@ -371,6 +402,18 @@ export default function BuddyBidsShow({
                                                 'participants',
                                                 next,
                                             );
+                                        }}
+                                        transferAction={{
+                                            label: 'To vacation',
+                                            ariaLabel:
+                                                'Move to awarded vacation',
+                                            onTransfer: (date) =>
+                                                moveProfileDate(
+                                                    index,
+                                                    date,
+                                                    'pull_dates',
+                                                    'vacation_dates',
+                                                ),
                                         }}
                                     />
                                 </div>
