@@ -48,6 +48,27 @@ export function dateToYmd(d: Date): string {
     return `${y}-${m}-${day}`;
 }
 
+/** Inclusive list of YYYY-MM-DD strings between start and end (local calendar). */
+export function expandYmdRange(start: string, end: string): string[] {
+    const from = parseYmdLocal(start);
+    const to = parseYmdLocal(end);
+    if (!from || !to) {
+        return [];
+    }
+
+    const [rangeStart, rangeEnd] =
+        from.getTime() <= to.getTime() ? [from, to] : [to, from];
+    const dates: string[] = [];
+    const cursor = new Date(rangeStart);
+
+    while (cursor.getTime() <= rangeEnd.getTime()) {
+        dates.push(dateToYmd(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return dates;
+}
+
 export function calendarBoundsForYear(bidYear?: number) {
     const anchorYear = bidYear ?? new Date().getFullYear();
 
@@ -154,6 +175,7 @@ type DateRangePickerPopoverProps = {
     placeholder?: string;
     bidYear?: number;
     'aria-label'?: string;
+    onOpenChange?: (open: boolean) => void;
 };
 
 function formatRangeDisplay(start: string, end: string): string {
@@ -194,6 +216,7 @@ export function DateRangePickerPopover({
     placeholder = 'Pick date range',
     bidYear,
     'aria-label': ariaLabel,
+    onOpenChange,
 }: DateRangePickerPopoverProps) {
     const [open, setOpen] = useState(false);
     const selected = rangeFromYmd(start, end);
@@ -201,7 +224,13 @@ export function DateRangePickerPopover({
     const display = formatRangeDisplay(start, end);
 
     return (
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover
+            open={open}
+            onOpenChange={(next) => {
+                setOpen(next);
+                onOpenChange?.(next);
+            }}
+        >
             <PopoverTrigger asChild>
                 <Button
                     type="button"
