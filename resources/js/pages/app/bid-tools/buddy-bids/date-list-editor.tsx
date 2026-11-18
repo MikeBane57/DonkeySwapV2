@@ -1,8 +1,16 @@
 import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import { DatePickerPopover } from '@/components/date-picker-popover';
+import {
+    DatePickerPopover,
+    DateRangePickerPopover,
+    expandYmdRange,
+} from '@/components/date-picker-popover';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+
+function mergeSortedUniqueDates(existing: string[], toAdd: string[]): string[] {
+    return [...new Set([...existing, ...toAdd])].sort();
+}
 
 export function DateListEditor({
     idPrefix,
@@ -20,14 +28,41 @@ export function DateListEditor({
     onChange: (dates: string[]) => void;
 }) {
     const [pickerValue, setPickerValue] = useState('');
+    const [rangeStart, setRangeStart] = useState('');
+    const [rangeEnd, setRangeEnd] = useState('');
 
     const addDate = (date: string) => {
         if (!date || dates.includes(date)) {
             setPickerValue('');
             return;
         }
-        onChange([...dates, date].sort());
+        onChange(mergeSortedUniqueDates(dates, [date]));
         setPickerValue('');
+    };
+
+    const addRange = (start: string, end: string) => {
+        if (!start || !end) {
+            setRangeStart('');
+            setRangeEnd('');
+            return;
+        }
+
+        const awaitingEnd =
+            start === end && rangeStart === '' && rangeEnd === '';
+
+        if (awaitingEnd) {
+            setRangeStart(start);
+            setRangeEnd(end);
+            return;
+        }
+
+        const expanded = expandYmdRange(start, end);
+        if (expanded.length === 0) {
+            return;
+        }
+        onChange(mergeSortedUniqueDates(dates, expanded));
+        setRangeStart('');
+        setRangeEnd('');
     };
 
     const removeDate = (date: string) => {
@@ -36,15 +71,34 @@ export function DateListEditor({
 
     return (
         <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-date-add`}>{label}</Label>
+            <Label htmlFor={`${idPrefix}-range-add`}>{label}</Label>
             <p className="text-xs text-muted-foreground">{description}</p>
-            <DatePickerPopover
-                id={`${idPrefix}-date-add`}
-                value={pickerValue}
-                bidYear={bidYear}
-                placeholder="Add date"
-                onChange={addDate}
-            />
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <DateRangePickerPopover
+                    start={rangeStart}
+                    end={rangeEnd}
+                    bidYear={bidYear}
+                    placeholder="Add date range"
+                    aria-label={`${label} range`}
+                    className="w-full sm:w-auto"
+                    onChange={addRange}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setRangeStart('');
+                            setRangeEnd('');
+                        }
+                    }}
+                />
+                <DatePickerPopover
+                    id={`${idPrefix}-date-add`}
+                    value={pickerValue}
+                    bidYear={bidYear}
+                    placeholder="Or one day"
+                    aria-label={`${label} single day`}
+                    className="w-full sm:w-auto"
+                    onChange={addDate}
+                />
+            </div>
             <p className="text-xs text-muted-foreground">
                 {dates.length} date{dates.length === 1 ? '' : 's'}
             </p>
