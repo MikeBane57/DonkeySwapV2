@@ -124,14 +124,29 @@ jobs:
         run: tar -czf frontend-build.tar.gz -C public build
 
       - name: Upload frontend build archive
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          source: frontend-build.tar.gz
-          target: /tmp/
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -e
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          for attempt in 1 2 3 4 5; do
+            if scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
+              -P "${SSH_PORT:-22}" \
+              frontend-build.tar.gz \
+              "${SSH_USER}@${SSH_HOST}:/tmp/frontend-build.tar.gz"; then
+              echo "SCP succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "SCP attempt ${attempt} failed; retrying in 15s..."
+            sleep 15
+          done
+          echo "::error::SCP failed after 5 attempts"
+          exit 1
 
       - name: Deploy on server (git pull, build install, migrate, optimize)
         uses: appleboy/ssh-action@v1.0.3
