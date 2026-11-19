@@ -7,10 +7,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BuddyBidDayAssignment extends Model
 {
+    public const OVERLAP_MODE_DOUBLE = 'double';
+
+    public const OVERLAP_MODE_SINGLES = 'singles';
+
     protected $fillable = [
         'buddy_bid_plan_id',
         'assignment_date',
         'double_participant_id',
+        'overlap_mode',
     ];
 
     protected function casts(): array

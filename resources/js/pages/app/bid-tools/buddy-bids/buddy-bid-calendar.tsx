@@ -1,9 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { BuddyDayStatus } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
 import {
     BUDDY_STATUS_CLASSES,
     BUDDY_STATUS_LABELS,
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
+import type { OverlapDayAssignment } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
+import { nextOverlapAssignmentOnClick } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
 
 type ParticipantCell = {
     participant_id: number;
@@ -16,6 +18,7 @@ type CalendarDay = {
     date: string;
     day_of_month: number;
     is_compatible_overlap: boolean;
+    overlap_mode: string | null;
     double_participant_id: number | null;
     participants: ParticipantCell[];
 };
@@ -32,48 +35,27 @@ type CalendarParticipant = {
     display_name: string;
 };
 
-function cycleDoubleAssignment(
-    day: CalendarDay,
-    participantIds: number[],
-    onAssignOverlap: (date: string, doubleParticipantId: number | null) => void,
-) {
-    if (!day.is_compatible_overlap) {
-        return;
-    }
-
-    const current = day.double_participant_id;
-
-    if (current === null) {
-        onAssignOverlap(day.date, participantIds[0] ?? null);
-        return;
-    }
-
-    const currentIndex = participantIds.indexOf(current);
-    if (currentIndex === participantIds.length - 1) {
-        onAssignOverlap(day.date, null);
-        return;
-    }
-
-    onAssignOverlap(day.date, participantIds[currentIndex + 1] ?? null);
-}
-
 function BuddyBidMonthTable({
     month,
     participantOrder,
+    assignmentByDate,
+    singlesAfterClear,
     onAssignOverlap,
     readOnly = false,
     printLayout = false,
 }: {
     month: CalendarMonth;
     participantOrder: CalendarParticipant[];
+    assignmentByDate: Record<string, OverlapDayAssignment>;
+    singlesAfterClear: Record<string, number | null>;
     onAssignOverlap?: (
         date: string,
-        doubleParticipantId: number | null,
+        assignment: OverlapDayAssignment,
+        clearedDoubleParticipantId?: number,
     ) => void;
     readOnly?: boolean;
     printLayout?: boolean;
 }) {
-    const participantIds = participantOrder.map((p) => p.id);
     const tableClass = printLayout
         ? 'bid-tools-print-table buddy-bid-print-calendar w-full border-collapse'
         : 'w-full min-w-[48rem] border-collapse text-[10px]';
@@ -169,13 +151,53 @@ function BuddyBidMonthTable({
                                                         ? 'cursor-pointer hover:ring-2 hover:ring-yellow-500'
                                                         : 'cursor-default'
                                                 }`}
-                                                onClick={() =>
-                                                    cycleDoubleAssignment(
-                                                        day,
-                                                        participantIds,
-                                                        onAssignOverlap!,
-                                                    )
-                                                }
+                                                onClick={(event) => {
+                                                    if (
+                                                        !day.is_compatible_overlap ||
+                                                        !onAssignOverlap
+                                                    ) {
+                                                        return;
+                                                    }
+
+                                                    const current =
+                                                        assignmentByDate[
+                                                            day.date
+                                                        ] ?? {
+                                                            overlap_mode:
+                                                                'pending' as const,
+                                                            double_participant_id:
+                                                                null,
+                                                        };
+
+                                                    const modifierKey =
+                                                        event.shiftKey ||
+                                                        event.altKey ||
+                                                        event.ctrlKey;
+                                                    const next =
+                                                        nextOverlapAssignmentOnClick(
+                                                            current,
+                                                            participant.id,
+                                                            modifierKey,
+                                                            singlesAfterClear[
+                                                                day.date
+                                                            ] ?? null,
+                                                        );
+                                                    const clearedDouble =
+                                                        current.overlap_mode ===
+                                                            'double' &&
+                                                        current.double_participant_id ===
+                                                            participant.id &&
+                                                        next.overlap_mode ===
+                                                            'pending';
+
+                                                    onAssignOverlap(
+                                                        day.date,
+                                                        next,
+                                                        clearedDouble
+                                                            ? participant.id
+                                                            : undefined,
+                                                    );
+                                                }}
                                             >
                                                 {label}
                                             </button>
@@ -196,6 +218,7 @@ export function BuddyBidCalendar({
     participants,
     linesCanDouble,
     shiftPairing,
+    assignmentByDate,
     onAssignOverlap,
     readOnly = false,
     printLayout = false,
@@ -204,10 +227,8 @@ export function BuddyBidCalendar({
     participants: CalendarParticipant[];
     linesCanDouble: boolean;
     shiftPairing: string | null;
-    onAssignOverlap?: (
-        date: string,
-        doubleParticipantId: number | null,
-    ) => void;
+    assignmentByDate?: Record<string, OverlapDayAssignment>;
+    onAssignOverlap?: (date: string, assignment: OverlapDayAssignment) => void;
     readOnly?: boolean;
     printLayout?: boolean;
 }) {
@@ -215,6 +236,13 @@ export function BuddyBidCalendar({
         () => [...participants].sort((a, b) => a.slot - b.slot),
         [participants],
     );
+
+    const assignments =
+        assignmentByDate ?? ({} as Record<string, OverlapDayAssignment>);
+
+    const [singlesAfterClear, setSinglesAfterClear] = useState<
+        Record<string, number | null>
+    >({});
 
     if (months.length === 0) {
         return (
@@ -238,8 +266,10 @@ export function BuddyBidCalendar({
                             : 'Selected lines cannot form legal doubles (need different start-time buckets, e.g. AM + PM).'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                        Click highlighted overlap days to cycle: User A double →
-                        User B double → clear.
+                        On overlap days (yellow): click a buddy for double (D);
+                        click the same buddy again for open (O), then once more
+                        for both singles (S). Click the other buddy to switch
+                        doubles in one click. Shift+click also sets singles (S).
                     </p>
                 </div>
             )}
@@ -250,7 +280,34 @@ export function BuddyBidCalendar({
                         key={month.key}
                         month={month}
                         participantOrder={participantOrder}
-                        onAssignOverlap={onAssignOverlap}
+                        assignmentByDate={assignments}
+                        singlesAfterClear={singlesAfterClear}
+                        onAssignOverlap={
+                            onAssignOverlap
+                                ? (
+                                      date,
+                                      assignment,
+                                      clearedDoubleParticipantId,
+                                  ) => {
+                                      onAssignOverlap(date, assignment);
+                                      setSinglesAfterClear((current) => {
+                                          const next = { ...current };
+
+                                          if (clearedDoubleParticipantId) {
+                                              next[date] =
+                                                  clearedDoubleParticipantId;
+                                          } else if (
+                                              assignment.overlap_mode !==
+                                              'pending'
+                                          ) {
+                                              delete next[date];
+                                          }
+
+                                          return next;
+                                      });
+                                  }
+                                : undefined
+                        }
                         readOnly={readOnly}
                         printLayout={printLayout}
                     />

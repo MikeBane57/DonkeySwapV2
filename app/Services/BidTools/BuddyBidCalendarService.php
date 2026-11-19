@@ -54,6 +54,7 @@ final class BuddyBidCalendarService
      *       date: string,
      *       day_of_month: int,
      *       is_compatible_overlap: bool,
+     *       overlap_mode: string|null,
      *       double_participant_id: int|null,
      *       participants: list<array{
      *         participant_id: int,
@@ -176,9 +177,10 @@ final class BuddyBidCalendarService
 
             /** @var BuddyBidDayAssignment|null $assignment */
             $assignment = $assignmentsByDate[$dateKey] ?? null;
+            $overlapMode = $this->normalizeOverlapMode($assignment);
             $doubleParticipantId = $assignment?->double_participant_id;
 
-            if ($isCompatibleOverlap && $doubleParticipantId === null) {
+            if ($isCompatibleOverlap && $overlapMode === null) {
                 $unassignedOverlaps++;
             }
 
@@ -190,6 +192,7 @@ final class BuddyBidCalendarService
                     $p,
                     $day,
                     $isCompatibleOverlap,
+                    $overlapMode,
                     $doubleParticipantId,
                     isset($vacationSets[$p->id][$dateKey]),
                     isset($pullSets[$p->id][$dateKey]),
@@ -209,6 +212,7 @@ final class BuddyBidCalendarService
                 'date' => $dateKey,
                 'day_of_month' => (int) $date->format('j'),
                 'is_compatible_overlap' => $isCompatibleOverlap,
+                'overlap_mode' => $overlapMode,
                 'double_participant_id' => $doubleParticipantId,
                 'participants' => $participantCells,
             ];
@@ -255,10 +259,30 @@ final class BuddyBidCalendarService
         ];
     }
 
+    private function normalizeOverlapMode(?BuddyBidDayAssignment $assignment): ?string
+    {
+        if ($assignment === null) {
+            return null;
+        }
+
+        $mode = $assignment->overlap_mode;
+
+        if ($mode === BuddyBidDayAssignment::OVERLAP_MODE_SINGLES) {
+            return BuddyBidDayAssignment::OVERLAP_MODE_SINGLES;
+        }
+
+        if ($assignment->double_participant_id !== null) {
+            return BuddyBidDayAssignment::OVERLAP_MODE_DOUBLE;
+        }
+
+        return null;
+    }
+
     private function resolveStatus(
         BuddyBidParticipant $participant,
         ?BidLineDay $day,
         bool $isCompatibleOverlap,
+        ?string $overlapMode,
         ?int $doubleParticipantId,
         bool $isVacation,
         bool $isPull,
@@ -280,6 +304,10 @@ final class BuddyBidCalendarService
         }
 
         if ($isCompatibleOverlap) {
+            if ($overlapMode === BuddyBidDayAssignment::OVERLAP_MODE_SINGLES) {
+                return self::STATUS_SINGLE;
+            }
+
             if ($doubleParticipantId === $participant->id) {
                 return self::STATUS_DOUBLE;
             }

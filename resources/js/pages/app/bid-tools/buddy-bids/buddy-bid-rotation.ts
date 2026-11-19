@@ -1,4 +1,14 @@
-import type { BuddyBidCalendarView } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
+import type {
+    BuddyBidCalendarView,
+    OverlapAssignmentsByDate,
+} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
+import type { OverlapDayAssignment } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
+import {
+    assignmentsEqual,
+    doubleOverlapAssignment,
+    pendingOverlapAssignment,
+    singlesOverlapAssignment,
+} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
 import type { WorkWeek } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-work-weeks';
 import {
     dayByDate,
@@ -23,7 +33,7 @@ export type RotationConfig = {
 
 export type RotationAssignment = {
     date: string;
-    doubleParticipantId: number | null;
+    overlap: OverlapDayAssignment;
     token: PatternToken | null;
 };
 
@@ -195,7 +205,7 @@ function weekAssignments(
         if (!day || !isAssignableOverlapDay(day)) {
             assignments.push({
                 date,
-                doubleParticipantId: null,
+                overlap: pendingOverlapAssignment(),
                 token: null,
             });
 
@@ -205,10 +215,20 @@ function weekAssignments(
         const token = tokens[tokenIndex] ?? null;
         tokenIndex += 1;
 
-        if (token === null || token === 'S') {
+        if (token === null) {
             assignments.push({
                 date,
-                doubleParticipantId: null,
+                overlap: pendingOverlapAssignment(),
+                token,
+            });
+
+            continue;
+        }
+
+        if (token === 'S') {
+            assignments.push({
+                date,
+                overlap: singlesOverlapAssignment(),
                 token,
             });
 
@@ -217,11 +237,13 @@ function weekAssignments(
 
         assignments.push({
             date,
-            doubleParticipantId: tokenToParticipantId(
-                token,
-                config.week1Leader,
-                participantAId,
-                participantBId,
+            overlap: doubleOverlapAssignment(
+                tokenToParticipantId(
+                    token,
+                    config.week1Leader,
+                    participantAId,
+                    participantBId,
+                ) as number,
             ),
             token,
         });
@@ -245,11 +267,17 @@ export function previewRotation(
     }));
 }
 
+function isAssignedOverlap(
+    assignment: OverlapDayAssignment | undefined,
+): boolean {
+    return assignment !== undefined && assignment.overlap_mode !== 'pending';
+}
+
 export function computeRotationAssignments(
     calendar: BuddyBidCalendarView,
     config: RotationConfig,
-    currentAssignments: Record<string, number | null>,
-): Record<string, number | null> {
+    currentAssignments: OverlapAssignmentsByDate,
+): OverlapAssignmentsByDate {
     const weeks = groupWorkWeeks(calendar, config.workWeekReferenceId);
     const days = dayByDate(calendar);
     const next = { ...currentAssignments };
@@ -257,7 +285,7 @@ export function computeRotationAssignments(
     if (config.applyMode === 'replace') {
         for (const day of days.values()) {
             if (isAssignableOverlapDay(day)) {
-                next[day.date] = null;
+                next[day.date] = pendingOverlapAssignment();
             }
         }
     }
@@ -266,23 +294,34 @@ export function computeRotationAssignments(
         const assignments = weekAssignments(calendar, week, config, days);
 
         for (const assignment of assignments) {
-            if (assignment.doubleParticipantId === null) {
+            if (assignment.token === null) {
                 continue;
             }
 
             if (
                 config.applyMode === 'fill' &&
-                currentAssignments[assignment.date] !== null &&
-                currentAssignments[assignment.date] !== undefined
+                isAssignedOverlap(currentAssignments[assignment.date])
             ) {
                 continue;
             }
 
-            next[assignment.date] = assignment.doubleParticipantId;
+            next[assignment.date] = assignment.overlap;
         }
     }
 
     return next;
+}
+
+export function countRotationChanges(
+    current: OverlapAssignmentsByDate,
+    next: OverlapAssignmentsByDate,
+): number {
+    return Object.keys(next).filter((date) => {
+        const before = current[date] ?? pendingOverlapAssignment();
+        const after = next[date] ?? pendingOverlapAssignment();
+
+        return !assignmentsEqual(before, after);
+    }).length;
 }
 
 export const ROTATION_PRESETS = [

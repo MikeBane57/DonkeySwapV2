@@ -559,6 +559,7 @@ export default function BuddyBidsShow({
                                     displayCalendar.lines_can_double
                                 }
                                 shiftPairing={displayCalendar.shift_pairing}
+                                assignmentByDate={assignments}
                                 onAssignOverlap={assignOverlap}
                             />
                         </div>
