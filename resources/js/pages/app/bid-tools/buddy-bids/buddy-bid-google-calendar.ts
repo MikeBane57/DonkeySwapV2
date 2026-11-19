@@ -1,10 +1,12 @@
 import type { BuddyDayStatus } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
 import type { ShiftWindow } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-shift-times';
+import { shiftWindowForTraining } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-shift-times';
+import { hhmmToMinutes } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-shift-times';
 import {
-    hhmmToMinutes,
-    shiftWindowForTraining,
-    shiftWindowFromLineStart,
-} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-shift-times';
+    calendarDeskTitle,
+    isNonWorkCalendarCode,
+    shiftWindowForDayCode,
+} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-work-shift';
 
 type CalendarDay = {
     date: string;
@@ -89,21 +91,6 @@ function eventDtEnd(
     return { start, end };
 }
 
-/** Desk title only (e.g. AG4 → G4, DG1 → G1). */
-export function calendarDeskTitle(
-    code: string | null,
-    deskGroup: string | null,
-): string {
-    const raw = (code?.trim() || deskGroup?.trim() || '').toUpperCase();
-    if (!raw) {
-        return 'Work';
-    }
-    if (/^[AD]G/.test(raw)) {
-        return raw.slice(1);
-    }
-    return raw;
-}
-
 function pushIcsEvent(
     lines: string[],
     draft: CalendarEventDraft,
@@ -155,6 +142,10 @@ function eventsForDay(
         return [];
     }
 
+    if (isNonWorkCalendarCode(cell.code)) {
+        return [];
+    }
+
     if (cell.status === 'training') {
         const window = shiftWindowForTraining(cell.code);
         if (!window) {
@@ -174,8 +165,16 @@ function eventsForDay(
         const partnerCell = day.participants.find(
             (p) => p.participant_id === partner.id,
         );
-        const ownWindow = shiftWindowFromLineStart(participant.start_time);
-        const partnerWindow = shiftWindowFromLineStart(partner.start_time);
+        const ownWindow = shiftWindowForDayCode(
+            cell.code,
+            participant.start_time,
+            participant.desk_group,
+        );
+        const partnerWindow = shiftWindowForDayCode(
+            partnerCell?.code ?? null,
+            partner.start_time,
+            partner.desk_group,
+        );
         if (!ownWindow || !partnerWindow) {
             return [];
         }
@@ -186,24 +185,26 @@ function eventsForDay(
             partner.desk_group,
         );
 
-        const ownFirst =
-            hhmmToMinutes(ownWindow.workStart) <=
-            hhmmToMinutes(partnerWindow.workStart);
+        const segments = [
+            workShiftEvent(ownDesk, ownWindow, bidYear, 'a'),
+            workShiftEvent(partnerDesk, partnerWindow, bidYear, 'b'),
+        ].sort(
+            (a, b) =>
+                hhmmToMinutes(a.window.workStart) -
+                hhmmToMinutes(b.window.workStart),
+        );
 
-        if (ownFirst) {
-            return [
-                workShiftEvent(ownDesk, ownWindow, bidYear, 'am'),
-                workShiftEvent(partnerDesk, partnerWindow, bidYear, 'pm'),
-            ];
-        }
-
-        return [
-            workShiftEvent(partnerDesk, partnerWindow, bidYear, 'am'),
-            workShiftEvent(ownDesk, ownWindow, bidYear, 'pm'),
-        ];
+        return segments.map((segment, index) => ({
+            ...segment,
+            uidSuffix: index === 0 ? 'early' : 'late',
+        }));
     }
 
-    const window = shiftWindowFromLineStart(participant.start_time);
+    const window = shiftWindowForDayCode(
+        cell.code,
+        participant.start_time,
+        participant.desk_group,
+    );
     if (!window) {
         return [];
     }
