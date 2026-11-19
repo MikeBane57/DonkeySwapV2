@@ -45,6 +45,19 @@ final class WorkShiftRules
         return sprintf('%02d%02d', $h, $m);
     }
 
+    public function isReliefWorkCode(?string $code): bool
+    {
+        if ($code === null) {
+            return false;
+        }
+        $c = strtoupper(trim($code));
+        if ($c === '') {
+            return false;
+        }
+
+        return str_starts_with($c, 'RFS') || str_contains($c, 'RELIEF');
+    }
+
     public function isNonWorkCalendarCode(?string $code): bool
     {
         if ($code === null) {
@@ -55,7 +68,7 @@ final class WorkShiftRules
             return true;
         }
 
-        return $c === 'DXX' || str_contains($c, 'RELIEF');
+        return $c === 'DXX';
     }
 
     public function calendarDeskTitle(?string $dayCode, ?string $deskGroup): string
@@ -77,6 +90,10 @@ final class WorkShiftRules
         ?string $deskGroup = null,
     ): ?string {
         if ($this->isNonWorkCalendarCode($dayCode)) {
+            return null;
+        }
+
+        if ($this->isReliefWorkCode($dayCode)) {
             return null;
         }
 

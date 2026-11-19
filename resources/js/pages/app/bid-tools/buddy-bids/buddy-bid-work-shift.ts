@@ -14,6 +14,15 @@ export const WORK_MINUTES_MID = 8 * 60;
 
 export const MAX_BUDDY_DOUBLE_OVERLAP_MINUTES = 30;
 
+export function isReliefWorkCode(code: string | null | undefined): boolean {
+    if (!code?.trim()) {
+        return false;
+    }
+    const c = code.trim().toUpperCase();
+
+    return c.startsWith('RFS') || c.includes('RELIEF');
+}
+
 export function isNonWorkCalendarCode(
     code: string | null | undefined,
 ): boolean {
@@ -22,7 +31,7 @@ export function isNonWorkCalendarCode(
     }
     const c = code.trim().toUpperCase();
 
-    return c === 'DXX' || c.includes('RELIEF');
+    return c === 'DXX';
 }
 
 /** Desk title: strip leading A/D before G, R, or S (leave M desks as MG1, etc.). */
@@ -64,6 +73,10 @@ export function workStartFromDayCode(
     deskGroup?: string | null,
 ): string | null {
     if (isNonWorkCalendarCode(dayCode)) {
+        return null;
+    }
+
+    if (isReliefWorkCode(dayCode)) {
         return null;
     }
 

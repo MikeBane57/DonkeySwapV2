@@ -16,7 +16,9 @@ import {
 } from '@/pages/app/bid-tools/buddy-bids/date-list-editor';
 import { useDebouncedBuddyBidAssignments } from '@/pages/app/bid-tools/buddy-bids/use-debounced-buddy-bid-assignments';
 import type { LinePickerRow } from '@/pages/app/bid-tools/bid-line-picker-toolbar';
+import { BidToolsCollapsibleSection } from '@/pages/app/bid-tools/bid-tools-collapsible-section';
 import { BidToolsPrintStyles } from '@/pages/app/bid-tools/bid-tools-print-styles';
+import { buddyBidStatusCellLabel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-cell-label';
 import {
     BUDDY_STATUS_CLASSES,
     BUDDY_STATUS_LABELS,
@@ -340,11 +342,13 @@ export default function BuddyBidsShow({
                     </div>
                 </div>
 
-                <form
-                    onSubmit={saveParticipants}
-                    className="no-print space-y-4 rounded-lg border border-sidebar-border/70 p-4"
+                <BidToolsCollapsibleSection
+                    title="Buddies & lines"
+                    summary="Names, lines, vacation & pull"
+                    defaultOpen
+                    className="no-print"
                 >
-                    <h2 className="text-sm font-medium">Buddies & lines</h2>
+                <form onSubmit={saveParticipants} className="space-y-4">
                     <div className="grid gap-4 lg:grid-cols-2">
                         {participantForm.data.participants.map(
                             (participant, index) => (
@@ -504,10 +508,17 @@ export default function BuddyBidsShow({
                         Save buddies & lines
                     </Button>
                 </form>
+                </BidToolsCollapsibleSection>
 
                 {linesReady ? (
                     <>
-                        <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sidebar-border/70 bg-muted/10 px-4 py-3 text-sm">
+                        <BidToolsCollapsibleSection
+                            title="Overlap save & snapshots"
+                            summary="Auto-save, reset, named snapshots"
+                            defaultOpen={false}
+                            className="no-print"
+                        >
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted/10 px-3 py-2 text-sm">
                             <p
                                 className={
                                     saveError
@@ -546,24 +557,35 @@ export default function BuddyBidsShow({
                                 Reset overlaps
                             </Button>
                         </div>
-                        <div className="no-print">
                             <BuddyBidSnapshotsPanel
                                 planId={plan.id}
                                 snapshots={snapshots}
                                 hasUnsavedChanges={hasUnsavedChanges}
                                 onSaveBeforeSnapshot={saveNow}
                             />
-                        </div>
+                        </BidToolsCollapsibleSection>
                         <div className="no-print space-y-4">
+                            <BidToolsCollapsibleSection
+                                title="Year totals"
+                                summary="Balance & legend"
+                                defaultOpen={false}
+                            >
                             <BuddyBidSummaryPanel
                                 summary={displayCalendar.summary}
                                 balance={displayCalendar.balance}
                             />
+                            </BidToolsCollapsibleSection>
+                            <BidToolsCollapsibleSection
+                                title="Rotation helper"
+                                summary="Apply pattern across overlaps"
+                                defaultOpen={false}
+                            >
                             <BuddyBidRotationPanel
                                 calendar={displayCalendar}
                                 currentAssignments={assignments}
                                 onApply={applyRotationAssignments}
                             />
+                            </BidToolsCollapsibleSection>
                             <BuddyBidCalendar
                                 months={displayCalendar.months}
                                 participants={displayCalendar.participants}
@@ -654,7 +676,10 @@ export default function BuddyBidsShow({
                                         key={status}
                                         className={`rounded px-1 py-0.5 ${BUDDY_STATUS_CLASSES[status]}`}
                                     >
-                                        {BUDDY_STATUS_LABELS[status].charAt(0)}=
+                                        {buddyBidStatusCellLabel(
+                                            status,
+                                        )}
+                                        =
                                         {BUDDY_STATUS_LABELS[status]}
                                     </span>
                                 ))}

@@ -51,6 +51,11 @@ class BuddyBidController extends Controller
         ]);
     }
 
+    public function smokePreview(): Response
+    {
+        return Inertia::render('app/bid-tools/buddy-bids/smoke-preview');
+    }
+
     public function create(): Response
     {
         $imports = BidImport::query()

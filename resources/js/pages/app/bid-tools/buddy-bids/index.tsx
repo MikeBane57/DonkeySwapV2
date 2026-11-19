@@ -32,12 +32,19 @@ export default function BuddyBidsIndex({ plans }: { plans: PlanRow[] }) {
                             on overlap days, and track balance.
                         </p>
                     </div>
-                    <Button asChild>
-                        <Link href="/app/bid-tools/buddy-bids/create">
-                            <Plus className="mr-2 h-4 w-4" />
-                            New plan
-                        </Link>
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" asChild>
+                            <Link href="/app/bid-tools/buddy-bids/shift-display-smoke">
+                                Shift smoke (Feb 2027)
+                            </Link>
+                        </Button>
+                        <Button asChild>
+                            <Link href="/app/bid-tools/buddy-bids/create">
+                                <Plus className="mr-2 h-4 w-4" />
+                                New plan
+                            </Link>
+                        </Button>
+                    </div>
                 </div>
 
                 {plans.length === 0 ? (
