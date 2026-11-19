@@ -1,9 +1,14 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import { Printer } from 'lucide-react';
+import { CalendarArrowDown, Printer } from 'lucide-react';
 import { BuddyBidCalendar } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-calendar';
 import { BuddyBidRotationPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-rotation-panel';
 import { BuddyBidSnapshotsPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-snapshots-panel';
 import { BuddyBidSummaryPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-summary-panel';
+import {
+    buildBuddyBidGoogleCalendarIcs,
+    downloadBuddyBidGoogleCalendar,
+    slugifyFilenamePart,
+} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-google-calendar';
 import { BUDDY_BID_AUTO_SAVE_MS } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
 import {
     DateListEditor,
@@ -212,14 +217,58 @@ export default function BuddyBidsShow({
         })
         .join(' | ');
 
-    const exportCalendar = () => {
+    const printCalendar = () => {
+        document.body.classList.add('bid-tools-printing');
+        const root = document.querySelector('.bid-tools-print');
+        root?.classList.add('bid-tools-print-active');
+
+        const cleanup = () => {
+            document.body.classList.remove('bid-tools-printing');
+            root?.classList.remove('bid-tools-print-active');
+            window.removeEventListener('afterprint', cleanup);
+        };
+        window.addEventListener('afterprint', cleanup);
         window.print();
+    };
+
+    const downloadGoogleCalendar = (participantId: number) => {
+        const participant = displayCalendar.participants.find(
+            (p) => p.id === participantId,
+        );
+        if (!participant) {
+            return;
+        }
+
+        const ics = buildBuddyBidGoogleCalendarIcs({
+            participant: {
+                id: participant.id,
+                display_name: participant.display_name,
+                desk_group: participant.desk_group ?? null,
+                start_time: participant.start_time ?? null,
+            },
+            months: displayCalendar.months,
+            planName: plan.name,
+            bidYear: plan.bid_year,
+        });
+
+        if (!ics) {
+            window.alert(
+                'This buddy’s line needs a start time before Google Calendar export works.',
+            );
+            return;
+        }
+
+        const slug = slugifyFilenamePart(participant.display_name || 'buddy');
+        downloadBuddyBidGoogleCalendar(
+            ics,
+            `buddy-bid-${slug}-${plan.bid_year}.ics`,
+        );
     };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={plan.name} />
-            <BidToolsPrintStyles />
+            <BidToolsPrintStyles pageSize="portrait" />
             <div className="bid-tools-print mx-auto max-w-6xl space-y-6 p-4 pb-12">
                 <div className="no-print flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -232,15 +281,31 @@ export default function BuddyBidsShow({
                     </div>
                     <div className="flex flex-wrap gap-2">
                         {linesReady && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                type="button"
-                                onClick={exportCalendar}
-                            >
-                                <Printer className="mr-2 h-4 w-4" />
-                                Export calendar
-                            </Button>
+                            <>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    type="button"
+                                    onClick={printCalendar}
+                                >
+                                    <Printer className="mr-2 h-4 w-4" />
+                                    Print / Save PDF
+                                </Button>
+                                {displayCalendar.participants.map((p) => (
+                                    <Button
+                                        key={`gcal-${p.id}`}
+                                        variant="outline"
+                                        size="sm"
+                                        type="button"
+                                        onClick={() =>
+                                            downloadGoogleCalendar(p.id)
+                                        }
+                                    >
+                                        <CalendarArrowDown className="mr-2 h-4 w-4" />
+                                        Google Cal ({p.display_name})
+                                    </Button>
+                                ))}
+                            </>
                         )}
                         <Button
                             variant="destructive"
