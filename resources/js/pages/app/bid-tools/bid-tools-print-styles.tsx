@@ -1,10 +1,14 @@
-export function BidToolsPrintStyles() {
+export function BidToolsPrintStyles({
+    pageSize = 'landscape',
+}: {
+    pageSize?: 'landscape' | 'portrait';
+}) {
     return (
         <style>{`
             @media print {
                 @page {
-                    size: landscape;
-                    margin: 0.15in;
+                    size: ${pageSize};
+                    margin: 0.2in;
                 }
 
                 body.bid-tools-printing * {
@@ -98,8 +102,38 @@ export function BidToolsPrintStyles() {
                 }
 
                 .buddy-bid-print-month {
-                    break-inside: avoid;
-                    margin-bottom: 6px;
+                    break-inside: auto;
+                    break-after: page;
+                    margin-bottom: 8px;
+                }
+
+                .buddy-bid-print-month:last-child {
+                    break-after: auto;
+                }
+
+                .buddy-bid-print-calendar {
+                    width: 100% !important;
+                    min-width: 0 !important;
+                    font-size: 3.6pt;
+                    table-layout: fixed;
+                }
+
+                .buddy-bid-print-calendar th,
+                .buddy-bid-print-calendar td {
+                    white-space: nowrap;
+                    overflow: visible;
+                    padding: 0 1px !important;
+                    text-overflow: clip;
+                }
+
+                .buddy-bid-print-calendar th:first-child,
+                .buddy-bid-print-calendar td:first-child {
+                    width: 4.5em;
+                    white-space: nowrap;
+                }
+
+                .buddy-bid-print-calendar-stack {
+                    width: 100%;
                 }
 
                 .buddy-bid-print-month-title {
