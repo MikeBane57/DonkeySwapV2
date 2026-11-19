@@ -237,6 +237,87 @@ test('training days are excluded from double overlap and shown like pulls', func
         ->and($calendar['summary'][0]['training_on_work'])->toBe(1);
 });
 
+test('overlap singles mode marks both buddies as single on an overlap day', function () {
+    config(['features.bid_tools' => true]);
+
+    $user = User::factory()->create();
+    $bidYear = 2026;
+    $path = writeBuddyBidOverlapCsv($bidYear);
+
+    $import = app(BidLineCsvImportService::class)->importFromPath(
+        $path,
+        'buddy-lines.csv',
+        $user->id,
+        $bidYear,
+    )['import'];
+
+    @unlink($path);
+
+    $lines = BidLine::query()->where('bid_import_id', $import->id)->orderBy('line_num')->get();
+
+    $plan = BuddyBidPlan::create([
+        'user_id' => $user->id,
+        'bid_import_id' => $import->id,
+        'name' => 'Singles overlap test',
+    ]);
+
+    $participants = [];
+    foreach ([
+        ['slot' => 1, 'display_name' => 'Smith'],
+        ['slot' => 2, 'display_name' => 'Jones'],
+    ] as $index => $participant) {
+        $participants[] = BuddyBidParticipant::create([
+            'buddy_bid_plan_id' => $plan->id,
+            'slot' => $participant['slot'],
+            'display_name' => $participant['display_name'],
+            'bid_line_id' => $lines[$index]->id,
+            'profile' => app(BuddyBidCalendarService::class)->defaultProfile(),
+        ]);
+    }
+
+    $calendar = app(BuddyBidCalendarService::class)->build($plan->refresh()->load('participants.line', 'import'));
+    $firstOverlap = collect($calendar['months'])
+        ->flatMap(fn (array $month) => $month['days'])
+        ->first(fn (array $day) => $day['is_compatible_overlap']);
+
+    $this->actingAs($user)
+        ->putJson(route('bid-tools.buddy-bids.assignments.update', $plan->id), [
+            'assignments' => [
+                [
+                    'date' => $firstOverlap['date'],
+                    'overlap_mode' => 'singles',
+                    'double_participant_id' => null,
+                ],
+            ],
+        ])
+        ->assertOk()
+        ->assertJson(['saved' => true]);
+
+    $assignment = BuddyBidDayAssignment::query()
+        ->where('buddy_bid_plan_id', $plan->id)
+        ->whereDate('assignment_date', $firstOverlap['date'])
+        ->first();
+
+    expect($assignment)->not->toBeNull()
+        ->and($assignment->overlap_mode)->toBe('singles')
+        ->and($assignment->double_participant_id)->toBeNull();
+
+    $after = app(BuddyBidCalendarService::class)->build($plan->refresh()->load('participants.line', 'dayAssignments', 'import'));
+    $day = collect($after['months'])
+        ->flatMap(fn (array $month) => $month['days'])
+        ->firstWhere('date', $firstOverlap['date']);
+
+    expect($day['overlap_mode'])->toBe('singles')
+        ->and($after['summary'][0]['singles'])->toBeGreaterThan(0)
+        ->and($after['summary'][1]['singles'])->toBeGreaterThan(0)
+        ->and($after['balance']['unassigned_overlaps'])->toBe(
+            collect($after['months'])
+                ->flatMap(fn (array $month) => $month['days'])
+                ->filter(fn (array $d) => $d['is_compatible_overlap'] && ($d['overlap_mode'] ?? null) === null)
+                ->count(),
+        );
+});
+
 test('overlap assignments can be saved as json without full page reload', function () {
     config(['features.bid_tools' => true]);
 

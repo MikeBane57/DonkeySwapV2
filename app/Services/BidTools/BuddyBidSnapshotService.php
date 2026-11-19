@@ -14,7 +14,7 @@ final class BuddyBidSnapshotService
     ) {}
 
     /**
-     * @return array<string, int>
+     * @return array<string, mixed>
      */
     public function assignmentsFromPlan(BuddyBidPlan $plan): array
     {
@@ -23,11 +23,15 @@ final class BuddyBidSnapshotService
         $assignments = [];
 
         foreach ($plan->dayAssignments as $assignment) {
-            if ($assignment->double_participant_id === null) {
-                continue;
-            }
+            $date = $assignment->assignment_date->format('Y-m-d');
+            $normalized = $this->encodeSnapshotAssignment(
+                $assignment->overlap_mode,
+                $assignment->double_participant_id,
+            );
 
-            $assignments[$assignment->assignment_date->format('Y-m-d')] = $assignment->double_participant_id;
+            if ($normalized !== null) {
+                $assignments[$date] = $normalized;
+            }
         }
 
         return $assignments;
@@ -35,7 +39,7 @@ final class BuddyBidSnapshotService
 
     /**
      * @return array{
-     *   assignments: array<string, int>,
+     *   assignments: array<string, mixed>,
      *   summary: list<array<string, mixed>>,
      *   balance: array<string, mixed>,
      *   participants: list<array<string, mixed>>,
@@ -50,8 +54,17 @@ final class BuddyBidSnapshotService
 
         foreach ($calendar['months'] as $month) {
             foreach ($month['days'] as $day) {
-                if ($day['is_compatible_overlap'] && $day['double_participant_id'] !== null) {
-                    $assignments[$day['date']] = $day['double_participant_id'];
+                if (! $day['is_compatible_overlap']) {
+                    continue;
+                }
+
+                $encoded = $this->encodeSnapshotAssignment(
+                    $day['overlap_mode'] ?? null,
+                    $day['double_participant_id'] ?? null,
+                );
+
+                if ($encoded !== null) {
+                    $assignments[$day['date']] = $encoded;
                 }
             }
         }
@@ -102,7 +115,7 @@ final class BuddyBidSnapshotService
     }
 
     /**
-     * @param  array<string, int|null>  $assignments
+     * @param  array<string, mixed>  $assignments
      */
     public function replaceAssignments(BuddyBidPlan $plan, array $assignments): void
     {
@@ -112,15 +125,33 @@ final class BuddyBidSnapshotService
             ->where('buddy_bid_plan_id', $plan->id)
             ->delete();
 
-        foreach ($assignments as $date => $participantId) {
-            if ($participantId === null || ! in_array((int) $participantId, $participantIds, true)) {
+        foreach ($assignments as $date => $value) {
+            [$overlapMode, $participantId] = $this->decodeSnapshotAssignment($value);
+
+            if ($overlapMode === BuddyBidDayAssignment::OVERLAP_MODE_SINGLES) {
+                BuddyBidDayAssignment::create([
+                    'buddy_bid_plan_id' => $plan->id,
+                    'assignment_date' => Carbon::parse($date)->format('Y-m-d'),
+                    'overlap_mode' => BuddyBidDayAssignment::OVERLAP_MODE_SINGLES,
+                    'double_participant_id' => null,
+                ]);
+
+                continue;
+            }
+
+            if (
+                $overlapMode !== BuddyBidDayAssignment::OVERLAP_MODE_DOUBLE
+                || $participantId === null
+                || ! in_array($participantId, $participantIds, true)
+            ) {
                 continue;
             }
 
             BuddyBidDayAssignment::create([
                 'buddy_bid_plan_id' => $plan->id,
                 'assignment_date' => Carbon::parse($date)->format('Y-m-d'),
-                'double_participant_id' => (int) $participantId,
+                'overlap_mode' => BuddyBidDayAssignment::OVERLAP_MODE_DOUBLE,
+                'double_participant_id' => $participantId,
             ]);
         }
     }
@@ -131,7 +162,7 @@ final class BuddyBidSnapshotService
      *   id: int|null,
      *   name: string,
      *   created_at: string|null,
-     *   assignments: array<string, int>,
+     *   assignments: array<string, mixed>,
      *   summary: list<array<string, mixed>>,
      *   balance: array<string, mixed>,
      *   participants: list<array<string, mixed>>,
@@ -159,10 +190,14 @@ final class BuddyBidSnapshotService
                 ));
 
                 foreach ($allDates as $date) {
-                    $aId = $a['assignments'][$date] ?? null;
-                    $bId = $b['assignments'][$date] ?? null;
+                    $aValue = $this->normalizeSnapshotValueForCompare(
+                        $a['assignments'][$date] ?? null,
+                    );
+                    $bValue = $this->normalizeSnapshotValueForCompare(
+                        $b['assignments'][$date] ?? null,
+                    );
 
-                    if ($aId !== $bId) {
+                    if ($aValue !== $bValue) {
                         $diffDates[] = $date;
                     }
                 }
@@ -177,5 +212,64 @@ final class BuddyBidSnapshotService
         }
 
         return $pairs;
+    }
+
+    private function encodeSnapshotAssignment(
+        ?string $overlapMode,
+        ?int $doubleParticipantId,
+    ): mixed {
+        if ($overlapMode === BuddyBidDayAssignment::OVERLAP_MODE_SINGLES) {
+            return BuddyBidDayAssignment::OVERLAP_MODE_SINGLES;
+        }
+
+        if ($doubleParticipantId !== null) {
+            return $doubleParticipantId;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0: ?string, 1: ?int}
+     */
+    private function decodeSnapshotAssignment(mixed $value): array
+    {
+        if ($value === BuddyBidDayAssignment::OVERLAP_MODE_SINGLES) {
+            return [BuddyBidDayAssignment::OVERLAP_MODE_SINGLES, null];
+        }
+
+        if (is_int($value) || (is_string($value) && ctype_digit($value))) {
+            return [BuddyBidDayAssignment::OVERLAP_MODE_DOUBLE, (int) $value];
+        }
+
+        if (is_array($value)) {
+            $mode = $value['overlap_mode'] ?? null;
+            $id = $value['double_participant_id'] ?? null;
+
+            if ($mode === BuddyBidDayAssignment::OVERLAP_MODE_SINGLES) {
+                return [BuddyBidDayAssignment::OVERLAP_MODE_SINGLES, null];
+            }
+
+            if ($mode === BuddyBidDayAssignment::OVERLAP_MODE_DOUBLE && $id !== null) {
+                return [BuddyBidDayAssignment::OVERLAP_MODE_DOUBLE, (int) $id];
+            }
+        }
+
+        return [null, null];
+    }
+
+    private function normalizeSnapshotValueForCompare(mixed $value): string
+    {
+        [$mode, $id] = $this->decodeSnapshotAssignment($value);
+
+        if ($mode === BuddyBidDayAssignment::OVERLAP_MODE_SINGLES) {
+            return 'singles';
+        }
+
+        if ($mode === BuddyBidDayAssignment::OVERLAP_MODE_DOUBLE && $id !== null) {
+            return 'double:'.$id;
+        }
+
+        return 'pending';
     }
 }

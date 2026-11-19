@@ -22,6 +22,11 @@ class UpdateBuddyBidAssignmentsRequest extends FormRequest
         return [
             'assignments' => ['required', 'array'],
             'assignments.*.date' => ['required', 'date'],
+            'assignments.*.overlap_mode' => [
+                'nullable',
+                'string',
+                Rule::in(['double', 'singles']),
+            ],
             'assignments.*.double_participant_id' => [
                 'nullable',
                 'integer',

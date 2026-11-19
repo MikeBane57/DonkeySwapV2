@@ -165,11 +165,32 @@ class BuddyBidController extends Controller
 
         foreach ($request->validated('assignments') as $row) {
             $doubleId = $row['double_participant_id'] ?? null;
+            $overlapMode = $row['overlap_mode'] ?? null;
+
+            if ($overlapMode === null && $doubleId !== null) {
+                $overlapMode = BuddyBidDayAssignment::OVERLAP_MODE_DOUBLE;
+            }
+
             if ($doubleId !== null && ! in_array($doubleId, $participantIds, true)) {
                 continue;
             }
 
-            if ($doubleId === null) {
+            if ($overlapMode === BuddyBidDayAssignment::OVERLAP_MODE_SINGLES) {
+                BuddyBidDayAssignment::query()->updateOrCreate(
+                    [
+                        'buddy_bid_plan_id' => $plan->id,
+                        'assignment_date' => $row['date'],
+                    ],
+                    [
+                        'overlap_mode' => BuddyBidDayAssignment::OVERLAP_MODE_SINGLES,
+                        'double_participant_id' => null,
+                    ],
+                );
+
+                continue;
+            }
+
+            if ($overlapMode !== BuddyBidDayAssignment::OVERLAP_MODE_DOUBLE || $doubleId === null) {
                 BuddyBidDayAssignment::query()
                     ->where('buddy_bid_plan_id', $plan->id)
                     ->whereDate('assignment_date', $row['date'])
@@ -184,6 +205,7 @@ class BuddyBidController extends Controller
                     'assignment_date' => $row['date'],
                 ],
                 [
+                    'overlap_mode' => BuddyBidDayAssignment::OVERLAP_MODE_DOUBLE,
                     'double_participant_id' => $doubleId,
                 ],
             );

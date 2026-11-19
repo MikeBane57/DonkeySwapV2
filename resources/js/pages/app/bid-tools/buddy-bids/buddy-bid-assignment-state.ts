@@ -1,4 +1,9 @@
 import type { BuddyDayStatus } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
+import {
+    overlapAssignmentFromApi,
+    type OverlapDayAssignment,
+    pendingOverlapAssignment,
+} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
 
 export const BUDDY_BID_AUTO_SAVE_MS = 60_000;
 
@@ -13,6 +18,7 @@ type CalendarDay = {
     date: string;
     day_of_month: number;
     is_compatible_overlap: boolean;
+    overlap_mode: string | null;
     double_participant_id: number | null;
     participants: ParticipantCell[];
 };
@@ -61,16 +67,19 @@ export type BuddyBidCalendarView = {
     };
 };
 
+export type OverlapAssignmentsByDate = Record<string, OverlapDayAssignment>;
+
 const OVERLAP_ASSIGNABLE = new Set<BuddyDayStatus>([
     'double',
     'buddy_off',
     'overlap_pending',
+    'single',
 ]);
 
 function overlapStatus(
     serverStatus: string,
     participantId: number,
-    doubleParticipantId: number | null,
+    assignment: OverlapDayAssignment,
     isCompatibleOverlap: boolean,
 ): string {
     if (
@@ -80,12 +89,18 @@ function overlapStatus(
         return serverStatus;
     }
 
-    if (doubleParticipantId === participantId) {
-        return 'double';
+    if (assignment.overlap_mode === 'singles') {
+        return 'single';
     }
 
-    if (doubleParticipantId !== null) {
-        return 'buddy_off';
+    if (assignment.overlap_mode === 'double') {
+        if (assignment.double_participant_id === participantId) {
+            return 'double';
+        }
+
+        if (assignment.double_participant_id !== null) {
+            return 'buddy_off';
+        }
     }
 
     return 'overlap_pending';
@@ -159,15 +174,22 @@ function computeBalance(
     };
 }
 
+function assignmentForDay(day: CalendarDay): OverlapDayAssignment {
+    return overlapAssignmentFromApi(
+        day.overlap_mode,
+        day.double_participant_id,
+    );
+}
+
 export function assignmentsFromCalendar(
     calendar: BuddyBidCalendarView,
-): Record<string, number | null> {
-    const assignments: Record<string, number | null> = {};
+): OverlapAssignmentsByDate {
+    const assignments: OverlapAssignmentsByDate = {};
 
     for (const month of calendar.months) {
         for (const day of month.days) {
             if (day.is_compatible_overlap) {
-                assignments[day.date] = day.double_participant_id;
+                assignments[day.date] = assignmentForDay(day);
             }
         }
     }
@@ -177,7 +199,7 @@ export function assignmentsFromCalendar(
 
 export function applyLocalAssignments(
     calendar: BuddyBidCalendarView,
-    assignments: Record<string, number | null>,
+    assignments: OverlapAssignmentsByDate,
 ): BuddyBidCalendarView {
     let unassignedOverlaps = 0;
 
@@ -202,11 +224,14 @@ export function applyLocalAssignments(
     const months = calendar.months.map((month) => ({
         ...month,
         days: month.days.map((day) => {
-            const doubleParticipantId = day.is_compatible_overlap
-                ? (assignments[day.date] ?? day.double_participant_id)
-                : day.double_participant_id;
+            const assignment = day.is_compatible_overlap
+                ? (assignments[day.date] ?? assignmentForDay(day))
+                : pendingOverlapAssignment();
 
-            if (day.is_compatible_overlap && doubleParticipantId === null) {
+            if (
+                day.is_compatible_overlap &&
+                assignment.overlap_mode === 'pending'
+            ) {
                 unassignedOverlaps += 1;
             }
 
@@ -214,7 +239,7 @@ export function applyLocalAssignments(
                 const status = overlapStatus(
                     cell.status,
                     cell.participant_id,
-                    doubleParticipantId,
+                    assignment,
                     day.is_compatible_overlap,
                 );
 
@@ -232,7 +257,14 @@ export function applyLocalAssignments(
 
             return {
                 ...day,
-                double_participant_id: doubleParticipantId,
+                overlap_mode:
+                    assignment.overlap_mode === 'pending'
+                        ? null
+                        : assignment.overlap_mode,
+                double_participant_id:
+                    assignment.overlap_mode === 'double'
+                        ? assignment.double_participant_id
+                        : null,
                 participants,
             };
         }),

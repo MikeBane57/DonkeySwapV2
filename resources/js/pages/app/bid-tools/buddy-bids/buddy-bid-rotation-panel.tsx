@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
-import type { BuddyBidCalendarView } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
+import type {
+    BuddyBidCalendarView,
+    OverlapAssignmentsByDate,
+} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
 import type {
     RotationAlternation,
     RotationApplyMode,
@@ -8,6 +11,7 @@ import type {
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-rotation';
 import {
     computeRotationAssignments,
+    countRotationChanges,
     normalizePattern,
     previewRotation,
     ROTATION_PRESETS,
@@ -30,8 +34,8 @@ export function BuddyBidRotationPanel({
     onApply,
 }: {
     calendar: BuddyBidCalendarView;
-    currentAssignments: Record<string, number | null>;
-    onApply: (assignments: Record<string, number | null>) => void;
+    currentAssignments: OverlapAssignmentsByDate;
+    onApply: (assignments: OverlapAssignmentsByDate) => void;
 }) {
     const participants = useMemo(
         () => [...calendar.participants].sort((a, b) => a.slot - b.slot),
@@ -86,9 +90,7 @@ export function BuddyBidRotationPanel({
             currentAssignments,
         );
 
-        return Object.keys(next).filter(
-            (date) => next[date] !== currentAssignments[date],
-        ).length;
+        return countRotationChanges(currentAssignments, next);
     }, [calendar, config, currentAssignments, normalizedPattern, patternValid]);
 
     const applyPreset = (id: (typeof ROTATION_PRESETS)[number]['id']) => {
@@ -334,10 +336,16 @@ export function BuddyBidRotationPanel({
                                                         >
                                                             {assignment.token ??
                                                                 '·'}
-                                                            {assignment.doubleParticipantId !==
-                                                            null
-                                                                ? ` → ${participantName(assignment.doubleParticipantId)}`
-                                                                : ''}
+                                                            {assignment.overlap
+                                                                .overlap_mode ===
+                                                            'double'
+                                                                ? ` → ${participantName(assignment.overlap.double_participant_id)}`
+                                                                : assignment
+                                                                        .overlap
+                                                                        .overlap_mode ===
+                                                                    'singles'
+                                                                  ? ' → both single'
+                                                                  : ''}
                                                         </span>
                                                     ),
                                                 )}

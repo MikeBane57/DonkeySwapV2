@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { logClientError } from '@/lib/client-logger';
 import { getCsrfToken } from '@/lib/csrf';
-import type { BuddyBidCalendarView } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
+import type {
+    BuddyBidCalendarView,
+    OverlapAssignmentsByDate,
+} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
 import {
     applyLocalAssignments,
     assignmentsFromCalendar,
     BUDDY_BID_AUTO_SAVE_MS,
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
+import type { OverlapDayAssignment } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
+import {
+    assignmentsEqual,
+    overlapAssignmentToApi,
+    pendingOverlapAssignment,
+} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
 
 type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 
@@ -75,8 +84,10 @@ export function useDebouncedBuddyBidAssignments({
                     body: JSON.stringify({
                         assignments: datesToSave.map((date) => ({
                             date,
-                            double_participant_id:
-                                assignmentsRef.current[date] ?? null,
+                            ...overlapAssignmentToApi(
+                                assignmentsRef.current[date] ??
+                                    pendingOverlapAssignment(),
+                            ),
                         })),
                     }),
                 },
@@ -120,10 +131,10 @@ export function useDebouncedBuddyBidAssignments({
     }, [clearSaveTimer, saveNow]);
 
     const assignOverlap = useCallback(
-        (date: string, doubleParticipantId: number | null) => {
+        (date: string, assignment: OverlapDayAssignment) => {
             setAssignments((current) => ({
                 ...current,
-                [date]: doubleParticipantId,
+                [date]: assignment,
             }));
             setDirtyDates((current) => {
                 const next = new Set(current);
@@ -137,11 +148,17 @@ export function useDebouncedBuddyBidAssignments({
     );
 
     const applyRotationAssignments = useCallback(
-        (nextAssignments: Record<string, number | null>) => {
-            const changedDates = Object.keys(nextAssignments).filter(
-                (date) =>
-                    nextAssignments[date] !== assignmentsRef.current[date],
-            );
+        (nextAssignments: OverlapAssignmentsByDate) => {
+            const changedDates = Object.keys(nextAssignments).filter((date) => {
+                const next = nextAssignments[date];
+                const prev = assignmentsRef.current[date];
+
+                if (!next || !prev) {
+                    return next !== prev;
+                }
+
+                return !assignmentsEqual(next, prev);
+            });
 
             if (changedDates.length === 0) {
                 return;
@@ -184,7 +201,10 @@ export function useDebouncedBuddyBidAssignments({
             }
 
             const cleared = Object.fromEntries(
-                Object.keys(assignmentsRef.current).map((date) => [date, null]),
+                Object.keys(assignmentsRef.current).map((date) => [
+                    date,
+                    pendingOverlapAssignment(),
+                ]),
             );
 
             setAssignments(cleared);
