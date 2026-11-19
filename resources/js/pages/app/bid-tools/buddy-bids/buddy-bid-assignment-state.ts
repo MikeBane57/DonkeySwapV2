@@ -1,7 +1,7 @@
 import type { BuddyDayStatus } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
+import type { OverlapDayAssignment } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
 import {
     overlapAssignmentFromApi,
-    type OverlapDayAssignment,
     pendingOverlapAssignment,
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
 

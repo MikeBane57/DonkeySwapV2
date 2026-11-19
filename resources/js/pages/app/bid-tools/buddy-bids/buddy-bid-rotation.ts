@@ -2,12 +2,12 @@ import type {
     BuddyBidCalendarView,
     OverlapAssignmentsByDate,
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
+import type { OverlapDayAssignment } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
 import {
     assignmentsEqual,
     doubleOverlapAssignment,
     pendingOverlapAssignment,
     singlesOverlapAssignment,
-    type OverlapDayAssignment,
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
 import type { WorkWeek } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-work-weeks';
 import {

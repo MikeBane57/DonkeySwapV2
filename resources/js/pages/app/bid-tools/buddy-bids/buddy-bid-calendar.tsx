@@ -4,10 +4,8 @@ import {
     BUDDY_STATUS_CLASSES,
     BUDDY_STATUS_LABELS,
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
-import {
-    nextOverlapAssignmentOnClick,
-    type OverlapDayAssignment,
-} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
+import type { OverlapDayAssignment } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
+import { nextOverlapAssignmentOnClick } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
 
 type ParticipantCell = {
     participant_id: number;
