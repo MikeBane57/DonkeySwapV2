@@ -49,7 +49,7 @@ function cellTitle(
     lineStart: string | null | undefined,
     deskGroup: string | null | undefined,
 ): string {
-    let title = `${date}: ${BUDDY_STATUS_LABELS[status]}`;
+    const title = `${date}: ${BUDDY_STATUS_LABELS[status]}`;
     if (!code) {
         return title;
     }

@@ -4,8 +4,8 @@ import { useMemo, useState } from 'react';
 import {
     applyLocalAssignments,
     assignmentsFromCalendar,
-    type BuddyBidCalendarView,
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
+import type { BuddyBidCalendarView } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
 import { BuddyBidCalendar } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-calendar';
 import { BuddyBidSummaryPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-summary-panel';
 import type { OverlapDayAssignment } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
@@ -45,10 +45,7 @@ export default function BuddyBidSmokePreview() {
         [baseSmoke, assignments],
     );
 
-    const assignOverlap = (
-        date: string,
-        assignment: OverlapDayAssignment,
-    ) => {
+    const assignOverlap = (date: string, assignment: OverlapDayAssignment) => {
         setAssignments((current) => ({
             ...current,
             [date]: assignment,
@@ -85,7 +82,9 @@ export default function BuddyBidSmokePreview() {
             bidYear: displayCalendar.bid_year,
         });
         if (!ics) {
-            window.alert('Nothing to export for this buddy in the smoke month.');
+            window.alert(
+                'Nothing to export for this buddy in the smoke month.',
+            );
             return;
         }
         downloadBuddyBidGoogleCalendar(

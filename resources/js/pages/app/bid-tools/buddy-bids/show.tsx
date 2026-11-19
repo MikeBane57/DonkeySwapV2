@@ -348,166 +348,173 @@ export default function BuddyBidsShow({
                     defaultOpen
                     className="no-print"
                 >
-                <form onSubmit={saveParticipants} className="space-y-4">
-                    <div className="grid gap-4 lg:grid-cols-2">
-                        {participantForm.data.participants.map(
-                            (participant, index) => (
-                                <div
-                                    key={participant.id ?? index}
-                                    className="space-y-3 rounded-md border border-sidebar-border/50 bg-muted/10 p-3"
-                                >
-                                    <div className="space-y-2">
-                                        <Label htmlFor={`name-${index}`}>
-                                            Buddy {index + 1} name
-                                        </Label>
-                                        <Input
-                                            id={`name-${index}`}
-                                            value={participant.display_name}
-                                            onChange={(e) => {
+                    <form onSubmit={saveParticipants} className="space-y-4">
+                        <div className="grid gap-4 lg:grid-cols-2">
+                            {participantForm.data.participants.map(
+                                (participant, index) => (
+                                    <div
+                                        key={participant.id ?? index}
+                                        className="space-y-3 rounded-md border border-sidebar-border/50 bg-muted/10 p-3"
+                                    >
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`name-${index}`}>
+                                                Buddy {index + 1} name
+                                            </Label>
+                                            <Input
+                                                id={`name-${index}`}
+                                                value={participant.display_name}
+                                                onChange={(e) => {
+                                                    const next = [
+                                                        ...participantForm.data
+                                                            .participants,
+                                                    ];
+                                                    next[index] = {
+                                                        ...next[index],
+                                                        display_name:
+                                                            e.target.value,
+                                                    };
+                                                    participantForm.setData(
+                                                        'participants',
+                                                        next,
+                                                    );
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`line-${index}`}>
+                                                Line
+                                            </Label>
+                                            <Select
+                                                value={
+                                                    participant.bid_line_id
+                                                        ? String(
+                                                              participant.bid_line_id,
+                                                          )
+                                                        : ''
+                                                }
+                                                onValueChange={(v) => {
+                                                    const next = [
+                                                        ...participantForm.data
+                                                            .participants,
+                                                    ];
+                                                    next[index] = {
+                                                        ...next[index],
+                                                        bid_line_id: Number(v),
+                                                    };
+                                                    participantForm.setData(
+                                                        'participants',
+                                                        next,
+                                                    );
+                                                }}
+                                            >
+                                                <SelectTrigger
+                                                    id={`line-${index}`}
+                                                >
+                                                    <SelectValue placeholder="Select line" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {lines.map((line) => (
+                                                        <SelectItem
+                                                            key={line.id}
+                                                            value={String(
+                                                                line.id,
+                                                            )}
+                                                        >
+                                                            {line.line_num}{' '}
+                                                            {line.desk_group}{' '}
+                                                            {line.start_time}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <DateListEditor
+                                            idPrefix={`vacation-${index}`}
+                                            label="Awarded vacation"
+                                            description="Add ranges or single days. Use To pull on a row to reclassify as a pull day."
+                                            bidYear={plan.bid_year}
+                                            dates={
+                                                participant.profile
+                                                    .vacation_dates
+                                            }
+                                            onChange={(dates) => {
                                                 const next = [
                                                     ...participantForm.data
                                                         .participants,
                                                 ];
                                                 next[index] = {
                                                     ...next[index],
-                                                    display_name:
-                                                        e.target.value,
+                                                    profile: {
+                                                        ...next[index].profile,
+                                                        vacation_dates: dates,
+                                                    },
                                                 };
                                                 participantForm.setData(
                                                     'participants',
                                                     next,
                                                 );
+                                            }}
+                                            transferAction={{
+                                                label: 'To pull',
+                                                ariaLabel: 'Move to pull days',
+                                                onTransfer: (date) =>
+                                                    moveProfileDate(
+                                                        index,
+                                                        date,
+                                                        'vacation_dates',
+                                                        'pull_dates',
+                                                    ),
+                                            }}
+                                        />
+                                        <DateListEditor
+                                            idPrefix={`pull-${index}`}
+                                            label="Pull days"
+                                            description="Pull days count like time off. Use To vacation to reclassify a row."
+                                            bidYear={plan.bid_year}
+                                            dates={
+                                                participant.profile.pull_dates
+                                            }
+                                            onChange={(dates) => {
+                                                const next = [
+                                                    ...participantForm.data
+                                                        .participants,
+                                                ];
+                                                next[index] = {
+                                                    ...next[index],
+                                                    profile: {
+                                                        ...next[index].profile,
+                                                        pull_dates: dates,
+                                                    },
+                                                };
+                                                participantForm.setData(
+                                                    'participants',
+                                                    next,
+                                                );
+                                            }}
+                                            transferAction={{
+                                                label: 'To vacation',
+                                                ariaLabel:
+                                                    'Move to awarded vacation',
+                                                onTransfer: (date) =>
+                                                    moveProfileDate(
+                                                        index,
+                                                        date,
+                                                        'pull_dates',
+                                                        'vacation_dates',
+                                                    ),
                                             }}
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor={`line-${index}`}>
-                                            Line
-                                        </Label>
-                                        <Select
-                                            value={
-                                                participant.bid_line_id
-                                                    ? String(
-                                                          participant.bid_line_id,
-                                                      )
-                                                    : ''
-                                            }
-                                            onValueChange={(v) => {
-                                                const next = [
-                                                    ...participantForm.data
-                                                        .participants,
-                                                ];
-                                                next[index] = {
-                                                    ...next[index],
-                                                    bid_line_id: Number(v),
-                                                };
-                                                participantForm.setData(
-                                                    'participants',
-                                                    next,
-                                                );
-                                            }}
-                                        >
-                                            <SelectTrigger id={`line-${index}`}>
-                                                <SelectValue placeholder="Select line" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {lines.map((line) => (
-                                                    <SelectItem
-                                                        key={line.id}
-                                                        value={String(line.id)}
-                                                    >
-                                                        {line.line_num}{' '}
-                                                        {line.desk_group}{' '}
-                                                        {line.start_time}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <DateListEditor
-                                        idPrefix={`vacation-${index}`}
-                                        label="Awarded vacation"
-                                        description="Add ranges or single days. Use To pull on a row to reclassify as a pull day."
-                                        bidYear={plan.bid_year}
-                                        dates={
-                                            participant.profile.vacation_dates
-                                        }
-                                        onChange={(dates) => {
-                                            const next = [
-                                                ...participantForm.data
-                                                    .participants,
-                                            ];
-                                            next[index] = {
-                                                ...next[index],
-                                                profile: {
-                                                    ...next[index].profile,
-                                                    vacation_dates: dates,
-                                                },
-                                            };
-                                            participantForm.setData(
-                                                'participants',
-                                                next,
-                                            );
-                                        }}
-                                        transferAction={{
-                                            label: 'To pull',
-                                            ariaLabel: 'Move to pull days',
-                                            onTransfer: (date) =>
-                                                moveProfileDate(
-                                                    index,
-                                                    date,
-                                                    'vacation_dates',
-                                                    'pull_dates',
-                                                ),
-                                        }}
-                                    />
-                                    <DateListEditor
-                                        idPrefix={`pull-${index}`}
-                                        label="Pull days"
-                                        description="Pull days count like time off. Use To vacation to reclassify a row."
-                                        bidYear={plan.bid_year}
-                                        dates={participant.profile.pull_dates}
-                                        onChange={(dates) => {
-                                            const next = [
-                                                ...participantForm.data
-                                                    .participants,
-                                            ];
-                                            next[index] = {
-                                                ...next[index],
-                                                profile: {
-                                                    ...next[index].profile,
-                                                    pull_dates: dates,
-                                                },
-                                            };
-                                            participantForm.setData(
-                                                'participants',
-                                                next,
-                                            );
-                                        }}
-                                        transferAction={{
-                                            label: 'To vacation',
-                                            ariaLabel:
-                                                'Move to awarded vacation',
-                                            onTransfer: (date) =>
-                                                moveProfileDate(
-                                                    index,
-                                                    date,
-                                                    'pull_dates',
-                                                    'vacation_dates',
-                                                ),
-                                        }}
-                                    />
-                                </div>
-                            ),
-                        )}
-                    </div>
-                    <Button
-                        type="submit"
-                        disabled={participantForm.processing || !linesReady}
-                    >
-                        Save buddies & lines
-                    </Button>
-                </form>
+                                ),
+                            )}
+                        </div>
+                        <Button
+                            type="submit"
+                            disabled={participantForm.processing || !linesReady}
+                        >
+                            Save buddies & lines
+                        </Button>
+                    </form>
                 </BidToolsCollapsibleSection>
 
                 {linesReady ? (
@@ -518,45 +525,45 @@ export default function BuddyBidsShow({
                             defaultOpen={false}
                             className="no-print"
                         >
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted/10 px-3 py-2 text-sm">
-                            <p
-                                className={
-                                    saveError
-                                        ? 'text-destructive'
-                                        : 'text-muted-foreground'
-                                }
-                            >
-                                {saveStatusMessage}
-                            </p>
-                            {hasUnsavedChanges && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted/10 px-3 py-2 text-sm">
+                                <p
+                                    className={
+                                        saveError
+                                            ? 'text-destructive'
+                                            : 'text-muted-foreground'
+                                    }
+                                >
+                                    {saveStatusMessage}
+                                </p>
+                                {hasUnsavedChanges && (
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={saveState === 'saving'}
+                                        onClick={() => void saveNow()}
+                                    >
+                                        Save overlaps now
+                                    </Button>
+                                )}
                                 <Button
                                     type="button"
                                     size="sm"
                                     variant="outline"
                                     disabled={saveState === 'saving'}
-                                    onClick={() => void saveNow()}
+                                    onClick={() => {
+                                        if (
+                                            window.confirm(
+                                                'Clear all overlap assignments? Buddies, lines, and vacation/pull dates stay the same.',
+                                            )
+                                        ) {
+                                            void resetAssignments();
+                                        }
+                                    }}
                                 >
-                                    Save overlaps now
+                                    Reset overlaps
                                 </Button>
-                            )}
-                            <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                disabled={saveState === 'saving'}
-                                onClick={() => {
-                                    if (
-                                        window.confirm(
-                                            'Clear all overlap assignments? Buddies, lines, and vacation/pull dates stay the same.',
-                                        )
-                                    ) {
-                                        void resetAssignments();
-                                    }
-                                }}
-                            >
-                                Reset overlaps
-                            </Button>
-                        </div>
+                            </div>
                             <BuddyBidSnapshotsPanel
                                 planId={plan.id}
                                 snapshots={snapshots}
@@ -570,21 +577,21 @@ export default function BuddyBidsShow({
                                 summary="Balance & legend"
                                 defaultOpen={false}
                             >
-                            <BuddyBidSummaryPanel
-                                summary={displayCalendar.summary}
-                                balance={displayCalendar.balance}
-                            />
+                                <BuddyBidSummaryPanel
+                                    summary={displayCalendar.summary}
+                                    balance={displayCalendar.balance}
+                                />
                             </BidToolsCollapsibleSection>
                             <BidToolsCollapsibleSection
                                 title="Rotation helper"
                                 summary="Apply pattern across overlaps"
                                 defaultOpen={false}
                             >
-                            <BuddyBidRotationPanel
-                                calendar={displayCalendar}
-                                currentAssignments={assignments}
-                                onApply={applyRotationAssignments}
-                            />
+                                <BuddyBidRotationPanel
+                                    calendar={displayCalendar}
+                                    currentAssignments={assignments}
+                                    onApply={applyRotationAssignments}
+                                />
                             </BidToolsCollapsibleSection>
                             <BuddyBidCalendar
                                 months={displayCalendar.months}
@@ -676,10 +683,7 @@ export default function BuddyBidsShow({
                                         key={status}
                                         className={`rounded px-1 py-0.5 ${BUDDY_STATUS_CLASSES[status]}`}
                                     >
-                                        {buddyBidStatusCellLabel(
-                                            status,
-                                        )}
-                                        =
+                                        {buddyBidStatusCellLabel(status)}=
                                         {BUDDY_STATUS_LABELS[status]}
                                     </span>
                                 ))}
