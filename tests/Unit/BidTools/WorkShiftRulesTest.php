@@ -35,6 +35,15 @@ test('dxx is excluded from calendar work', function () {
         ->and($rules->workStartFromDayCode('DXX', '0600', 'Relief'))->toBeNull();
 });
 
+test('rfs relief counts as work without a calendar start time', function () {
+    $rules = app(WorkShiftRules::class);
+
+    expect($rules->isReliefWorkCode('RFS1'))->toBeTrue()
+        ->and($rules->isReliefWorkCode('DAY RELIEF'))->toBeTrue()
+        ->and($rules->isNonWorkCalendarCode('RFS1'))->toBeFalse()
+        ->and($rules->workStartFromDayCode('RFS1', '0600', 'DG'))->toBeNull();
+});
+
 test('buddy overlap allows pm plus mid when overlap is at most 30 minutes', function () {
     $rules = app(WorkShiftRules::class);
     $compat = app(BuddyBidDoubleCompatibility::class);

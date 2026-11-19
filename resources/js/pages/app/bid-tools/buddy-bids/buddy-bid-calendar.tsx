@@ -5,7 +5,12 @@ import {
     BUDDY_STATUS_LABELS,
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
 import type { OverlapDayAssignment } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
+import { buddyBidStatusCellLabel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-cell-label';
 import { nextOverlapAssignmentOnClick } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
+import {
+    isReliefWorkCode,
+    workStartFromDayCode,
+} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-work-shift';
 
 type ParticipantCell = {
     participant_id: number;
@@ -33,11 +38,36 @@ type CalendarParticipant = {
     id: number;
     slot: number;
     display_name: string;
+    start_time?: string | null;
+    desk_group?: string | null;
 };
+
+function cellTitle(
+    date: string,
+    status: BuddyDayStatus,
+    code: string | null,
+    lineStart: string | null | undefined,
+    deskGroup: string | null | undefined,
+): string {
+    let title = `${date}: ${BUDDY_STATUS_LABELS[status]}`;
+    if (!code) {
+        return title;
+    }
+    if (isReliefWorkCode(code)) {
+        return `${title} · ${code} (relief — no start yet)`;
+    }
+    const start = workStartFromDayCode(code, lineStart, deskGroup);
+    if (start) {
+        return `${title} · ${code} @ ${start.slice(0, 2)}:${start.slice(2)}`;
+    }
+
+    return `${title} · ${code}`;
+}
 
 function BuddyBidMonthTable({
     month,
     participantOrder,
+    participantMeta,
     assignmentByDate,
     singlesAfterClear,
     onAssignOverlap,
@@ -46,6 +76,10 @@ function BuddyBidMonthTable({
 }: {
     month: CalendarMonth;
     participantOrder: CalendarParticipant[];
+    participantMeta: Map<
+        number,
+        { start_time?: string | null; desk_group?: string | null }
+    >;
     assignmentByDate: Record<string, OverlapDayAssignment>;
     singlesAfterClear: Record<string, number | null>;
     onAssignOverlap?: (
@@ -114,13 +148,20 @@ function BuddyBidMonthTable({
                                         (p) =>
                                             p.participant_id === participant.id,
                                     );
-                                    const status = cell?.status ?? 'line_off';
+                                    const status = (cell?.status ??
+                                        'line_off') as BuddyDayStatus;
                                     const label =
-                                        status === 'line_off'
-                                            ? '·'
-                                            : BUDDY_STATUS_LABELS[
-                                                  status
-                                              ].charAt(0);
+                                        buddyBidStatusCellLabel(status);
+                                    const meta =
+                                        participantMeta.get(participant.id) ??
+                                        {};
+                                    const title = cellTitle(
+                                        day.date,
+                                        status,
+                                        cell?.code ?? null,
+                                        meta.start_time,
+                                        meta.desk_group,
+                                    );
 
                                     if (readOnly) {
                                         return (
@@ -129,7 +170,7 @@ function BuddyBidMonthTable({
                                                 className="p-0.5 text-center"
                                             >
                                                 <span
-                                                    title={`${day.date}: ${BUDDY_STATUS_LABELS[status]}`}
+                                                    title={title}
                                                     className={`buddy-bid-status-cell inline-flex h-5 w-full min-w-[1.1rem] items-center justify-center rounded px-0.5 ${BUDDY_STATUS_CLASSES[status]}`}
                                                 >
                                                     {label}
@@ -145,7 +186,7 @@ function BuddyBidMonthTable({
                                         >
                                             <button
                                                 type="button"
-                                                title={`${day.date}: ${BUDDY_STATUS_LABELS[status]}`}
+                                                title={title}
                                                 className={`h-6 w-full min-w-[1.4rem] rounded px-0.5 ${BUDDY_STATUS_CLASSES[status]} ${
                                                     day.is_compatible_overlap
                                                         ? 'cursor-pointer hover:ring-2 hover:ring-yellow-500'
@@ -237,6 +278,21 @@ export function BuddyBidCalendar({
         [participants],
     );
 
+    const participantMeta = useMemo(() => {
+        const map = new Map<
+            number,
+            { start_time?: string | null; desk_group?: string | null }
+        >();
+        for (const p of participants) {
+            map.set(p.id, {
+                start_time: p.start_time,
+                desk_group: p.desk_group,
+            });
+        }
+
+        return map;
+    }, [participants]);
+
     const assignments =
         assignmentByDate ?? ({} as Record<string, OverlapDayAssignment>);
 
@@ -280,6 +336,7 @@ export function BuddyBidCalendar({
                         key={month.key}
                         month={month}
                         participantOrder={participantOrder}
+                        participantMeta={participantMeta}
                         assignmentByDate={assignments}
                         singlesAfterClear={singlesAfterClear}
                         onAssignOverlap={

@@ -176,6 +176,7 @@ Route::middleware(['auth', 'verified'])->prefix('app')->group(function () {
         Route::put('/simulations/{simulation}/participants/{participant}/line-order', [BidToolsSimulationController::class, 'updateParticipantLineOrder'])->name('simulations.participants.line-order');
 
         Route::get('/buddy-bids', [BidToolsBuddyBidController::class, 'index'])->name('buddy-bids.index');
+        Route::get('/buddy-bids/shift-display-smoke', [BidToolsBuddyBidController::class, 'smokePreview'])->name('buddy-bids.smoke');
         Route::get('/buddy-bids/create', [BidToolsBuddyBidController::class, 'create'])->name('buddy-bids.create');
         Route::post('/buddy-bids', [BidToolsBuddyBidController::class, 'store'])->name('buddy-bids.store');
         Route::get('/buddy-bids/{buddyBid}', [BidToolsBuddyBidController::class, 'show'])->name('buddy-bids.show')->whereNumber('buddyBid');
