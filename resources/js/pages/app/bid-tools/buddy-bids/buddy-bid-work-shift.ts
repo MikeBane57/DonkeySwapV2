@@ -41,6 +41,23 @@ export function calendarDeskTitle(
     return raw;
 }
 
+function fallbackLineStart(
+    lineStart: string | null | undefined,
+    deskGroup?: string | null,
+): string | null {
+    const normalized = normalizeHhmm(lineStart);
+    if (normalized !== null && normalized !== '2200') {
+        return normalized;
+    }
+
+    const group = deskGroup?.trim().toUpperCase() ?? '';
+    if (normalized === '2200' || group.startsWith('M')) {
+        return '2200';
+    }
+
+    return normalized;
+}
+
 export function workStartFromDayCode(
     dayCode: string | null | undefined,
     lineStart: string | null | undefined,
@@ -160,21 +177,4 @@ export function shiftsCanBuddyDouble(
             durationB,
         ) <= MAX_BUDDY_DOUBLE_OVERLAP_MINUTES
     );
-}
-
-function fallbackLineStart(
-    lineStart: string | null | undefined,
-    deskGroup?: string | null,
-): string | null {
-    const normalized = normalizeHhmm(lineStart);
-    if (normalized !== null && normalized !== '2200') {
-        return normalized;
-    }
-
-    const group = deskGroup?.trim().toUpperCase() ?? '';
-    if (normalized === '2200' || group.startsWith('M')) {
-        return '2200';
-    }
-
-    return normalized;
 }
