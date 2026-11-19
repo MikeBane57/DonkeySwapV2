@@ -1,27 +1,36 @@
 import type { BuddyDayStatus } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
 import type { ShiftWindow } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-shift-times';
+import { shiftWindowForTraining } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-shift-times';
+import { hhmmToMinutes } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-shift-times';
 import {
-    hhmmToMinutes,
-    shiftWindowFromLineStart,
-} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-shift-times';
+    calendarDeskTitle,
+    isNonWorkCalendarCode,
+    shiftWindowForDayCode,
+} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-work-shift';
 
-type CalendarMonth = {
-    days: {
-        date: string;
-        participants: {
-            participant_id: number;
-            status: BuddyDayStatus;
-            code: string | null;
-        }[];
+type CalendarDay = {
+    date: string;
+    participants: {
+        participant_id: number;
+        status: BuddyDayStatus;
+        code: string | null;
     }[];
 };
 
-type CalendarParticipant = {
+type CalendarMonth = {
+    days: CalendarDay[];
+};
+
+export type CalendarParticipantForExport = {
     id: number;
     display_name: string;
     desk_group: string | null;
     start_time: string | null;
 };
+
+const BUDDY_GCAL_LOCATION = 'NOC, 2170 Research Row, Dallas, TX 75235';
+
+const TRAINING_SUMMARY = 'DOM recurrent training';
 
 const GOOGLE_BUSY_STATUSES: BuddyDayStatus[] = [
     'single',
@@ -29,6 +38,13 @@ const GOOGLE_BUSY_STATUSES: BuddyDayStatus[] = [
     'training',
     'overlap_pending',
 ];
+
+type CalendarEventDraft = {
+    uidSuffix: string;
+    summary: string;
+    window: ShiftWindow;
+    description: string;
+};
 
 function escapeIcsText(value: string): string {
     return value
@@ -75,37 +91,157 @@ function eventDtEnd(
     return { start, end };
 }
 
-function deskLabel(code: string | null, deskGroup: string | null): string {
-    const fromCode = code?.trim();
-    if (fromCode) {
-        return fromCode;
-    }
-    const fromGroup = deskGroup?.trim();
-    if (fromGroup) {
-        return fromGroup;
-    }
-    return 'Work';
+function pushIcsEvent(
+    lines: string[],
+    draft: CalendarEventDraft,
+    ymd: string,
+    participantId: number,
+    timeZone: string,
+    now: string,
+): void {
+    const { start, end } = eventDtEnd(ymd, draft.window);
+    const uid = `buddy-bid-${participantId}-${ymd}-${draft.uidSuffix}@donkeyswap`;
+
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${uid}`);
+    lines.push(`DTSTAMP:${now}`);
+    lines.push(`DTSTART;TZID=${timeZone}:${start}`);
+    lines.push(`DTEND;TZID=${timeZone}:${end}`);
+    lines.push(`SUMMARY:${escapeIcsText(draft.summary)}`);
+    lines.push(`DESCRIPTION:${escapeIcsText(draft.description)}`);
+    lines.push(`LOCATION:${escapeIcsText(BUDDY_GCAL_LOCATION)}`);
+    lines.push('TRANSP:OPAQUE');
+    lines.push('STATUS:CONFIRMED');
+    lines.push('END:VEVENT');
 }
 
-function eventSummary(desk: string, window: ShiftWindow): string {
-    return `${desk} ${window.eventStart}-${window.eventEnd}`;
+function workShiftEvent(
+    desk: string,
+    window: ShiftWindow,
+    bidYear: number,
+    uidSuffix: string,
+): CalendarEventDraft {
+    return {
+        uidSuffix,
+        summary: desk,
+        window,
+        description: `Buddy bid ${bidYear} · ${desk} ${window.workStart}-${window.workEnd}`,
+    };
+}
+
+function eventsForDay(
+    participant: CalendarParticipantForExport,
+    partner: CalendarParticipantForExport | null,
+    day: CalendarDay,
+    bidYear: number,
+): CalendarEventDraft[] {
+    const cell = day.participants.find(
+        (p) => p.participant_id === participant.id,
+    );
+    if (!cell || !GOOGLE_BUSY_STATUSES.includes(cell.status)) {
+        return [];
+    }
+
+    if (isNonWorkCalendarCode(cell.code)) {
+        return [];
+    }
+
+    if (cell.status === 'training') {
+        const window = shiftWindowForTraining(cell.code);
+        if (!window) {
+            return [];
+        }
+        return [
+            {
+                uidSuffix: 'training',
+                summary: TRAINING_SUMMARY,
+                window,
+                description: `Buddy bid ${bidYear} · DOM recurrent training`,
+            },
+        ];
+    }
+
+    if (cell.status === 'double' && partner) {
+        const partnerCell = day.participants.find(
+            (p) => p.participant_id === partner.id,
+        );
+        const ownWindow = shiftWindowForDayCode(
+            cell.code,
+            participant.start_time,
+            participant.desk_group,
+        );
+        const partnerWindow = shiftWindowForDayCode(
+            partnerCell?.code ?? null,
+            partner.start_time,
+            partner.desk_group,
+        );
+        if (!ownWindow || !partnerWindow) {
+            return [];
+        }
+
+        const ownDesk = calendarDeskTitle(cell.code, participant.desk_group);
+        const partnerDesk = calendarDeskTitle(
+            partnerCell?.code ?? null,
+            partner.desk_group,
+        );
+
+        const segments = [
+            workShiftEvent(ownDesk, ownWindow, bidYear, 'a'),
+            workShiftEvent(partnerDesk, partnerWindow, bidYear, 'b'),
+        ].sort(
+            (a, b) =>
+                hhmmToMinutes(a.window.workStart) -
+                hhmmToMinutes(b.window.workStart),
+        );
+
+        return segments.map((segment, index) => ({
+            ...segment,
+            uidSuffix: index === 0 ? 'early' : 'late',
+        }));
+    }
+
+    const window = shiftWindowForDayCode(
+        cell.code,
+        participant.start_time,
+        participant.desk_group,
+    );
+    if (!window) {
+        return [];
+    }
+
+    const desk = calendarDeskTitle(cell.code, participant.desk_group);
+    return [workShiftEvent(desk, window, bidYear, 'work')];
 }
 
 export function buildBuddyBidGoogleCalendarIcs({
     participant,
+    partner,
     months,
     planName,
     bidYear,
     timeZone = 'America/Chicago',
 }: {
-    participant: CalendarParticipant;
+    participant: CalendarParticipantForExport;
+    partner: CalendarParticipantForExport | null;
     months: CalendarMonth[];
     planName: string;
     bidYear: number;
     timeZone?: string;
 }): string {
-    const shiftWindow = shiftWindowFromLineStart(participant.start_time);
-    if (!shiftWindow) {
+    const hasAnyWork =
+        participant.start_time != null ||
+        (partner?.start_time != null &&
+            months.some((month) =>
+                month.days.some((day) =>
+                    day.participants.some(
+                        (p) =>
+                            p.participant_id === participant.id &&
+                            p.status === 'double',
+                    ),
+                ),
+            ));
+
+    if (!hasAnyWork) {
         return '';
     }
 
@@ -126,31 +262,22 @@ export function buildBuddyBidGoogleCalendarIcs({
 
     for (const month of months) {
         for (const day of month.days) {
-            const cell = day.participants.find(
-                (p) => p.participant_id === participant.id,
-            );
-            if (!cell || !GOOGLE_BUSY_STATUSES.includes(cell.status)) {
-                continue;
+            const drafts = eventsForDay(participant, partner, day, bidYear);
+            for (const draft of drafts) {
+                pushIcsEvent(
+                    lines,
+                    draft,
+                    day.date,
+                    participant.id,
+                    timeZone,
+                    now,
+                );
             }
-
-            const desk = deskLabel(cell.code, participant.desk_group);
-            const summary = eventSummary(desk, shiftWindow);
-            const { start, end } = eventDtEnd(day.date, shiftWindow);
-            const uid = `buddy-bid-${participant.id}-${day.date}@donkeyswap`;
-
-            lines.push('BEGIN:VEVENT');
-            lines.push(`UID:${uid}`);
-            lines.push(`DTSTAMP:${now}`);
-            lines.push(`DTSTART;TZID=${timeZone}:${start}`);
-            lines.push(`DTEND;TZID=${timeZone}:${end}`);
-            lines.push(`SUMMARY:${escapeIcsText(summary)}`);
-            lines.push(
-                `DESCRIPTION:${escapeIcsText(`Buddy bid ${bidYear} · line shift (busy block −15 min each end)`)}`,
-            );
-            lines.push('TRANSP:OPAQUE');
-            lines.push('STATUS:CONFIRMED');
-            lines.push('END:VEVENT');
         }
+    }
+
+    if (lines.length <= 7) {
+        return '';
     }
 
     lines.push('END:VCALENDAR');

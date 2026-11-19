@@ -239,6 +239,10 @@ export default function BuddyBidsShow({
             return;
         }
 
+        const partner = displayCalendar.participants.find(
+            (p) => p.id !== participantId,
+        );
+
         const ics = buildBuddyBidGoogleCalendarIcs({
             participant: {
                 id: participant.id,
@@ -246,6 +250,14 @@ export default function BuddyBidsShow({
                 desk_group: participant.desk_group ?? null,
                 start_time: participant.start_time ?? null,
             },
+            partner: partner
+                ? {
+                      id: partner.id,
+                      display_name: partner.display_name,
+                      desk_group: partner.desk_group ?? null,
+                      start_time: partner.start_time ?? null,
+                  }
+                : null,
             months: displayCalendar.months,
             planName: plan.name,
             bidYear: plan.bid_year,
@@ -253,7 +265,7 @@ export default function BuddyBidsShow({
 
         if (!ics) {
             window.alert(
-                'This buddy’s line needs a start time before Google Calendar export works.',
+                'Add bid lines with start times (both buddies for double days) before exporting.',
             );
             return;
         }

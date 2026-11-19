@@ -100,9 +100,10 @@ final class BuddyBidCalendarService
         if ($participants->count() === 2
             && $participants[0]->line
             && $participants[1]->line) {
-            $bucketA = $this->doubleCompatibility->shiftBucketForLine($participants[0]->line);
-            $bucketB = $this->doubleCompatibility->shiftBucketForLine($participants[1]->line);
-            $shiftPairing = $this->doubleCompatibility->pairingType($bucketA, $bucketB);
+            $shiftPairing = $this->doubleCompatibility->pairingLabel(
+                $participants[0]->line,
+                $participants[1]->line,
+            );
             $linesCanDouble = $shiftPairing !== null;
         }
 

@@ -1,8 +1,11 @@
 /** Standard bid-line shift length (8h 30m), e.g. 1400 → 2230. */
 export const BUDDY_SHIFT_WORK_MINUTES = 8 * 60 + 30;
 
-/** Minutes before/after shift shown on Google Calendar import. */
-export const BUDDY_CALENDAR_EDGE_BUFFER_MINUTES = 15;
+/** Minutes before scheduled start on calendar blocks. */
+export const BUDDY_CALENDAR_LEAD_MINUTES = 15;
+
+/** Minutes before scheduled end (leave early) on work / double blocks. */
+export const BUDDY_CALENDAR_END_EARLY_MINUTES = 30;
 
 export function normalizeHhmm(raw: string | null | undefined): string | null {
     if (!raw) {
@@ -46,6 +49,35 @@ export type ShiftWindow = {
     endsNextCalendarDay: boolean;
 };
 
+export function shiftWindowFromWorkTimes(
+    workStart: string | null | undefined,
+    workEnd: string | null | undefined,
+    endEarlyMinutes = BUDDY_CALENDAR_END_EARLY_MINUTES,
+): ShiftWindow | null {
+    const normalizedStart = normalizeHhmm(workStart);
+    const normalizedEnd = normalizeHhmm(workEnd);
+    if (!normalizedStart || !normalizedEnd) {
+        return null;
+    }
+
+    const eventStart = addMinutesToHhmm(
+        normalizedStart,
+        -BUDDY_CALENDAR_LEAD_MINUTES,
+    );
+    const eventEnd = addMinutesToHhmm(normalizedEnd, -endEarlyMinutes);
+    const endsNextCalendarDay =
+        hhmmToMinutes(normalizedEnd) <= hhmmToMinutes(normalizedStart) ||
+        hhmmToMinutes(eventEnd) < hhmmToMinutes(eventStart);
+
+    return {
+        workStart: normalizedStart,
+        workEnd: normalizedEnd,
+        eventStart,
+        eventEnd,
+        endsNextCalendarDay,
+    };
+}
+
 export function shiftWindowFromLineStart(
     startTime: string | null | undefined,
 ): ShiftWindow | null {
@@ -54,22 +86,34 @@ export function shiftWindowFromLineStart(
         return null;
     }
     const workEnd = addMinutesToHhmm(workStart, BUDDY_SHIFT_WORK_MINUTES);
-    const eventStart = addMinutesToHhmm(
-        workStart,
-        -BUDDY_CALENDAR_EDGE_BUFFER_MINUTES,
-    );
-    const eventEnd = addMinutesToHhmm(
-        workEnd,
-        -BUDDY_CALENDAR_EDGE_BUFFER_MINUTES,
-    );
-    const endsNextCalendarDay =
-        hhmmToMinutes(workEnd) <= hhmmToMinutes(workStart);
 
-    return {
-        workStart,
-        workEnd,
-        eventStart,
-        eventEnd,
-        endsNextCalendarDay,
-    };
+    return shiftWindowFromWorkTimes(workStart, workEnd);
+}
+
+export const TRAINING_AM_WORK = { start: '0700', end: '1500' } as const;
+export const TRAINING_PM_WORK = { start: '1200', end: '2000' } as const;
+
+export function shiftWindowForTraining(
+    code: string | null | undefined,
+): ShiftWindow | null {
+    const upper = code?.trim().toUpperCase() ?? '';
+    if (upper === 'TAM') {
+        return shiftWindowFromWorkTimes(
+            TRAINING_AM_WORK.start,
+            TRAINING_AM_WORK.end,
+            0,
+        );
+    }
+    if (upper === 'TPM') {
+        return shiftWindowFromWorkTimes(
+            TRAINING_PM_WORK.start,
+            TRAINING_PM_WORK.end,
+            0,
+        );
+    }
+    return shiftWindowFromWorkTimes(
+        TRAINING_AM_WORK.start,
+        TRAINING_AM_WORK.end,
+        0,
+    );
 }
