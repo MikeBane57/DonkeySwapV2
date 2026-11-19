@@ -1,7 +1,8 @@
 import type { BuddyDayStatus } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-status';
+import type { ShiftWindow } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-shift-times';
 import {
+    hhmmToMinutes,
     shiftWindowFromLineStart,
-    type ShiftWindow,
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-shift-times';
 
 type CalendarMonth = {
@@ -60,12 +61,6 @@ function resolveIcsEndDate(ymd: string, window: ShiftWindow): string {
         return addDaysToYmd(ymd, 1);
     }
     return ymd;
-}
-
-function hhmmToMinutes(hhmm: string): number {
-    const h = Number.parseInt(hhmm.slice(0, 2), 10);
-    const m = Number.parseInt(hhmm.slice(2, 4), 10);
-    return h * 60 + m;
 }
 
 function eventDtEnd(
