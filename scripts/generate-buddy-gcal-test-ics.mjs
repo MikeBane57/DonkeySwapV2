@@ -1,4 +1,3 @@
-/* eslint-env node */
 /**
  * Writes public/samples/*.ics for the Feb 2027 GCal import smoke test.
  * Run after changing buddy-bid-google-calendar or smoke fixture: npm run gcal:test-samples
