@@ -16,6 +16,7 @@
         "lint": "eslint . --fix",
         "lint:check": "eslint .",
         "types:check": "tsc --noEmit",
+        "gcal:test-samples": "node scripts/generate-buddy-gcal-test-ics.mjs",
         "audit": "npm audit",
         "security-check": "composer audit && npm audit"
     },
