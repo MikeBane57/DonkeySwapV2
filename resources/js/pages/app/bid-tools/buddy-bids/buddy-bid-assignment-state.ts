@@ -181,6 +181,28 @@ function assignmentForDay(day: CalendarDay): OverlapDayAssignment {
     );
 }
 
+/** Fingerprint of server overlap assignments (snapshot restore, save, partial reload). */
+export function calendarAssignmentsFingerprint(
+    calendar: BuddyBidCalendarView,
+): string {
+    const parts: string[] = [];
+
+    for (const month of calendar.months) {
+        for (const day of month.days) {
+            if (!day.is_compatible_overlap) {
+                continue;
+            }
+            parts.push(
+                `${day.date}:${day.overlap_mode ?? 'pending'}:${day.double_participant_id ?? ''}`,
+            );
+        }
+    }
+
+    parts.sort();
+
+    return parts.join('|');
+}
+
 export function assignmentsFromCalendar(
     calendar: BuddyBidCalendarView,
 ): OverlapAssignmentsByDate {

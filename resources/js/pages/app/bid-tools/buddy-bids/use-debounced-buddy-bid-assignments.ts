@@ -8,6 +8,7 @@ import type {
 import {
     applyLocalAssignments,
     assignmentsFromCalendar,
+    calendarAssignmentsFingerprint,
     BUDDY_BID_AUTO_SAVE_MS,
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-assignment-state';
 import type { OverlapDayAssignment } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
@@ -35,23 +36,12 @@ export function useDebouncedBuddyBidAssignments({
     const assignmentsRef = useRef(assignments);
     const dirtyDatesRef = useRef(dirtyDates);
     const saveTimerRef = useRef<number | null>(null);
-    const calendarKeyRef = useRef(
-        calendar.months.map((month) => month.key).join(','),
+    const serverAssignmentsFingerprintRef = useRef(
+        calendarAssignmentsFingerprint(calendar),
     );
 
     assignmentsRef.current = assignments;
     dirtyDatesRef.current = dirtyDates;
-
-    useEffect(() => {
-        const nextKey = calendar.months.map((month) => month.key).join(',');
-        if (nextKey !== calendarKeyRef.current) {
-            calendarKeyRef.current = nextKey;
-            setAssignments(assignmentsFromCalendar(calendar));
-            setDirtyDates(new Set());
-            setSaveState('idle');
-            setSaveError(null);
-        }
-    }, [calendar]);
 
     const clearSaveTimer = useCallback(() => {
         if (saveTimerRef.current !== null) {
@@ -59,6 +49,23 @@ export function useDebouncedBuddyBidAssignments({
             saveTimerRef.current = null;
         }
     }, []);
+
+    const syncAssignmentsFromServerCalendar = useCallback(() => {
+        serverAssignmentsFingerprintRef.current =
+            calendarAssignmentsFingerprint(calendar);
+        setAssignments(assignmentsFromCalendar(calendar));
+        setDirtyDates(new Set());
+        setSaveState('idle');
+        setSaveError(null);
+        clearSaveTimer();
+    }, [calendar, clearSaveTimer]);
+
+    useEffect(() => {
+        const nextFingerprint = calendarAssignmentsFingerprint(calendar);
+        if (nextFingerprint !== serverAssignmentsFingerprintRef.current) {
+            syncAssignmentsFromServerCalendar();
+        }
+    }, [calendar, syncAssignmentsFromServerCalendar]);
 
     const saveNow = useCallback(async (): Promise<boolean> => {
         const datesToSave = Array.from(dirtyDatesRef.current);
