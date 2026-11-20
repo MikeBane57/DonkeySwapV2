@@ -10,6 +10,10 @@ import { BuddyBidCalendar } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-cal
 import { BuddyBidSummaryPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-summary-panel';
 import type { OverlapDayAssignment } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-overlap-assignment';
 import {
+    countBuddyBidGcalSmokeTestEvents,
+    downloadBuddyBidGcalSmokeTest,
+} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-gcal-smoke-test-export';
+import {
     buildBuddyBidGoogleCalendarIcs,
     downloadBuddyBidGoogleCalendar,
 } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-google-calendar';
@@ -139,6 +143,54 @@ export default function BuddyBidSmokePreview() {
                         ))}
                     </ul>
                 </BidToolsCollapsibleSection>
+
+                <div className="space-y-2 rounded-lg border border-dashed border-sidebar-border/70 p-3">
+                    <p className="text-sm font-medium">
+                        Google Calendar import test files
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                        Small Feb 2027 fixture (~
+                        {countBuddyBidGcalSmokeTestEvents(1)} events per buddy).
+                        Import these before the full-year export so you do not
+                        have to delete ~100+ events if something looks wrong.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => downloadBuddyBidGcalSmokeTest(1)}
+                        >
+                            <CalendarRange className="mr-2 h-4 w-4" />
+                            Test import — AM buddy
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => downloadBuddyBidGcalSmokeTest(2)}
+                        >
+                            <CalendarRange className="mr-2 h-4 w-4" />
+                            Test import — PM buddy
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                            <a
+                                href="/samples/buddy-bid-gcal-test-feb2027-smoke-am.ics"
+                                download
+                            >
+                                Static file (AM)
+                            </a>
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                            <a
+                                href="/samples/buddy-bid-gcal-test-feb2027-smoke-pm.ics"
+                                download
+                            >
+                                Static file (PM)
+                            </a>
+                        </Button>
+                    </div>
+                </div>
 
                 <div className="flex flex-wrap gap-2">
                     {displayCalendar.participants.map((p) => (
