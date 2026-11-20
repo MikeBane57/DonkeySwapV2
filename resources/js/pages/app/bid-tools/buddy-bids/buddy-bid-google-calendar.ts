@@ -79,15 +79,34 @@ function resolveIcsEndDate(ymd: string, window: ShiftWindow): string {
     return ymd;
 }
 
+/** Midnight (2200) shifts start the evening before the bid line date. */
+function eventCalendarYmd(
+    assignmentYmd: string,
+    window: ShiftWindow,
+): {
+    startYmd: string;
+    endYmd: string;
+} {
+    if (window.workStart === '2200') {
+        return {
+            startYmd: addDaysToYmd(assignmentYmd, -1),
+            endYmd: assignmentYmd,
+        };
+    }
+
+    return {
+        startYmd: assignmentYmd,
+        endYmd: resolveIcsEndDate(assignmentYmd, window),
+    };
+}
+
 function eventDtEnd(
     ymd: string,
     window: ShiftWindow,
 ): { start: string; end: string } {
-    const start = ymdHhmmToIcsLocal(ymd, window.eventStart);
-    const end = ymdHhmmToIcsLocal(
-        resolveIcsEndDate(ymd, window),
-        window.eventEnd,
-    );
+    const { startYmd, endYmd } = eventCalendarYmd(ymd, window);
+    const start = ymdHhmmToIcsLocal(startYmd, window.eventStart);
+    const end = ymdHhmmToIcsLocal(endYmd, window.eventEnd);
     return { start, end };
 }
 

@@ -73,7 +73,7 @@ function ReconcileScheduleContent({
         Record<string, { action: string; reason: string }>
     >(() => buildDefaultActions(reconciliation));
     const [submitting, setSubmitting] = useState(false);
-    const [view, setView] = useState<'calendar' | 'table'>('calendar');
+    const [view, setView] = useState<'calendar' | 'table'>('table');
 
     const setAction = (itemId: number, action: string, reason: string = '') => {
         setActions((prev) => ({
@@ -144,15 +144,37 @@ function ReconcileScheduleContent({
         return evs;
     }, [added, removed]);
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!reconciliation?.id) return;
+    const submitReview = (
+        payload: Record<string, { action: string; reason: string }>,
+    ) => {
+        if (!reconciliation?.id) {
+            return;
+        }
         setSubmitting(true);
         router.post(
             `/app/reconcile-schedule/${reconciliation.id}`,
-            { actions },
-            { onFinish: () => setSubmitting(false) },
+            { actions: payload },
+            {
+                preserveScroll: true,
+                onFinish: () => setSubmitting(false),
+            },
         );
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        submitReview(actions);
+    };
+
+    const acceptAllDefaults = () => {
+        const defaults = buildDefaultActions(reconciliation);
+        setActions(defaults);
+        return defaults;
+    };
+
+    const acceptAllAndSubmit = () => {
+        const defaults = acceptAllDefaults();
+        submitReview(defaults);
     };
 
     if (!reconciliation) {
@@ -177,6 +199,62 @@ function ReconcileScheduleContent({
                     Review schedule discrepancies
                 </h1>
                 <p className="text-muted-foreground">{message}</p>
+
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3">
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={submitting || added.length === 0}
+                        onClick={() => {
+                            setActions((prev) => {
+                                const next = { ...prev };
+                                added.forEach((i) => {
+                                    next[String(i.id)] = {
+                                        action: 'accepted',
+                                        reason: '',
+                                    };
+                                });
+                                return next;
+                            });
+                        }}
+                    >
+                        Accept all additions
+                    </Button>
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={submitting || removed.length === 0}
+                        onClick={() => {
+                            setActions((prev) => {
+                                const next = { ...prev };
+                                removed.forEach((i) => {
+                                    next[String(i.id)] = {
+                                        action: 'removed',
+                                        reason: '',
+                                    };
+                                });
+                                return next;
+                            });
+                        }}
+                    >
+                        Confirm all removals
+                    </Button>
+                    <Button
+                        type="button"
+                        size="sm"
+                        disabled={submitting || items.length === 0}
+                        onClick={acceptAllAndSubmit}
+                    >
+                        {submitting ? 'Saving…' : 'Accept all & finish'}
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                        Accept picks a choice per row; finish saves and clears
+                        the banner. Use the Table tab to review each shift
+                        first.
+                    </p>
+                </div>
 
                 <div className="mb-4 flex gap-1 border-b border-border">
                     <button
