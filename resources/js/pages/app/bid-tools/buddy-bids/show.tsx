@@ -5,10 +5,6 @@ import { BuddyBidRotationPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bi
 import { BuddyBidSnapshotsPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-snapshots-panel';
 import { BuddyBidSummaryPanel } from '@/pages/app/bid-tools/buddy-bids/buddy-bid-summary-panel';
 import {
-    downloadBuddyBidGcalSmokeTest,
-    countBuddyBidGcalSmokeTestEvents,
-} from '@/pages/app/bid-tools/buddy-bids/buddy-bid-gcal-smoke-test-export';
-import {
     buildBuddyBidGoogleCalendarIcs,
     downloadBuddyBidGoogleCalendar,
     slugifyFilenamePart,
@@ -323,48 +319,6 @@ export default function BuddyBidsShow({
                                         Google Cal ({p.display_name})
                                     </Button>
                                 ))}
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    type="button"
-                                    title={`Feb 2027 smoke fixture only (~${countBuddyBidGcalSmokeTestEvents(1)} events per buddy, not your full plan)`}
-                                    onClick={() =>
-                                        downloadBuddyBidGcalSmokeTest(1)
-                                    }
-                                >
-                                    <CalendarArrowDown className="mr-2 h-4 w-4" />
-                                    Test GCal import (AM buddy)
-                                </Button>
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    type="button"
-                                    title={`Feb 2027 smoke fixture only (~${countBuddyBidGcalSmokeTestEvents(2)} events per buddy, not your full plan)`}
-                                    onClick={() =>
-                                        downloadBuddyBidGcalSmokeTest(2)
-                                    }
-                                >
-                                    <CalendarArrowDown className="mr-2 h-4 w-4" />
-                                    Test GCal import (PM buddy)
-                                </Button>
-                                <Button variant="outline" size="sm" asChild>
-                                    <a
-                                        href="/samples/buddy-bid-gcal-test-feb2027-smoke-am.ics"
-                                        download
-                                        title="Committed sample file (same as Test GCal AM)"
-                                    >
-                                        Static test file (AM)
-                                    </a>
-                                </Button>
-                                <Button variant="outline" size="sm" asChild>
-                                    <a
-                                        href="/samples/buddy-bid-gcal-test-feb2027-smoke-pm.ics"
-                                        download
-                                        title="Committed sample file (same as Test GCal PM)"
-                                    >
-                                        Static test file (PM)
-                                    </a>
-                                </Button>
                             </>
                         )}
                         <Button
